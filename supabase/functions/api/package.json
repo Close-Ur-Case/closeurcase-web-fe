@@ -1,0 +1,10 @@
+{
+  "name": "closeurcase-api-function",
+  "version": "1.0.0",
+  "description": "CloseUrCase Backend API Edge Function",
+  "private": true,
+  "scripts": {
+    "dev": "npx -y deno run --watch --allow-net --allow-env --allow-read index.ts",
+    "start": "npx -y deno run --allow-net --allow-env --allow-read index.ts"
+  }
+}

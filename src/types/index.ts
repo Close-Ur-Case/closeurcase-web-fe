@@ -92,6 +92,7 @@ export interface Lawyer {
   bankName?: string;
   accountNumber?: string;
   ifscCode?: string;
+  password?: string;
 }
 
 export type SubscriptionPlanId = "free" | "monthly" | "yearly";

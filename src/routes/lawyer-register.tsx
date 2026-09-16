@@ -9,10 +9,14 @@ import {
   CheckCircle2,
   ChevronLeft,
   ChevronRight,
+  Eye,
+  EyeOff,
+  Lock,
   Mail,
   Phone,
   Plus,
   Scale,
+  ShieldCheck,
   Upload,
   User,
   X,
@@ -33,6 +37,7 @@ import {
   validateName,
   validatePhone,
   validateEmail,
+  validatePassword,
 } from "@/lib/validations";
 import { INDIAN_COURTS, INDIAN_CITIES, INDIAN_LANGUAGES } from "@/data/courts";
 import {
@@ -64,6 +69,10 @@ const STEP_META = [
   {
     label: "Verify your identity",
     desc: "Confirm your official email and mobile number to begin.",
+  },
+  {
+    label: "Security",
+    desc: "Set up a secure password to access your lawyer portal.",
   },
   { label: "Your details", desc: "Tell us who you are and where you practise." },
   {
@@ -102,19 +111,21 @@ export const Route = createFileRoute("/lawyer-register")({
   component: LawyerRegister,
 });
 
-/** 5 Dedicated Steps:
+/** 6 Dedicated Steps:
  * 1. Verification (Email & Mobile Phone verification with OTP)
- * 2. Your details (Registration type, Photo, Full Name, Service Districts)
- * 3. Practice areas (3-tier categories, specializations, legal services)
- * 4. Credentials (Bar ID, Experience, Languages, Courts, Address, Bio)
- * 5. Submit (Awards, ID proof, Declaration, Submit application)
+ * 2. Security (Password & Confirm Password credentials)
+ * 3. Your details (Registration type, Photo, Full Name, Service Districts)
+ * 4. Practice areas (3-tier categories, specializations, legal services)
+ * 5. Credentials (Bar ID, Experience, Languages, Courts, Address, Bio)
+ * 6. Submit (Awards, ID proof, Declaration, Submit application)
  */
 const REGISTER_STEPS: FormStep[] = [
   { id: 1, label: "Verification" },
-  { id: 2, label: "Your details" },
-  { id: 3, label: "Practice areas" },
-  { id: 4, label: "Credentials" },
-  { id: 5, label: "Submit" },
+  { id: 2, label: "Security" },
+  { id: 3, label: "Your details" },
+  { id: 4, label: "Practice areas" },
+  { id: 5, label: "Credentials" },
+  { id: 6, label: "Submit" },
 ];
 
 function Step({ n, current, children }: { n: number; current: number; children: ReactNode }) {
@@ -356,7 +367,18 @@ function LawyerRegister() {
   const emailRes = validateEmail(email);
   const phoneRes = validatePhone(phone);
 
-  // Step 2: Your details
+  // Step 2: Security
+  const [password, setPassword] = useState("");
+  const [passwordTouched, setPasswordTouched] = useState(false);
+  const [confirmPassword, setConfirmPassword] = useState("");
+  const [confirmPasswordTouched, setConfirmPasswordTouched] = useState(false);
+  const [showPassword, setShowPassword] = useState(false);
+  const [showConfirmPassword, setShowConfirmPassword] = useState(false);
+
+  const passwordRes = validatePassword(password);
+  const passwordsMatch = password.length > 0 && password === confirmPassword;
+
+  // Step 3: Your details
   const [registrationType, setRegistrationType] = useState<"lawyer" | "firm">("lawyer");
   const isFirm = registrationType === "firm";
 
@@ -602,23 +624,30 @@ function LawyerRegister() {
       return null;
     }
     if (s === 2) {
+      if (!password) return "Please enter a password.";
+      if (!passwordRes.isValid) return passwordRes.error || "Password must be at least 6 characters.";
+      if (!confirmPassword) return "Please confirm your password.";
+      if (password !== confirmPassword) return "Passwords do not match.";
+      return null;
+    }
+    if (s === 3) {
       if (!name.trim())
         return isFirm ? "Please enter your organisation name." : "Please enter your full name.";
       if (!nameRes.isValid) return nameRes.error || "Name must contain letters only.";
       if (cities.length === 0) return "Please select at least one service district.";
       return null;
     }
-    if (s === 3) {
+    if (s === 4) {
       if (selectedPracticeEntries.length === 0) {
         return "Please add at least one practice category and specialization.";
       }
       return null;
     }
-    if (s === 4) {
+    if (s === 5) {
       if (!barId.trim()) return "Please enter your Bar Registration ID.";
       return null;
     }
-    if (s === 5) {
+    if (s === 6) {
       if (!declarationAccepted) return "Please accept the declaration to submit.";
       return null;
     }
@@ -641,28 +670,46 @@ function LawyerRegister() {
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    setNameTouched(true);
     setEmailTouched(true);
     setPhoneTouched(true);
+    setPasswordTouched(true);
+    setConfirmPasswordTouched(true);
+    setNameTouched(true);
 
     if (!emailVerified || !phoneVerified) {
       setStep(1);
       setStepError("Please verify your email and mobile number.");
       return;
     }
-    if (!name.trim() || !nameRes.isValid || cities.length === 0) {
+    if (!password || !passwordRes.isValid || password !== confirmPassword) {
       setStep(2);
+      setStepError(
+        !password
+          ? "Please enter a password."
+          : !passwordRes.isValid
+            ? passwordRes.error || "Password must be at least 6 characters."
+            : "Passwords do not match.",
+      );
+      return;
+    }
+    if (!name.trim() || !nameRes.isValid || cities.length === 0) {
+      setStep(3);
       setStepError("Please enter your name and select service districts.");
       return;
     }
     if (selectedPracticeEntries.length === 0) {
-      setStep(3);
+      setStep(4);
       setStepError("Please add at least one practice category.");
       return;
     }
     if (!barId.trim()) {
-      setStep(4);
+      setStep(5);
       setStepError("Please provide your Bar Registration ID.");
+      return;
+    }
+    if (!declarationAccepted) {
+      setStep(6);
+      setStepError("Please accept the declaration to submit.");
       return;
     }
 
@@ -681,6 +728,7 @@ function LawyerRegister() {
       roleTitle: isFirm ? "Law Firm / Organisation" : "Advocate",
       email: email.trim() || "lawyer@CloseUrCase.app",
       phone: phone.trim() || "+91 98100 12345",
+      password: password || undefined,
       barId: barId.trim() || "BAR/2026/001",
       city: cities[0] || "Hyderabad",
       cities: cities.length ? cities : undefined,
@@ -897,9 +945,104 @@ function LawyerRegister() {
           </Step>
 
           {/* ══════════════════════════════════════════════════════════════════════
-            STEP 2: YOUR DETAILS
+            STEP 2: SECURITY
            ══════════════════════════════════════════════════════════════════════ */}
           <Step n={2} current={step}>
+            <div className="space-y-4">
+              <div className="flex items-start gap-3 rounded-2xl border border-border bg-card p-3.5 shadow-xs sm:p-4">
+                <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-primary/10 text-primary">
+                  <ShieldCheck className="h-5 w-5" />
+                </div>
+                <div className="min-w-0 flex-1">
+                  <h3 className="text-sm font-semibold text-foreground">Create account password</h3>
+                  <p className="mt-0.5 text-xs text-muted-foreground leading-relaxed">
+                    Set up your login password. You will use your verified email (<span className="font-medium text-foreground">{email || "your email"}</span>) and this password to sign in to your Lawyer Workspace.
+                  </p>
+                </div>
+              </div>
+
+              <div className="space-y-3.5">
+                <div className="space-y-1">
+                  <TextField
+                    label="Password"
+                    type={showPassword ? "text" : "password"}
+                    required
+                    value={password}
+                    onChange={(v) => {
+                      setPassword(v);
+                      setPasswordTouched(true);
+                    }}
+                    placeholder="Enter password (min 6 characters)"
+                    leadingIcon={<Lock className="h-4 w-4" />}
+                    trailingIcon={
+                      <IconButton
+                        ariaLabel={showPassword ? "Hide password" : "Show password"}
+                        onClick={() => setShowPassword((v) => !v)}
+                      >
+                        {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                      </IconButton>
+                    }
+                    error={passwordTouched && !passwordRes.isValid}
+                    className="w-full"
+                  />
+                  {passwordTouched && !passwordRes.isValid && (
+                    <p className="text-[11px] font-medium text-destructive">{passwordRes.error}</p>
+                  )}
+                </div>
+
+                <div className="space-y-1">
+                  <TextField
+                    label="Confirm Password"
+                    type={showConfirmPassword ? "text" : "password"}
+                    required
+                    value={confirmPassword}
+                    onChange={(v) => {
+                      setConfirmPassword(v);
+                      setConfirmPasswordTouched(true);
+                    }}
+                    placeholder="Re-enter your password"
+                    leadingIcon={<Lock className="h-4 w-4" />}
+                    trailingIcon={
+                      <IconButton
+                        ariaLabel={showConfirmPassword ? "Hide confirm password" : "Show confirm password"}
+                        onClick={() => setShowConfirmPassword((v) => !v)}
+                      >
+                        {showConfirmPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                      </IconButton>
+                    }
+                    error={confirmPasswordTouched && confirmPassword.length > 0 && !passwordsMatch}
+                    className="w-full"
+                  />
+                  {confirmPasswordTouched && confirmPassword.length > 0 && !passwordsMatch && (
+                    <p className="text-[11px] font-medium text-destructive">Passwords do not match.</p>
+                  )}
+                  {passwordsMatch && (
+                    <div className="flex items-center gap-1.5 pt-0.5 text-xs font-medium text-emerald-600">
+                      <CheckCircle2 className="h-3.5 w-3.5" />
+                      <span>Passwords match</span>
+                    </div>
+                  )}
+                </div>
+              </div>
+
+              <div className="rounded-xl bg-muted/40 p-3 text-xs text-muted-foreground">
+                <div className="font-semibold text-foreground">Password requirements:</div>
+                <ul className="mt-1 space-y-1 pl-4 list-disc">
+                  <li className={password.length >= 6 ? "text-emerald-600 font-medium" : ""}>
+                    At least 6 characters in length
+                  </li>
+                  <li className={passwordsMatch ? "text-emerald-600 font-medium" : ""}>
+                    Password and confirm password must match exactly
+                  </li>
+                </ul>
+              </div>
+            </div>
+          </Step>
+
+          {/* ══════════════════════════════════════════════════════════════════════
+            STEP 3: YOUR DETAILS
+           ══════════════════════════════════════════════════════════════════════ */}
+          <Step n={3} current={step}>
             <div className="space-y-3">
               {/* Registration Type Toggle */}
               <div className="grid w-full grid-cols-2 gap-1 rounded-xl border border-border bg-muted/60 p-1">
@@ -1016,9 +1159,9 @@ function LawyerRegister() {
           </Step>
 
           {/* ══════════════════════════════════════════════════════════════════════
-            STEP 3: PRACTICE AREAS
+            STEP 4: PRACTICE AREAS
            ══════════════════════════════════════════════════════════════════════ */}
-          <Step n={3} current={step}>
+          <Step n={4} current={step}>
             <div className="space-y-3">
               <div className="grid min-w-0 grid-cols-1 gap-2.5 sm:grid-cols-2 *:min-w-0">
                 <Select
@@ -1135,9 +1278,9 @@ function LawyerRegister() {
           </Step>
 
           {/* ══════════════════════════════════════════════════════════════════════
-            STEP 4: CREDENTIALS
+            STEP 5: CREDENTIALS
            ══════════════════════════════════════════════════════════════════════ */}
-          <Step n={4} current={step}>
+          <Step n={5} current={step}>
             <div className="space-y-3">
               {/* Bar ID & Experience */}
               <div className="grid min-w-0 grid-cols-1 gap-2.5 sm:grid-cols-2 *:min-w-0">
@@ -1211,9 +1354,9 @@ function LawyerRegister() {
           </Step>
 
           {/* ══════════════════════════════════════════════════════════════════════
-            STEP 5: SUBMIT
+            STEP 6: SUBMIT
            ══════════════════════════════════════════════════════════════════════ */}
-          <Step n={5} current={step}>
+          <Step n={6} current={step}>
             <div className="space-y-3">
               {/* Awards & Recognition */}
               <div className="space-y-2">

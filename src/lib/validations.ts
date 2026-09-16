@@ -90,3 +90,15 @@ export function validateCNR(cnr: string): { isValid: boolean; error?: string } {
   }
   return { isValid: true };
 }
+
+/** Validate Password */
+export function validatePassword(password: string): { isValid: boolean; error?: string } {
+  if (!password) {
+    return { isValid: false, error: "Password is required." };
+  }
+  if (password.length < 6) {
+    return { isValid: false, error: "Password must be at least 6 characters long." };
+  }
+  return { isValid: true };
+}
+

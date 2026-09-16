@@ -92,6 +92,7 @@ export function InputChip({
   selected,
   disabled,
   onRemove,
+  onClick,
   className,
 }: {
   label: string;
@@ -99,6 +100,7 @@ export function InputChip({
   selected?: boolean;
   disabled?: boolean;
   onRemove?: () => void;
+  onClick?: () => void;
   className?: string;
 }) {
   return (
@@ -107,6 +109,7 @@ export function InputChip({
       selected={selected}
       disabled={disabled}
       onRemove={onRemove}
+      onClick={onClick}
       className={className}
     >
       {icon && (
