@@ -4,6 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project
 
+
 CloseUrCase — a legal-services platform frontend connecting citizens, lawyers, and admins. This repo is the **frontend only**: a client-rendered React SPA with no backend. All "persistence" is `localStorage`/`sessionStorage` backed by seed data — see Data layer below.
 
 ## Commands
