@@ -1,15 +1,86 @@
-import { Hono } from "hono";
+import { OpenAPIHono, createRoute, z } from "@hono/zod-openapi";
 import {
   generateAgoraToken,
   logCallSession,
   getCallHistory,
 } from "../controllers/videoCallController.ts";
 import { authenticateUser } from "../middlewares/auth.ts";
+import {
+  GenerateAgoraTokenSchema,
+  LogCallSessionSchema,
+  SuccessResponseSchema,
+} from "../schemas/index.ts";
 
-const videoCall = new Hono();
+const videoCall = new OpenAPIHono();
+videoCall.use(authenticateUser);
 
-videoCall.post("/token", authenticateUser, generateAgoraToken);
-videoCall.post("/log", authenticateUser, logCallSession);
-videoCall.get("/history/:caseId", authenticateUser, getCallHistory);
+const generateTokenRoute = createRoute({
+  method: "post",
+  path: "/token",
+  tags: ["Video Calls"],
+  summary: "Generate secure Agora RTC authentication token for client-advocate call",
+  security: [{ bearerAuth: [] }],
+  request: {
+    body: {
+      content: {
+        "application/json": {
+          schema: GenerateAgoraTokenSchema,
+        },
+      },
+    },
+  },
+  responses: {
+    200: {
+      description: "RTC token generated",
+      content: { "application/json": { schema: SuccessResponseSchema } },
+    },
+  },
+});
+
+const logSessionRoute = createRoute({
+  method: "post",
+  path: "/log",
+  tags: ["Video Calls"],
+  summary: "Log completed consultation video call duration and metadata",
+  security: [{ bearerAuth: [] }],
+  request: {
+    body: {
+      content: {
+        "application/json": {
+          schema: LogCallSessionSchema,
+        },
+      },
+    },
+  },
+  responses: {
+    201: {
+      description: "Call logged",
+      content: { "application/json": { schema: SuccessResponseSchema } },
+    },
+  },
+});
+
+const getCallHistoryRoute = createRoute({
+  method: "get",
+  path: "/history/:caseId",
+  tags: ["Video Calls"],
+  summary: "Get consultation call records for a case",
+  security: [{ bearerAuth: [] }],
+  request: {
+    params: z.object({
+      caseId: z.string().openapi({ example: "c_102" }),
+    }),
+  },
+  responses: {
+    200: {
+      description: "Call history list",
+      content: { "application/json": { schema: SuccessResponseSchema } },
+    },
+  },
+});
+
+videoCall.openapi(generateTokenRoute, generateAgoraToken as any);
+videoCall.openapi(logSessionRoute, logCallSession as any);
+videoCall.openapi(getCallHistoryRoute, getCallHistory as any);
 
 export default videoCall;

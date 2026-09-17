@@ -1,4 +1,4 @@
-import { Hono } from "hono";
+import { OpenAPIHono } from "@hono/zod-openapi";
 import authRoutes from "./authRoutes.ts";
 import citizenRoutes from "./citizenRoutes.ts";
 import lawyerRoutes from "./lawyerRoutes.ts";
@@ -17,7 +17,7 @@ import subscriptionRoutes from "./subscriptionRoutes.ts";
 import emailTemplateRoutes from "./emailTemplateRoutes.ts";
 import { ApiResponse } from "../utils/apiResponse.ts";
 
-const api = new Hono();
+const api = new OpenAPIHono();
 
 api.get("/health", (c) => {
   return ApiResponse.success(
@@ -25,7 +25,7 @@ api.get("/health", (c) => {
     {
       status: "operational",
       runtime: "Supabase Edge Function (Deno)",
-      framework: "Hono",
+      framework: "Hono + @hono/zod-openapi",
       timestamp: new Date().toISOString(),
       service: "CloseUrCase Edge API",
     },
@@ -51,4 +51,3 @@ api.route("/subscriptions", subscriptionRoutes);
 api.route("/email-templates", emailTemplateRoutes);
 
 export default api;
-

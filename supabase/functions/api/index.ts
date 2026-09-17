@@ -1,13 +1,12 @@
-import { Hono } from "hono";
+import { OpenAPIHono } from "@hono/zod-openapi";
 import { cors } from "hono/cors";
 import { logger } from "hono/logger";
 import { swaggerUI } from "@hono/swagger-ui";
-import { swaggerDocument } from "./config/swagger.ts";
 import apiRoutes from "./routes/index.ts";
 import { handleHonoError, handleNotFound } from "./middlewares/errorHandler.ts";
 import { DbInitService } from "./services/dbInitService.ts";
 
-const app = new Hono();
+const app = new OpenAPIHono();
 
 // Global Logger and CORS
 app.use("*", logger());
@@ -23,18 +22,49 @@ app.use(
 );
 
 // Inner router to support both local root paths and Supabase Edge Function /api prefix
-const mainRouter = new Hono();
+const mainRouter = new OpenAPIHono();
 
-// Swagger Documentation UI
+// Mount standard V1 API routes
+mainRouter.route("/v1", apiRoutes);
+
+// Dynamic OpenAPI Documentation generated directly in-memory from Zod schemas
+mainRouter.doc("/swagger.json", {
+  openapi: "3.0.0",
+  info: {
+    title: "CloseUrCase Supabase Edge API",
+    version: "1.0.0",
+    description:
+      "Production-ready REST API for CloseUrCase Platform running natively on Deno and Supabase Edge Functions with Zod + @hono/zod-openapi.",
+  },
+  servers: [
+    {
+      url: "http://localhost:8000",
+      description: "Local Development Server",
+    },
+    {
+      url: "https://zxsizwzjktorqjlzzchg.supabase.co/functions/v1/api",
+      description: "Supabase Cloud Edge Function (Production)",
+    },
+  ],
+});
+
+mainRouter.doc("/openapi.json", {
+  openapi: "3.0.0",
+  info: {
+    title: "CloseUrCase Supabase Edge API",
+    version: "1.0.0",
+  },
+});
+
+// Swagger UI Documentation viewer
 mainRouter.get("/api-docs", swaggerUI({ url: "./swagger.json" }) as any);
-mainRouter.get("/swagger.json", (c) => c.json(swaggerDocument));
 
 // Root Health & Information
 mainRouter.get("/", (c) => {
   return c.json({
     service: "CloseUrCase Supabase Edge Function API",
     version: "1.0.0",
-    runtime: "Deno / Supabase Edge",
+    runtime: "Deno / Supabase Edge with Zod + @hono/zod-openapi",
     docs: "/api-docs",
     health: "/health",
   });
@@ -58,11 +88,8 @@ mainRouter.all("/init-db", async (c) => {
   }
 });
 
-// Mount V1 and base API routes
-mainRouter.route("/v1", apiRoutes);
-mainRouter.route("/", apiRoutes);
-
-// Mount mainRouter on BOTH "/" (local development) and "/api" (Supabase Edge Function production gateway)
+// Mount mainRouter on root, /api, and /functions/v1/api (for seamless local and cloud compatibility)
+app.route("/functions/v1/api", mainRouter);
 app.route("/api", mainRouter);
 app.route("/", mainRouter);
 
