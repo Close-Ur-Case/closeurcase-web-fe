@@ -126,14 +126,17 @@ export function LawyerProfileCard({
         <div className="space-y-2">
           <SectionTitle icon={<Briefcase className="h-3.5 w-3.5" />}>Practice Areas</SectionTitle>
           <div className="flex flex-wrap gap-1.5">
-            {lawyer.practiceAreas.map((pa) => (
-              <span
-                key={pa.name}
-                className="rounded-full border border-border bg-muted/60 px-2.5 py-1 text-[11px] font-medium text-foreground"
-              >
-                {pa.name}
-              </span>
-            ))}
+            {lawyer.practiceAreas.map((pa, idx) => {
+              const name = typeof pa === "string" ? pa : pa?.name;
+              return (
+                <span
+                  key={name || idx}
+                  className="rounded-full border border-border bg-muted/60 px-2.5 py-1 text-[11px] font-medium text-foreground"
+                >
+                  {name}
+                </span>
+              );
+            })}
           </div>
         </div>
       )}

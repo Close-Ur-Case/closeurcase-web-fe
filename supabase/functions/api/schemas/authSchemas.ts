@@ -36,13 +36,35 @@ export const LawyerRegisterSchema = z
     phone: z.string().openapi({ example: "+919876500002" }),
     password: z.string().min(6).openapi({ example: "SecretPassword123!" }),
     confirmPassword: z.string().min(6).optional().openapi({ example: "SecretPassword123!" }),
+    roleTitle: z.string().optional().openapi({ example: "Advocate" }),
+    registrationType: z.enum(["lawyer", "firm"]).optional().openapi({ example: "lawyer" }),
     barId: z.string().openapi({ example: "MAH/4567/2016" }),
     category: z.string().openapi({ example: "Family & Matrimonial" }),
     city: z.string().openapi({ example: "Mumbai" }),
     cities: z.array(z.string()).optional().openapi({ example: ["Mumbai", "Thane", "Navi Mumbai"] }),
+    practiceAreas: z
+      .array(z.string())
+      .optional()
+      .openapi({
+        example: ["Family Law", "Civil Litigation"],
+        description: "Array of lawyer practice area names",
+      }),
+    specializations: z.array(z.string()).optional().openapi({ example: ["Mutual Consent Divorce", "Child Custody"] }),
+    legalServices: z.array(z.string()).optional().openapi({ example: ["Legal Notice Drafting", "Court Representation"] }),
     experienceYears: z.number().optional().openapi({ example: 8 }),
-    consultationFee: z.number().optional().openapi({ example: 1500 }),
+    languages: z.array(z.string()).optional().openapi({
+      example: ["lang_en", "lang_hi", "lang_mr"],
+      description: "Languages spoken (accepts language IDs, names, or codes; saved as array of language IDs)",
+    }),
+    courts: z.array(z.string()).optional().openapi({ example: ["Bombay High Court", "Family Court Bandra"] }),
+    officeAddress: z.string().optional().openapi({ example: "Suite 402, Nariman Point, Mumbai" }),
     bio: z.string().optional().openapi({ example: "Specialist in family disputes, mutual consent divorce, and high court appeals." }),
+    awards: z.array(z.any()).optional().openapi({ example: [{ title: "Best Matrimonial Advocate", year: "2024" }] }),
+    photoUrl: z.string().optional().openapi({ example: "https://example.com/photos/sneha.jpg" }),
+    idProofUrl: z.string().optional().openapi({ example: "https://example.com/id-proofs/bar-card.pdf" }),
+    idProofFileName: z.string().optional().openapi({ example: "bar_id_card.pdf" }),
+    declarationAccepted: z.boolean().optional().openapi({ example: true }),
+    consultationFee: z.number().optional().openapi({ example: 1500 }),
   })
   .openapi("LawyerRegisterRequest");
 

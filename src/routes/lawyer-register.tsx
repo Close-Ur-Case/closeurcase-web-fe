@@ -742,9 +742,7 @@ function LawyerRegister() {
       specializations: specializations.length ? specializations : undefined,
       legalServices: legalServices.length ? legalServices : undefined,
       courts: courts.length ? courts : undefined,
-      practiceAreas: practiceAreas.length
-        ? practiceAreas.map((name, i) => ({ name, proficiency: Math.max(60, 95 - i * 5) }))
-        : undefined,
+      practiceAreas: practiceAreas.length ? practiceAreas : undefined,
       awards: awards.length ? awards : undefined,
       idProofUrl,
       idProofFileName: idProofFile?.name,

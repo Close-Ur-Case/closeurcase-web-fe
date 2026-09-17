@@ -3,6 +3,7 @@ import { db } from "../config/db.ts";
 import { users, citizens, lawyers, adminProfiles } from "../models/users.ts";
 import { eq } from "drizzle-orm";
 import { ApiError } from "../utils/apiError.ts";
+import { LawyerLanguageService } from "./lawyerLanguageService.ts";
 
 export class AuthService {
   static async sendCitizenOtp(
@@ -237,6 +238,10 @@ export class AuthService {
     const lawyerId = `l_${Date.now()}`;
     const today = new Date().toISOString().slice(0, 10);
 
+    const { languageIds, details: linkedLanguagesList } = await LawyerLanguageService.resolveLanguageIds(
+      lawyerData.languages || []
+    );
+
     const [lawyerRecord] = await db
       .insert(lawyers)
       .values({
@@ -246,21 +251,42 @@ export class AuthService {
         email,
         phone,
         category: category || "Civil",
-        city: city || "Hyderabad",
+        roleTitle: lawyerData.roleTitle || (lawyerData.registrationType === "firm" ? "Law Firm / Organisation" : "Advocate"),
+        registrationType: lawyerData.registrationType || "lawyer",
+        city: city || lawyerData.cities?.[0] || "Hyderabad",
+        cities: lawyerData.cities || (city ? [city] : ["Hyderabad"]),
         barId,
         experienceYears: experienceYears || 0,
         status: "Pending",
         rating: "4.8",
         activeCases: 0,
-        practiceAreas: practiceAreas || [],
+        photoUrl: lawyerData.photoUrl || null,
+        idProofUrl: lawyerData.idProofUrl || null,
+        idProofFileName: lawyerData.idProofFileName || null,
+        officeAddress: lawyerData.officeAddress || null,
+        bio: lawyerData.bio || null,
+        languages: languageIds,
+        practiceAreas: Array.isArray(practiceAreas)
+          ? practiceAreas
+              .map((pa: any) => (typeof pa === "string" ? pa.trim() : String(pa?.name || "").trim()))
+              .filter(Boolean)
+          : [],
+        specializations: lawyerData.specializations || [],
         legalServices: legalServices || [],
+        courts: lawyerData.courts || [],
+        awards: lawyerData.awards || [],
+        consultationFee: lawyerData.consultationFee || 1000,
+        declarationAccepted: lawyerData.declarationAccepted !== false,
         joinedAt: today,
       })
       .returning();
 
     return {
       message: "Lawyer registration submitted successfully. Pending administrative verification.",
-      lawyer: lawyerRecord,
+      lawyer: {
+        ...lawyerRecord,
+        languagesDetails: linkedLanguagesList,
+      },
       session: authData.session,
     };
   }

@@ -29,8 +29,20 @@ INSERT INTO public.languages (id, name, native_name, code, active) VALUES
 ('lang_hi', 'Hindi', 'हिन्दी', 'hi', true),
 ('lang_te', 'Telugu', 'తెలుగు', 'te', true),
 ('lang_ta', 'Tamil', 'தமிழ்', 'ta', true),
-('lang_kn', 'Kannada', 'ಕನ್ನಡ', 'kn', true)
-ON CONFLICT (id) DO NOTHING;
+('lang_kn', 'Kannada', 'ಕನ್ನಡ', 'kn', true),
+('lang_ml', 'Malayalam', 'മലയാളം', 'ml', true),
+('lang_mr', 'Marathi', 'मराठी', 'mr', true),
+('lang_bn', 'Bengali', 'বাংলা', 'bn', true),
+('lang_gu', 'Gujarati', 'ગુજરાતી', 'gu', true),
+('lang_or', 'Odia', 'ଓଡ଼ିଆ', 'or', true),
+('lang_pa', 'Punjabi', 'ਪੰਜਾਬੀ', 'pa', true),
+('lang_ur', 'Urdu', 'اردو', 'ur', true),
+('lang_as', 'Assamese', 'অসমীয়া', 'as', true)
+ON CONFLICT (id) DO UPDATE
+SET name = EXCLUDED.name,
+    native_name = EXCLUDED.native_name,
+    code = EXCLUDED.code,
+    active = EXCLUDED.active;
 
 -- Master Taxonomies: Court Levels
 INSERT INTO public.court_levels (id, name, code, active) VALUES
@@ -71,11 +83,15 @@ INSERT INTO public.users (id, role, email, phone) VALUES
 ('usr_l_003', 'lawyer', 'sailaja.naidu@familylaw.org', '+91 98220 33445')
 ON CONFLICT (id) DO NOTHING;
 
-INSERT INTO public.lawyers (id, user_id, name, email, phone, category, role_title, city, area, bar_id, experience_years, rating, status, active_cases, office_address, bio, languages, rating_count, consultation_fee, availability_status, bank_name, account_number, ifsc_code, joined_at) VALUES
-('l_001', 'usr_l_001', 'Adv. Swathi Reddy', 'swathi.reddy@legal.in', '+91 98765 43210', 'Civil', 'Senior Advocate — High Court', 'Hyderabad', 'Banjara Hills', 'TS/1234/2014', 12, '4.9', 'Approved', 8, 'Road No. 12, Banjara Hills, Hyderabad', 'Civil litigation, corporate writs, and property title dispute settlements.', '["English","Telugu","Hindi"]'::jsonb, 42, 1500, 'Online', 'HDFC Bank Ltd', '50100234567890', 'HDFC0001234', '2024-03-10'),
-('l_002', 'usr_l_002', 'Adv. Srinivas Chowdary', 'srinivas.chowdary@courtlaw.in', '+91 98490 11223', 'Criminal', 'Criminal Defense Advocate', 'Hyderabad', 'Gachibowli', 'TS/5678/2012', 14, '4.8', 'Approved', 11, 'Plot 45, Telecom Nagar, Gachibowli, Hyderabad', 'Courtroom experience in anticipatory bails, economic offences, and criminal revisions.', '["English","Telugu"]'::jsonb, 38, 2000, 'Online', 'State Bank of India', '38920194829', 'SBIN0004812', '2024-05-18'),
-('l_003', 'usr_l_003', 'Adv. Sailaja Naidu', 'sailaja.naidu@familylaw.org', '+91 98220 33445', 'Family', 'Family & Matrimonial Advocate', 'Visakhapatnam', 'MVP Colony', 'AP/9102/2016', 9, '4.9', 'Approved', 6, 'Sector 3, MVP Colony, Visakhapatnam', 'Expert counsel in divorce mediation, child custody, and domestic disputes.', '["English","Telugu"]'::jsonb, 29, 1200, 'Online', 'ICICI Bank', '192801948201', 'ICIC0000281', '2024-08-22')
-ON CONFLICT (id) DO NOTHING;
+INSERT INTO public.lawyers (id, user_id, name, email, phone, category, role_title, city, area, bar_id, experience_years, rating, status, active_cases, office_address, bio, languages, practice_areas, rating_count, consultation_fee, availability_status, bank_name, account_number, ifsc_code, registration_type, declaration_accepted, joined_at) VALUES
+('l_001', 'usr_l_001', 'Adv. Swathi Reddy', 'swathi.reddy@legal.in', '+91 98765 43210', 'Civil', 'Senior Advocate — High Court', 'Hyderabad', 'Banjara Hills', 'TS/1234/2014', 12, '4.9', 'Approved', 8, 'Road No. 12, Banjara Hills, Hyderabad', 'Civil litigation, corporate writs, and property title dispute settlements.', '["lang_en", "lang_te", "lang_hi"]'::jsonb, '["Civil Litigation", "Corporate Law", "Property Disputes"]'::jsonb, 42, 1500, 'Online', 'HDFC Bank Ltd', '50100234567890', 'HDFC0001234', 'lawyer', true, '2024-03-10'),
+('l_002', 'usr_l_002', 'Adv. Srinivas Chowdary', 'srinivas.chowdary@courtlaw.in', '+91 98490 11223', 'Criminal', 'Criminal Defense Advocate', 'Hyderabad', 'Gachibowli', 'TS/5678/2012', 14, '4.8', 'Approved', 11, 'Plot 45, Telecom Nagar, Gachibowli, Hyderabad', 'Courtroom experience in anticipatory bails, economic offences, and criminal revisions.', '["lang_en", "lang_te"]'::jsonb, '["Criminal Defense", "Anticipatory Bail", "Economic Offences"]'::jsonb, 38, 2000, 'Online', 'State Bank of India', '38920194829', 'SBIN0004812', 'lawyer', true, '2024-05-18'),
+('l_003', 'usr_l_003', 'Adv. Sailaja Naidu', 'sailaja.naidu@familylaw.org', '+91 98220 33445', 'Family', 'Family & Matrimonial Advocate', 'Visakhapatnam', 'MVP Colony', 'AP/9102/2016', 9, '4.9', 'Approved', 6, 'Sector 3, MVP Colony, Visakhapatnam', 'Expert counsel in divorce mediation, child custody, and domestic disputes.', '["lang_en", "lang_te"]'::jsonb, '["Family Law", "Divorce & Custody", "Maintenance & Alimony"]'::jsonb, 29, 1200, 'Online', 'ICICI Bank', '192801948201', 'ICIC0000281', 'lawyer', true, '2024-08-22')
+ON CONFLICT (id) DO UPDATE
+SET languages = EXCLUDED.languages,
+    practice_areas = EXCLUDED.practice_areas,
+    registration_type = EXCLUDED.registration_type,
+    declaration_accepted = EXCLUDED.declaration_accepted;
 
 -- 5. Legal Cases (Includes eCourts canonical case DLND020047882015 from case_structure.json)
 INSERT INTO public.cases (id, cnr, title, description, category, citizen_id, citizen_name, lawyer_id, lawyer_name, status, city, source, is_emergency, practice_area, specialization, legal_service, case_details, entity_info, files, descriptions, timeline, created_at, updated_at) VALUES
@@ -187,9 +203,13 @@ INSERT INTO public.users (id, role, email, phone) VALUES
 ('usr_l_006', 'lawyer', 'meera.nambiar@cyberlaw.in', '+91 98777 88990')
 ON CONFLICT (id) DO NOTHING;
 
-INSERT INTO public.lawyers (id, user_id, name, email, phone, category, role_title, city, area, bar_id, experience_years, rating, status, active_cases, office_address, bio, languages, rating_count, consultation_fee, availability_status, bank_name, account_number, ifsc_code, joined_at) VALUES
-('l_004', 'usr_l_004', 'Adv. Ananya Rao', 'ananya.rao@corplaw.in', '+91 98111 22334', 'Corporate', 'Corporate & M&A Specialist', 'Bengaluru', 'Indiranagar', 'KAR/3421/2015', 11, '4.9', 'Approved', 9, '100 Feet Road, Indiranagar, Bengaluru', 'Corporate restructuring, venture funding agreements, commercial arbitration.', '["English","Kannada","Hindi"]'::jsonb, 51, 2500, 'Online', 'Axis Bank', '9180200482910', 'UTIB0000421', '2024-02-15'),
-('l_005', 'usr_l_005', 'Adv. Rajeshwar Rao', 'rajeshwar.rao@propertylaw.in', '+91 98444 55667', 'Property', 'Property & Revenue Law Specialist', 'Hyderabad', 'Jubilee Hills', 'TS/7891/2010', 16, '4.8', 'Approved', 14, 'Road No. 36, Jubilee Hills, Hyderabad', 'Specialized in land acquisition, partition suits, title search, and High Court writs.', '["English","Telugu"]'::jsonb, 67, 1800, 'Online', 'State Bank of India', '20194829104', 'SBIN0001048', '2023-11-20'),
-('l_006', 'usr_l_006', 'Adv. Meera Nambiar', 'meera.nambiar@cyberlaw.in', '+91 98777 88990', 'Cyber', 'Cyber Crime & Data Privacy Counsel', 'Chennai', 'T. Nagar', 'TN/2049/2018', 8, '4.7', 'Approved', 5, 'G.N. Chetty Road, T. Nagar, Chennai', 'Handling cyber fraud, online defamation, digital evidence authentication under Section 65B.', '["English","Tamil","Malayalam"]'::jsonb, 24, 1500, 'Online', 'HDFC Bank', '50100482910492', 'HDFC0000192', '2024-06-10')
-ON CONFLICT (id) DO NOTHING;
+INSERT INTO public.lawyers (id, user_id, name, email, phone, category, role_title, city, area, bar_id, experience_years, rating, status, active_cases, office_address, bio, languages, practice_areas, rating_count, consultation_fee, availability_status, bank_name, account_number, ifsc_code, registration_type, declaration_accepted, joined_at) VALUES
+('l_004', 'usr_l_004', 'Adv. Ananya Rao', 'ananya.rao@corplaw.in', '+91 98111 22334', 'Corporate', 'Corporate & M&A Specialist', 'Bengaluru', 'Indiranagar', 'KAR/3421/2015', 11, '4.9', 'Approved', 9, '100 Feet Road, Indiranagar, Bengaluru', 'Corporate restructuring, venture funding agreements, commercial arbitration.', '["lang_en", "lang_kn", "lang_hi"]'::jsonb, '["Corporate Law", "Arbitration & Mediation", "NCLT Matters"]'::jsonb, 51, 2500, 'Online', 'Axis Bank', '9180200482910', 'UTIB0000421', 'lawyer', true, '2024-02-15'),
+('l_005', 'usr_l_005', 'Adv. Rajeshwar Rao', 'rajeshwar.rao@propertylaw.in', '+91 98444 55667', 'Property', 'Property & Revenue Law Specialist', 'Hyderabad', 'Jubilee Hills', 'TS/7891/2010', 16, '4.8', 'Approved', 14, 'Road No. 36, Jubilee Hills, Hyderabad', 'Specialized in land acquisition, partition suits, title search, and High Court writs.', '["lang_en", "lang_te"]'::jsonb, '["Property Disputes", "Partition Suits", "Real Estate (RERA)"]'::jsonb, 67, 1800, 'Online', 'State Bank of India', '20194829104', 'SBIN0001048', 'lawyer', true, '2023-11-20'),
+('l_006', 'usr_l_006', 'Adv. Meera Nambiar', 'meera.nambiar@cyberlaw.in', '+91 98777 88990', 'Cyber', 'Cyber Crime & Data Privacy Counsel', 'Chennai', 'T. Nagar', 'TN/2049/2018', 8, '4.7', 'Approved', 5, 'G.N. Chetty Road, T. Nagar, Chennai', 'Handling cyber fraud, online defamation, digital evidence authentication under Section 65B.', '["lang_en", "lang_ta", "lang_ml"]'::jsonb, '["Cyber Law", "Data Privacy", "Fraud & Financial Crime"]'::jsonb, 24, 1500, 'Online', 'HDFC Bank', '50100482910492', 'HDFC0000192', 'lawyer', true, '2024-06-10')
+ON CONFLICT (id) DO UPDATE
+SET languages = EXCLUDED.languages,
+    practice_areas = EXCLUDED.practice_areas,
+    registration_type = EXCLUDED.registration_type,
+    declaration_accepted = EXCLUDED.declaration_accepted;
 

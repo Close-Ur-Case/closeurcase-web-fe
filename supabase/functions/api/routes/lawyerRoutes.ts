@@ -8,6 +8,8 @@ import {
   toggleAvailability,
   updateBankDetails,
   moderateLawyer,
+  getLawyerLanguages,
+  setLawyerLanguages,
 } from "../controllers/lawyerController.ts";
 import { optionalAuth } from "../middlewares/auth.ts";
 import {
@@ -16,6 +18,7 @@ import {
   UpdateBankDetailsSchema,
   ModerateLawyerSchema,
   SubmitRatingSchema,
+  SyncLawyerLanguagesSchema,
   SuccessResponseSchema,
 } from "../schemas/index.ts";
 
@@ -32,6 +35,7 @@ const getLawyersRoute = createRoute({
       search: z.string().optional(),
       city: z.string().optional(),
       practiceArea: z.string().optional(),
+      language: z.string().optional().openapi({ example: "Telugu", description: "Filter advocates by language name, code, or ID" }),
     }),
   },
   responses: {
@@ -212,6 +216,49 @@ const submitRatingRoute = createRoute({
   },
 });
 
+const getLawyerLanguagesRoute = createRoute({
+  method: "get",
+  path: "/:id/languages",
+  tags: ["Lawyers"],
+  summary: "Get languages linked to advocate from master data table",
+  request: {
+    params: z.object({
+      id: z.string().openapi({ example: "l_001", description: "Lawyer ID" }),
+    }),
+  },
+  responses: {
+    200: {
+      description: "List of master data languages linked to this advocate",
+      content: { "application/json": { schema: SuccessResponseSchema } },
+    },
+  },
+});
+
+const setLawyerLanguagesRoute = createRoute({
+  method: "put",
+  path: "/:id/languages",
+  tags: ["Lawyers"],
+  summary: "Synchronize advocate linked languages with master data table",
+  request: {
+    params: z.object({
+      id: z.string().openapi({ example: "l_001", description: "Lawyer ID" }),
+    }),
+    body: {
+      content: {
+        "application/json": {
+          schema: SyncLawyerLanguagesSchema,
+        },
+      },
+    },
+  },
+  responses: {
+    200: {
+      description: "Languages linked and synchronized successfully",
+      content: { "application/json": { schema: SuccessResponseSchema } },
+    },
+  },
+});
+
 lawyer.openapi(getLawyersRoute, getLawyers as any);
 lawyer.openapi(getLawyerByIdRoute, getLawyerById as any);
 lawyer.openapi(updateLawyerProfileRoute, updateLawyerProfile as any);
@@ -220,5 +267,7 @@ lawyer.openapi(moderateLawyerRoute, moderateLawyer as any);
 lawyer.openapi(toggleAvailabilityRoute, toggleAvailability as any);
 lawyer.openapi(updateBankDetailsRoute, updateBankDetails as any);
 lawyer.openapi(submitRatingRoute, submitRating as any);
+lawyer.openapi(getLawyerLanguagesRoute, getLawyerLanguages as any);
+lawyer.openapi(setLawyerLanguagesRoute, setLawyerLanguages as any);
 
 export default lawyer;

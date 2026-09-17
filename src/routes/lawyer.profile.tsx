@@ -338,9 +338,7 @@ function LawyerProfileForm({ lawyer }: { lawyer: NonNullable<ReturnType<typeof g
       new Set(selectedPracticeEntries.map((pe) => pe.specialization)),
     );
     const legalServices = Array.from(new Set(selectedPracticeEntries.map((pe) => pe.legalService)));
-    const practiceAreas = Array.from(
-      new Set(selectedPracticeEntries.map((pe) => pe.practiceArea)),
-    ).map((name, i) => ({ name, proficiency: Math.max(65, 95 - i * 5) }));
+    const practiceAreas = Array.from(new Set(selectedPracticeEntries.map((pe) => pe.practiceArea)));
 
     updateLawyerProfile(lawyer.id, {
       name,

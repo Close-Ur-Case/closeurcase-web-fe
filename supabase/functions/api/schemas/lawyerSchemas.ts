@@ -1,5 +1,24 @@
 import { z } from "@hono/zod-openapi";
 
+export const LinkedLanguageSchema = z
+  .object({
+    id: z.string().openapi({ example: "lang_te", description: "Master data language ID" }),
+    name: z.string().openapi({ example: "Telugu", description: "Language name in English" }),
+    nativeName: z.string().openapi({ example: "తెలుగు", description: "Native language script name" }),
+    code: z.string().openapi({ example: "te", description: "ISO 639-1 language code" }),
+    active: z.boolean().openapi({ example: true }),
+  })
+  .openapi("LinkedLanguage");
+
+export const SyncLawyerLanguagesSchema = z
+  .object({
+    languages: z.array(z.string()).openapi({
+      example: ["lang_en", "lang_te", "lang_hi"],
+      description: "Array of language IDs (e.g. lang_en, lang_te) or names/codes to save in lawyers.languages",
+    }),
+  })
+  .openapi("SyncLawyerLanguagesRequest");
+
 export const UpdateLawyerProfileSchema = z
   .object({
     name: z.string().optional().openapi({ example: "Adv. Sneha Kulkarni" }),
@@ -7,7 +26,19 @@ export const UpdateLawyerProfileSchema = z
     consultationFee: z.number().optional().openapi({ example: 2000 }),
     experienceYears: z.number().optional().openapi({ example: 10 }),
     cities: z.array(z.string()).optional().openapi({ example: ["Mumbai", "Pune"] }),
-    languages: z.array(z.string()).optional().openapi({ example: ["English", "Hindi", "Marathi"] }),
+    practiceAreas: z
+      .array(z.string())
+      .optional()
+      .openapi({
+        example: ["Corporate Law", "Arbitration"],
+        description: "Array of practice area names",
+      }),
+    specializations: z.array(z.string()).optional().openapi({ example: ["Corporate", "Arbitration"] }),
+    legalServices: z.array(z.string()).optional().openapi({ example: ["Contract Review", "Arbitration Consultation"] }),
+    languages: z.array(z.string()).optional().openapi({
+      example: ["lang_en", "lang_te", "lang_hi"],
+      description: "Array of master data language IDs saved in languages column",
+    }),
   })
   .openapi("UpdateLawyerProfileRequest");
 

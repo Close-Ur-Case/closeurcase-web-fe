@@ -1,14 +1,14 @@
 import { client } from "../config/db.ts";
 
 export class DbInitService {
-  /**
-   * Initializes all 20 database tables and seeds mockup data on first run
-   */
-  static async initializeDatabase() {
-    console.log("Initializing database tables and seed data...");
+    /**
+     * Initializes all 20 database tables and seeds mockup data on first run
+     */
+    static async initializeDatabase() {
+        console.log("Initializing database tables and seed data...");
 
-    // 1. Schema Tables DDL
-    const schemaSql = `
+        // 1. Schema Tables DDL
+        const schemaSql = `
       CREATE TABLE IF NOT EXISTS public.users (
           id VARCHAR(128) PRIMARY KEY,
           role VARCHAR(32) NOT NULL DEFAULT 'citizen',
@@ -83,6 +83,8 @@ export class DbInitService {
       );
 
       ALTER TABLE public.lawyers ADD COLUMN IF NOT EXISTS cities JSONB DEFAULT '[]'::jsonb;
+      ALTER TABLE public.lawyers ADD COLUMN IF NOT EXISTS registration_type VARCHAR(32) DEFAULT 'lawyer';
+      ALTER TABLE public.lawyers ADD COLUMN IF NOT EXISTS declaration_accepted BOOLEAN DEFAULT TRUE;
 
       CREATE TABLE IF NOT EXISTS public.admin_profiles (
           id VARCHAR(64) PRIMARY KEY,
@@ -412,18 +414,49 @@ export class DbInitService {
           created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW() NOT NULL
       );
 
+      DROP TABLE IF EXISTS public.lawyer_languages CASCADE;
+      CREATE INDEX IF NOT EXISTS idx_lawyers_languages ON public.lawyers USING gin (languages);
       CREATE INDEX IF NOT EXISTS idx_cases_cnr ON public.cases (cnr);
       CREATE INDEX IF NOT EXISTS idx_cases_case_details ON public.cases USING gin (case_details);
       CREATE INDEX IF NOT EXISTS idx_cases_entity_info ON public.cases USING gin (entity_info);
       CREATE INDEX IF NOT EXISTS idx_case_hearings_case_id ON public.case_hearings (case_id);
       CREATE INDEX IF NOT EXISTS idx_case_orders_case_id ON public.case_orders (case_id);
+
+      CREATE OR REPLACE FUNCTION public.validate_lawyer_languages()
+      RETURNS trigger AS $$
+      DECLARE
+          invalid_lang text;
+      BEGIN
+          IF NEW.languages IS NULL OR jsonb_array_length(NEW.languages) = 0 THEN
+              RETURN NEW;
+          END IF;
+
+          SELECT val INTO invalid_lang
+          FROM jsonb_array_elements_text(NEW.languages) AS val
+          LEFT JOIN public.languages l ON l.id = val
+          WHERE l.id IS NULL
+          LIMIT 1;
+
+          IF invalid_lang IS NOT NULL THEN
+              RAISE EXCEPTION 'Foreign key violation: language ID "%" does not exist in public.languages table', invalid_lang;
+          END IF;
+
+          RETURN NEW;
+      END;
+      $$ LANGUAGE plpgsql;
+
+      DROP TRIGGER IF EXISTS trg_validate_lawyer_languages ON public.lawyers;
+      CREATE TRIGGER trg_validate_lawyer_languages
+      BEFORE INSERT OR UPDATE OF languages ON public.lawyers
+      FOR EACH ROW
+      EXECUTE FUNCTION public.validate_lawyer_languages();
     `;
 
-    await client.unsafe(schemaSql);
-    console.log("Tables verified / created successfully.");
+        await client.unsafe(schemaSql);
+        console.log("Tables verified / created successfully.");
 
-    // 2. Seed Mockup Data
-    const seedSql = `
+        // 2. Seed Mockup Data
+        const seedSql = `
       -- Master Categories
       INSERT INTO public.case_categories (id, name, code, description, sub_categories, active) VALUES
       ('cat_1', 'Criminal Defense', 'CRIM', 'Bail, trials, appeals, and white-collar defence across criminal courts', '[{"name":"Anticipatory Bail","services":["File Anticipatory Bail Application","Anticipatory Bail Hearing"]},{"name":"Criminal Defense","services":["File Criminal Case","Criminal Defense"]}]'::jsonb, true),
@@ -451,8 +484,20 @@ export class DbInitService {
       ('lang_hi', 'Hindi', 'हिन्दी', 'hi', true),
       ('lang_te', 'Telugu', 'తెలుగు', 'te', true),
       ('lang_ta', 'Tamil', 'தமிழ்', 'ta', true),
-      ('lang_kn', 'Kannada', 'ಕನ್ನಡ', 'kn', true)
-      ON CONFLICT (id) DO NOTHING;
+      ('lang_kn', 'Kannada', 'ಕನ್ನಡ', 'kn', true),
+      ('lang_ml', 'Malayalam', 'മലയാളം', 'ml', true),
+      ('lang_mr', 'Marathi', 'मराठी', 'mr', true),
+      ('lang_bn', 'Bengali', 'বাংলা', 'bn', true),
+      ('lang_gu', 'Gujarati', 'ગુજરાતી', 'gu', true),
+      ('lang_or', 'Odia', 'ଓଡ଼ିଆ', 'or', true),
+      ('lang_pa', 'Punjabi', 'ਪੰਜਾਬੀ', 'pa', true),
+      ('lang_ur', 'Urdu', 'اردو', 'ur', true),
+      ('lang_as', 'Assamese', 'অসমীয়া', 'as', true)
+      ON CONFLICT (id) DO UPDATE
+      SET name = EXCLUDED.name,
+          native_name = EXCLUDED.native_name,
+          code = EXCLUDED.code,
+          active = EXCLUDED.active;
 
       -- Court Levels
       INSERT INTO public.court_levels (id, name, code, active) VALUES
@@ -497,12 +542,12 @@ export class DbInitService {
       ON CONFLICT (id) DO NOTHING;
 
       INSERT INTO public.lawyers (id, user_id, name, email, phone, category, role_title, city, cities, area, bar_id, experience_years, rating, status, active_cases, office_address, bio, languages, rating_count, consultation_fee, availability_status, bank_name, account_number, ifsc_code, joined_at) VALUES
-      ('l_001', 'usr_l_001', 'Adv. Swathi Reddy', 'swathi.reddy@legal.in', '+91 98765 43210', 'Civil', 'Senior Advocate — High Court', 'Hyderabad', '["Hyderabad","Secunderabad"]'::jsonb, 'Banjara Hills', 'TS/1234/2014', 12, '4.9', 'Approved', 8, 'Road No. 12, Banjara Hills, Hyderabad', 'Civil litigation, corporate writs, and property title dispute settlements.', '["English","Telugu","Hindi"]'::jsonb, 42, 1500, 'Online', 'HDFC Bank Ltd', '50100234567890', 'HDFC0001234', '2024-03-10'),
-      ('l_002', 'usr_l_002', 'Adv. Srinivas Chowdary', 'srinivas.chowdary@courtlaw.in', '+91 98490 11223', 'Criminal', 'Criminal Defense Advocate', 'Hyderabad', '["Hyderabad"]'::jsonb, 'Gachibowli', 'TS/5678/2012', 14, '4.8', 'Approved', 11, 'Plot 45, Telecom Nagar, Gachibowli, Hyderabad', 'Courtroom experience in anticipatory bails, economic offences, and criminal revisions.', '["English","Telugu"]'::jsonb, 38, 2000, 'Online', 'State Bank of India', '38920194829', 'SBIN0004812', '2024-05-18'),
-      ('l_003', 'usr_l_003', 'Adv. Sailaja Naidu', 'sailaja.naidu@familylaw.org', '+91 98220 33445', 'Family', 'Family & Matrimonial Advocate', 'Visakhapatnam', '["Visakhapatnam"]'::jsonb, 'MVP Colony', 'AP/9102/2016', 9, '4.9', 'Approved', 6, 'Sector 3, MVP Colony, Visakhapatnam', 'Expert counsel in divorce mediation, child custody, and domestic disputes.', '["English","Telugu"]'::jsonb, 29, 1200, 'Online', 'ICICI Bank', '192801948201', 'ICIC0000281', '2024-08-22'),
-      ('l_004', 'usr_l_004', 'Adv. Ananya Rao', 'ananya.rao@corplaw.in', '+91 98111 22334', 'Corporate', 'Corporate & M&A Specialist', 'Bengaluru', '["Bengaluru"]'::jsonb, 'Indiranagar', 'KAR/3421/2015', 11, '4.9', 'Approved', 9, '100 Feet Road, Indiranagar, Bengaluru', 'Corporate restructuring, venture funding agreements, commercial arbitration.', '["English","Kannada","Hindi"]'::jsonb, 51, 2500, 'Online', 'Axis Bank', '9180200482910', 'UTIB0000421', '2024-02-15'),
-      ('l_005', 'usr_l_005', 'Adv. Rajeshwar Rao', 'rajeshwar.rao@propertylaw.in', '+91 98444 55667', 'Property', 'Property & Revenue Law Specialist', 'Hyderabad', '["Hyderabad"]'::jsonb, 'Jubilee Hills', 'TS/7891/2010', 16, '4.8', 'Approved', 14, 'Road No. 36, Jubilee Hills, Hyderabad', 'Specialized in land acquisition, partition suits, title search, and High Court writs.', '["English","Telugu"]'::jsonb, 67, 1800, 'Online', 'State Bank of India', '20194829104', 'SBIN0001048', '2023-11-20'),
-      ('l_006', 'usr_l_006', 'Adv. Meera Nambiar', 'meera.nambiar@cyberlaw.in', '+91 98777 88990', 'Cyber', 'Cyber Crime & Data Privacy Counsel', 'Chennai', '["Chennai"]'::jsonb, 'T. Nagar', 'TN/2049/2018', 8, '4.7', 'Approved', 5, 'G.N. Chetty Road, T. Nagar, Chennai', 'Handling cyber fraud, online defamation, digital evidence authentication under Section 65B.', '["English","Tamil","Malayalam"]'::jsonb, 24, 1500, 'Online', 'HDFC Bank', '50100482910492', 'HDFC0000192', '2024-06-10')
+      ('l_001', 'usr_l_001', 'Adv. Swathi Reddy', 'swathi.reddy@legal.in', '+91 98765 43210', 'Civil', 'Senior Advocate — High Court', 'Hyderabad', '["Hyderabad","Secunderabad"]'::jsonb, 'Banjara Hills', 'TS/1234/2014', 12, '4.9', 'Approved', 8, 'Road No. 12, Banjara Hills, Hyderabad', 'Civil litigation, corporate writs, and property title dispute settlements.', '["lang_en","lang_te","lang_hi"]'::jsonb, 42, 1500, 'Online', 'HDFC Bank Ltd', '50100234567890', 'HDFC0001234', '2024-03-10'),
+      ('l_002', 'usr_l_002', 'Adv. Srinivas Chowdary', 'srinivas.chowdary@courtlaw.in', '+91 98490 11223', 'Criminal', 'Criminal Defense Advocate', 'Hyderabad', '["Hyderabad"]'::jsonb, 'Gachibowli', 'TS/5678/2012', 14, '4.8', 'Approved', 11, 'Plot 45, Telecom Nagar, Gachibowli, Hyderabad', 'Courtroom experience in anticipatory bails, economic offences, and criminal revisions.', '["lang_en","lang_te"]'::jsonb, 38, 2000, 'Online', 'State Bank of India', '38920194829', 'SBIN0004812', '2024-05-18'),
+      ('l_003', 'usr_l_003', 'Adv. Sailaja Naidu', 'sailaja.naidu@familylaw.org', '+91 98220 33445', 'Family', 'Family & Matrimonial Advocate', 'Visakhapatnam', '["Visakhapatnam"]'::jsonb, 'MVP Colony', 'AP/9102/2016', 9, '4.9', 'Approved', 6, 'Sector 3, MVP Colony, Visakhapatnam', 'Expert counsel in divorce mediation, child custody, and domestic disputes.', '["lang_en","lang_te"]'::jsonb, 29, 1200, 'Online', 'ICICI Bank', '192801948201', 'ICIC0000281', '2024-08-22'),
+      ('l_004', 'usr_l_004', 'Adv. Ananya Rao', 'ananya.rao@corplaw.in', '+91 98111 22334', 'Corporate', 'Corporate & M&A Specialist', 'Bengaluru', '["Bengaluru"]'::jsonb, 'Indiranagar', 'KAR/3421/2015', 11, '4.9', 'Approved', 9, '100 Feet Road, Indiranagar, Bengaluru', 'Corporate restructuring, venture funding agreements, commercial arbitration.', '["lang_en","lang_kn","lang_hi"]'::jsonb, 51, 2500, 'Online', 'Axis Bank', '9180200482910', 'UTIB0000421', '2024-02-15'),
+      ('l_005', 'usr_l_005', 'Adv. Rajeshwar Rao', 'rajeshwar.rao@propertylaw.in', '+91 98444 55667', 'Property', 'Property & Revenue Law Specialist', 'Hyderabad', '["Hyderabad"]'::jsonb, 'Jubilee Hills', 'TS/7891/2010', 16, '4.8', 'Approved', 14, 'Road No. 36, Jubilee Hills, Hyderabad', 'Specialized in land acquisition, partition suits, title search, and High Court writs.', '["lang_en","lang_te"]'::jsonb, 67, 1800, 'Online', 'State Bank of India', '20194829104', 'SBIN0001048', '2023-11-20'),
+      ('l_006', 'usr_l_006', 'Adv. Meera Nambiar', 'meera.nambiar@cyberlaw.in', '+91 98777 88990', 'Cyber', 'Cyber Crime & Data Privacy Counsel', 'Chennai', '["Chennai"]'::jsonb, 'T. Nagar', 'TN/2049/2018', 8, '4.7', 'Approved', 5, 'G.N. Chetty Road, T. Nagar, Chennai', 'Handling cyber fraud, online defamation, digital evidence authentication under Section 65B.', '["lang_en","lang_ta","lang_ml"]'::jsonb, 24, 1500, 'Online', 'HDFC Bank', '50100482910492', 'HDFC0000192', '2024-06-10')
       ON CONFLICT (id) DO NOTHING;
 
       -- Subscription Plans Catalog
@@ -609,12 +654,12 @@ export class DbInitService {
       ON CONFLICT (id) DO NOTHING;
     `;
 
-    await client.unsafe(seedSql);
-    console.log("Mockup seed data inserted successfully into Supabase!");
+        await client.unsafe(seedSql);
+        console.log("Mockup seed data inserted successfully into Supabase!");
 
-    return {
-      success: true,
-      message: "Database schema verified and mockup seed data populated successfully!",
-    };
-  }
+        return {
+            success: true,
+            message: "Database schema verified and mockup seed data populated successfully!",
+        };
+    }
 }

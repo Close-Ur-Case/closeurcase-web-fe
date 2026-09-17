@@ -1,5 +1,5 @@
 import { relations } from "drizzle-orm";
-import { users, citizens, lawyers, adminProfiles } from "./users.ts";
+import { users, citizens, lawyers, adminProfiles, type LawyerPracticeAreaItem } from "./users.ts";
 import { cases } from "./cases.ts";
 import { caseHearings } from "./hearings.ts";
 import { caseOrders } from "./orders.ts";
@@ -109,5 +109,6 @@ export {
   states,
   courtLevels,
   languages,
+  type LawyerPracticeAreaItem,
 };
 

@@ -37,8 +37,6 @@ export interface Citizen {
 
 export interface LawyerPracticeArea {
   name: string;
-  /** Self-reported proficiency, 0–100. */
-  proficiency: number;
 }
 
 export interface LawyerAward {
@@ -73,7 +71,7 @@ export interface Lawyer {
   officeAddress?: string;
   bio?: string;
   languages?: string[];
-  practiceAreas?: LawyerPracticeArea[];
+  practiceAreas?: (string | LawyerPracticeArea)[];
   specializations?: string[];
   /** Specific legal services offered, one level more granular than
    * `specializations` — e.g. specialization "Divorce" -> legal service

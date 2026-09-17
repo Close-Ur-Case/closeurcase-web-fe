@@ -547,6 +547,11 @@ export function PublicLayout({ children }: { children: ReactNode }) {
                     About CloseUrCase
                   </Link>
                 </li>
+                <li>
+                  <Link to="/api-docs" className="transition-colors hover:text-[#a9853f]">
+                    API Documentation (Swagger)
+                  </Link>
+                </li>
               </ul>
             </div>
 

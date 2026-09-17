@@ -70,3 +70,4 @@ export const languages = pgTable("languages", {
   updatedAt: varchar("updated_at", { length: 64 }),
   createdAt: timestamp("created_at").defaultNow().notNull(),
 });
+

@@ -28,6 +28,8 @@ export const citizens = pgTable("citizens", {
   updatedAt: timestamp("updated_at").defaultNow().notNull(),
 });
 
+export type LawyerPracticeAreaItem = string;
+
 export const lawyers = pgTable("lawyers", {
   id: varchar("id", { length: 64 }).primaryKey(),
   userId: varchar("user_id", { length: 128 }).references(() => users.id, { onDelete: "cascade" }),
@@ -36,6 +38,8 @@ export const lawyers = pgTable("lawyers", {
   phone: varchar("phone", { length: 32 }).notNull(),
   category: varchar("category", { length: 64 }).notNull(),
   roleTitle: varchar("role_title", { length: 128 }),
+  registrationType: varchar("registration_type", { length: 32 }).default("lawyer"),
+  declarationAccepted: boolean("declaration_accepted").default(true),
   city: varchar("city", { length: 128 }).notNull(),
   cities: jsonb("cities").$type<string[]>().default([]),
   currentLocation: text("current_location"),
@@ -52,7 +56,7 @@ export const lawyers = pgTable("lawyers", {
   officeAddress: text("office_address"),
   bio: text("bio"),
   languages: jsonb("languages").$type<string[]>().default([]),
-  practiceAreas: jsonb("practice_areas").$type<any[]>().default([]),
+  practiceAreas: jsonb("practice_areas").$type<string[]>().default([]),
   specializations: jsonb("specializations").$type<string[]>().default([]),
   legalServices: jsonb("legal_services").$type<string[]>().default([]),
   courts: jsonb("courts").$type<string[]>().default([]),

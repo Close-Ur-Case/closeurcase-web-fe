@@ -3,9 +3,10 @@ import { db } from "../config/db.ts";
 import { lawyers } from "../models/users.ts";
 import { lawyerRatings } from "../models/ratings.ts";
 import { lawyerDocuments } from "../models/documents.ts";
-import { eq, and, or, ilike, desc } from "drizzle-orm";
+import { eq, and, or, ilike, desc, sql } from "drizzle-orm";
 import { ApiResponse } from "../utils/apiResponse.ts";
 import { ApiError } from "../utils/apiError.ts";
+import { LawyerLanguageService } from "../services/lawyerLanguageService.ts";
 
 export async function getLawyers(c: Context) {
   const city = c.req.query("city");
@@ -13,6 +14,8 @@ export async function getLawyers(c: Context) {
   const category = c.req.query("category");
   const status = c.req.query("status");
   const search = c.req.query("search");
+  const language = c.req.query("language");
+  const practiceArea = c.req.query("practiceArea");
   const limit = Number(c.req.query("limit") || "50");
   const offset = Number(c.req.query("offset") || "0");
 
@@ -23,6 +26,18 @@ export async function getLawyers(c: Context) {
   if (area) conditions.push(ilike(lawyers.area, `%${area}%`));
   if (category) conditions.push(eq(lawyers.category, category));
   if (status) conditions.push(eq(lawyers.status, status));
+  if (practiceArea) {
+    conditions.push(
+      sql`(${lawyers.practiceAreas}::jsonb ? ${practiceArea} OR ${lawyers.practiceAreas}::text ILIKE ${'%' + practiceArea + '%'})`
+    );
+  }
+  if (language) {
+    const { languageIds } = await LawyerLanguageService.resolveLanguageIds([language]);
+    const targetId = languageIds[0] || language;
+    conditions.push(
+      sql`(${lawyers.languages}::jsonb ? ${targetId} OR ${lawyers.languages}::jsonb ? ${language})`
+    );
+  }
   if (search) {
     conditions.push(
       or(
@@ -47,10 +62,13 @@ export async function getLawyerById(c: Context) {
 
   if (!lawyer) throw ApiError.notFound(`Lawyer '${id}' not found`);
 
-  const ratings = await db.select().from(lawyerRatings).where(eq(lawyerRatings.lawyerId, id));
-  const documents = await db.select().from(lawyerDocuments).where(eq(lawyerDocuments.lawyerId, id));
+  const [ratings, documents, languagesDetails] = await Promise.all([
+    db.select().from(lawyerRatings).where(eq(lawyerRatings.lawyerId, id)),
+    db.select().from(lawyerDocuments).where(eq(lawyerDocuments.lawyerId, id)),
+    LawyerLanguageService.getLanguagesForLawyer(id),
+  ]);
 
-  return ApiResponse.success(c, { ...lawyer, ratings, documents }, "Lawyer profile retrieved");
+  return ApiResponse.success(c, { ...lawyer, languagesDetails, ratings, documents }, "Lawyer profile retrieved");
 }
 
 export async function updateLawyerStatus(c: Context) {
@@ -72,6 +90,19 @@ export async function updateLawyerProfile(c: Context) {
 
   const patch = await c.req.json();
 
+  // If languages are being updated, resolve to language IDs
+  if (patch.languages && Array.isArray(patch.languages)) {
+    const { languageIds } = await LawyerLanguageService.resolveLanguageIds(patch.languages);
+    patch.languages = languageIds;
+  }
+
+  // If practice areas are being updated, ensure array of strings
+  if (patch.practiceAreas && Array.isArray(patch.practiceAreas)) {
+    patch.practiceAreas = patch.practiceAreas
+      .map((pa: any) => (typeof pa === "string" ? pa.trim() : String(pa?.name || "").trim()))
+      .filter(Boolean);
+  }
+
   const [updated] = await db
     .update(lawyers)
     .set({ ...patch, updatedAt: new Date() })
@@ -79,7 +110,9 @@ export async function updateLawyerProfile(c: Context) {
     .returning();
 
   if (!updated) throw ApiError.notFound(`Lawyer '${id}' not found`);
-  return ApiResponse.success(c, updated, "Lawyer profile updated successfully");
+
+  const languagesDetails = await LawyerLanguageService.getLanguagesForLawyer(id);
+  return ApiResponse.success(c, { ...updated, languagesDetails }, "Lawyer profile updated successfully");
 }
 
 export async function submitRating(c: Context) {
@@ -157,5 +190,30 @@ export async function moderateLawyer(c: Context) {
 
   if (!updated) throw ApiError.notFound(`Lawyer '${id}' not found`);
   return ApiResponse.success(c, updated, `Lawyer moderation status updated to ${status}`);
+}
+
+export async function getLawyerLanguages(c: Context) {
+  const id = c.req.param("id")!;
+  const [lawyer] = await db.select().from(lawyers).where(eq(lawyers.id, id));
+  if (!lawyer) throw ApiError.notFound(`Lawyer '${id}' not found`);
+
+  const linkedLanguages = await LawyerLanguageService.getLanguagesForLawyer(id);
+  return ApiResponse.success(c, linkedLanguages, "Lawyer languages retrieved successfully");
+}
+
+export async function setLawyerLanguages(c: Context) {
+  const id = c.req.param("id")!;
+  const body = await c.req.json();
+  const inputLanguages = body.languages;
+
+  if (!Array.isArray(inputLanguages)) {
+    throw ApiError.badRequest("languages must be an array of language names, codes, or IDs");
+  }
+
+  const [lawyer] = await db.select().from(lawyers).where(eq(lawyers.id, id));
+  if (!lawyer) throw ApiError.notFound(`Lawyer '${id}' not found`);
+
+  const result = await LawyerLanguageService.syncLawyerLanguages(id, inputLanguages);
+  return ApiResponse.success(c, result, "Lawyer languages synchronized successfully");
 }
 
