@@ -7,7 +7,7 @@ export const swaggerDocument = {
 **Production-ready REST API for CloseUrCase Platform** running natively on Deno and Supabase Edge Functions.
 
 ### Core Features:
-- 🔐 **Authentication**: Supabase Phone OTP for Citizens, Email & Password for Lawyers & Superadmin
+- 🔐 **Authentication**: Supabase Mobile Number & Email ID OTP for Citizens, Email & Password for Lawyers & Superadmin
 - ⚖️ **Cases & Docket**: Full legal case filing, hearings timeline, case notes & lawyer assignments
 - 💬 **Case Consultation Chat**: Real-time messaging, voice notes, attachments between citizen & lawyer
 - 👨‍⚖️ **Lawyers**: Verified lawyer directory, availability toggle, bank details, ratings, and moderation
@@ -36,7 +36,7 @@ export const swaggerDocument = {
   ],
   tags: [
     { name: "System", description: "Health checks and database initialization" },
-    { name: "Auth - Citizen", description: "Phone OTP authentication for citizens" },
+    { name: "Auth - Citizen", description: "Phone or Email OTP authentication for citizens" },
     { name: "Auth - Lawyer", description: "Email & password authentication for lawyers" },
     { name: "Citizens", description: "Citizen profile and subscription management" },
     { name: "Cases", description: "Case docket, hearings, notes, and assignments" },
@@ -51,6 +51,7 @@ export const swaggerDocument = {
     { name: "Notifications", description: "In-app notifications and push alerts" },
     { name: "Master Data", description: "Taxonomies, legal categories, cities, courts CRUD" },
     { name: "Admin", description: "Superadmin overview metrics and moderation" },
+    { name: "Email Templates", description: "Branded HTML email templates for OTP verification and onboarding" },
   ],
   components: {
     securitySchemes: {
@@ -72,17 +73,22 @@ export const swaggerDocument = {
       },
       SendOtpRequest: {
         type: "object",
-        required: ["phone"],
         properties: {
           phone: { type: "string", example: "+919876543210", description: "Citizen 10-digit mobile number with +91 country code" },
+          email: { type: "string", example: "citizen@example.com", description: "Citizen email address for OTP sign in" },
+          identifier: { type: "string", example: "+919876543210", description: "Either mobile number or email address" },
         },
       },
       VerifyOtpRequest: {
         type: "object",
-        required: ["phone", "token"],
+        required: ["token"],
         properties: {
           phone: { type: "string", example: "+919876543210" },
-          token: { type: "string", example: "123456", description: "6-digit OTP code received via SMS" },
+          email: { type: "string", example: "citizen@example.com" },
+          identifier: { type: "string", example: "+919876543210" },
+          token: { type: "string", example: "123456", description: "OTP code received via SMS or Email" },
+          name: { type: "string", example: "Sai Teja Reddy" },
+          city: { type: "string", example: "Hyderabad" },
         },
       },
       LawyerRegisterRequest: {
@@ -213,17 +219,70 @@ export const swaggerDocument = {
     "/auth/citizen/send-otp": {
       post: {
         tags: ["Auth - Citizen"],
-        summary: "Send SMS OTP to citizen mobile number",
-        requestBody: { required: true, content: { "application/json": { schema: { $ref: "#/components/schemas/SendOtpRequest" } } } },
-        responses: { "200": { description: "OTP sent successfully" } },
+        summary: "Send OTP to citizen mobile number or email ID",
+        description: "Dispatches a one-time passcode via SMS (for mobile numbers) or Email (for email addresses) for passwordless citizen authentication.",
+        requestBody: {
+          required: true,
+          content: {
+            "application/json": {
+              schema: { $ref: "#/components/schemas/SendOtpRequest" },
+              examples: {
+                mobile: {
+                  summary: "Send OTP via Mobile Number",
+                  value: { phone: "+919876543210" },
+                },
+                email: {
+                  summary: "Send OTP via Email ID",
+                  value: { email: "citizen@example.com" },
+                },
+              },
+            },
+          },
+        },
+        responses: {
+          "200": {
+            description: "OTP sent successfully via SMS or Email",
+            content: {
+              "application/json": {
+                example: {
+                  success: true,
+                  message: "OTP sent successfully to email: citizen@example.com",
+                  data: { channel: "email", recipient: "citizen@example.com" },
+                },
+              },
+            },
+          },
+        },
       },
     },
     "/auth/citizen/verify-otp": {
       post: {
         tags: ["Auth - Citizen"],
         summary: "Verify citizen OTP & authenticate",
-        requestBody: { required: true, content: { "application/json": { schema: { $ref: "#/components/schemas/VerifyOtpRequest" } } } },
-        responses: { "200": { description: "Session authenticated with JWT token" } },
+        description: "Verifies the 6-digit OTP code received via SMS or Email and authenticates the citizen with a Supabase JWT session, creating or syncing the citizen profile.",
+        requestBody: {
+          required: true,
+          content: {
+            "application/json": {
+              schema: { $ref: "#/components/schemas/VerifyOtpRequest" },
+              examples: {
+                mobile: {
+                  summary: "Verify Mobile OTP",
+                  value: { phone: "+919876543210", token: "123456", name: "Sai Teja Reddy" },
+                },
+                email: {
+                  summary: "Verify Email OTP",
+                  value: { email: "citizen@example.com", token: "123456", name: "Sai Teja Reddy" },
+                },
+              },
+            },
+          },
+        },
+        responses: {
+          "200": {
+            description: "Session authenticated with JWT token and citizen profile",
+          },
+        },
       },
     },
     "/auth/lawyer/register": {
@@ -510,6 +569,38 @@ export const swaggerDocument = {
           { name: "id", in: "path", required: true, schema: { type: "string" } },
         ],
         responses: { "200": { description: "Taxonomy record deleted" } },
+      },
+    },
+    "/email-templates/preview/citizen-otp": {
+      get: {
+        tags: ["Email Templates"],
+        summary: "Preview rendered Citizen OTP email template in HTML",
+        parameters: [
+          { name: "token", in: "query", required: false, schema: { type: "string", example: "849201" }, description: "6-digit OTP code to preview" },
+          { name: "name", in: "query", required: false, schema: { type: "string", example: "Vijay Sariyam" }, description: "Citizen name to preview" },
+        ],
+        responses: {
+          "200": {
+            description: "Rendered HTML email template",
+            content: { "text/html": { schema: { type: "string" } } },
+          },
+        },
+      },
+    },
+    "/email-templates/preview/confirm-signup": {
+      get: {
+        tags: ["Email Templates"],
+        summary: "Preview rendered Confirm Signup email template in HTML",
+        parameters: [
+          { name: "token", in: "query", required: false, schema: { type: "string", example: "849201" } },
+          { name: "name", in: "query", required: false, schema: { type: "string", example: "Vijay Sariyam" } },
+        ],
+        responses: {
+          "200": {
+            description: "Rendered HTML email template",
+            content: { "text/html": { schema: { type: "string" } } },
+          },
+        },
       },
     },
   },

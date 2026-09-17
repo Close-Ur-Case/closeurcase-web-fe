@@ -14,7 +14,7 @@ export const citizens = pgTable("citizens", {
   userId: varchar("user_id", { length: 128 }).references(() => users.id, { onDelete: "cascade" }),
   name: varchar("name", { length: 255 }).notNull(),
   email: varchar("email", { length: 255 }),
-  phone: varchar("phone", { length: 32 }).notNull(),
+  phone: varchar("phone", { length: 32 }),
   city: varchar("city", { length: 128 }),
   currentLocation: text("current_location"),
   address: text("address"),

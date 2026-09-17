@@ -41,10 +41,14 @@ export type TranslationKey =
   | "citizenLoginLabel"
   | "citizenLoginSubtitle"
   | "mobileNumber"
+  | "emailAddress"
+  | "loginWithPhone"
+  | "loginWithEmail"
   | "continueBtn"
   | "verifyOtpTitle"
   | "verifyOtpDesc"
   | "changeNumber"
+  | "changeContact"
   | "verifyContinue"
   | "LawyerAdminSignIn"
   | "lawyerAdminLogin"
@@ -90,12 +94,16 @@ const en: Record<TranslationKey, string> = {
     "CloseUrCase helps citizens file cases, match with Lawyers, and track progress in English, Hindi, or Telugu.",
   getStarted: "Get Started Now",
   citizenLoginLabel: "Find a Lawyer",
-  citizenLoginSubtitle: "Mobile number only · No password",
+  citizenLoginSubtitle: "Mobile number or Email ID · Instant OTP",
   mobileNumber: "Mobile number",
+  emailAddress: "Email address",
+  loginWithPhone: "Mobile Number",
+  loginWithEmail: "Email Address",
   continueBtn: "Continue",
   verifyOtpTitle: "Verify OTP",
-  verifyOtpDesc: "Enter the 4-digit code sent to your phone.",
-  changeNumber: "Change number",
+  verifyOtpDesc: "Enter the verification code sent to your device.",
+  changeNumber: "Change details",
+  changeContact: "Change mobile or email",
   verifyContinue: "Verify & continue",
   LawyerAdminSignIn: "Lawyer or admin? Email sign in",
   lawyerAdminLogin: "Lawyer sign in",
@@ -142,12 +150,16 @@ const hi: Record<TranslationKey, string> = {
     "CloseUrCase नागरिकों को केस दाखिल करने, वकील से जुड़ने और प्रगति ट्रैक करने में मदद करता है — हिंदी, English या తెలుగు में।",
   getStarted: "अभी शुरू करें",
   citizenLoginLabel: "नागरिक लॉगिन",
-  citizenLoginSubtitle: "केवल मोबाइल नंबर · पासवर्ड नहीं",
+  citizenLoginSubtitle: "मोबाइल नंबर या ईमेल आईडी · तत्काल OTP",
   mobileNumber: "मोबाइल नंबर",
+  emailAddress: "ईमेल पता",
+  loginWithPhone: "मोबाइल नंबर",
+  loginWithEmail: "ईमेल आईडी",
   continueBtn: "आगे बढ़ें",
   verifyOtpTitle: "OTP सत्यापित करें",
-  verifyOtpDesc: "अपने फ़ोन पर भेजा गया 4 अंकों का कोड दर्ज करें।",
-  changeNumber: "नंबर बदलें",
+  verifyOtpDesc: "अपने मोबाइल या ईमेल पर भेजा गया सत्यापन कोड दर्ज करें।",
+  changeNumber: "विवरण बदलें",
+  changeContact: "मोबाइल या ईमेल बदलें",
   verifyContinue: "सत्यापित करें",
   LawyerAdminSignIn: "वकील या एडमिन? ईमेल से साइन इन",
   lawyerAdminLogin: "वकील और एडमिन साइन इन",
@@ -194,12 +206,16 @@ const te: Record<TranslationKey, string> = {
     "CloseUrCase పౌరులకు కేసులు దాఖలు, న్యాయవాదుల మ్యాచ్, ట్రాకింగ్ — English, हिन्दी, తెలుగు లో.",
   getStarted: "ఇప్పుడే ప్రారంభించండి",
   citizenLoginLabel: "పౌర లాగిన్",
-  citizenLoginSubtitle: "మొబైల్ నంబర్ మాత్రమే · పాస్‌వర్డ్ లేదు",
+  citizenLoginSubtitle: "మొబైల్ నంబర్ లేదా ఇమెయిల్ · తక్షణ OTP",
   mobileNumber: "మొబైల్ నంబర్",
+  emailAddress: "ఇమెయిల్ చిరునామా",
+  loginWithPhone: "మొబైల్ నంబర్",
+  loginWithEmail: "ఇమెయిల్ ఐడి",
   continueBtn: "కొనసాగించండి",
   verifyOtpTitle: "OTP ధృవీకరించండి",
-  verifyOtpDesc: "మీ ఫోన్‌కు పంపిన 4 అంకెల కోడ్‌ను నమోదు చేయండి.",
-  changeNumber: "నంబర్ మార్చండి",
+  verifyOtpDesc: "మీ మొబైల్ లేదా ఇమెయిల్‌కు పంపిన ధృవీకరణ కోడ్‌ను నమోదు చేయండి.",
+  changeNumber: "వివరాలు మార్చండి",
+  changeContact: "మొబైల్ లేదా ఇమెయిల్ మార్చండి",
   verifyContinue: "ధృవీకరించండి",
   LawyerAdminSignIn: "న్యాయవాది/అడ్మిన్? ఇమెయిల్ సైన్ ఇన్",
   lawyerAdminLogin: "న్యాయవాది & అడ్మిన్ సైన్ ఇన్",

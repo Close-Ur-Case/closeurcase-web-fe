@@ -5,6 +5,7 @@ export type CitizenLanguage = "en" | "hi" | "te";
 export interface CitizenSession {
   authenticated: boolean;
   phone: string;
+  email?: string;
   fullName?: string;
   casePath: CitizenCasePath;
   language: CitizenLanguage;
@@ -39,10 +40,14 @@ export function clearCitizenSession() {
   sessionStorage.removeItem(STORAGE_KEY);
 }
 
-export function formatCitizenPhoneDisplay(phone: string) {
-  const digits = phone.replace(/\D/g, "");
-  if (digits.length === 10) {
-    return `+91 ${digits.slice(0, 5)} ${digits.slice(5)}`;
+export function formatCitizenPhoneDisplay(phone?: string, email?: string) {
+  if (phone) {
+    const digits = phone.replace(/\D/g, "");
+    if (digits.length === 10) {
+      return `+91 ${digits.slice(0, 5)} ${digits.slice(5)}`;
+    }
+    if (digits.length > 0) return phone;
   }
-  return phone || "Citizen";
+  if (email) return email;
+  return "Citizen";
 }

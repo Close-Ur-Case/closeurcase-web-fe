@@ -1,0 +1,147 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Welcome to CloseUrCase - Verification Code</title>
+  <style>
+    body {
+      margin: 0;
+      padding: 0;
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+      background-color: #f8fafc;
+      color: #1e293b;
+      -webkit-font-smoothing: antialiased;
+    }
+    .wrapper {
+      width: 100%;
+      table-layout: fixed;
+      background-color: #f8fafc;
+      padding: 40px 16px;
+    }
+    .container {
+      max-width: 520px;
+      margin: 0 auto;
+      background-color: #ffffff;
+      border-radius: 16px;
+      border: 1px solid #e2e8f0;
+      overflow: hidden;
+      box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.05);
+    }
+    .header {
+      background: linear-gradient(135deg, #0f172a 0%, #1e3a8a 100%);
+      padding: 32px 24px;
+      text-align: center;
+    }
+    .header-logo {
+      font-size: 24px;
+      font-weight: 800;
+      color: #ffffff;
+      margin: 0;
+    }
+    .header-tagline {
+      font-size: 13px;
+      color: #93c5fd;
+      margin-top: 6px;
+      margin-bottom: 0;
+    }
+    .content {
+      padding: 36px 32px;
+      text-align: center;
+    }
+    .greeting {
+      font-size: 20px;
+      font-weight: 700;
+      color: #0f172a;
+      margin: 0 0 12px 0;
+    }
+    .description {
+      font-size: 15px;
+      line-height: 24px;
+      color: #475569;
+      margin: 0 0 24px 0;
+      text-align: left;
+    }
+    .otp-card {
+      background: #eff6ff;
+      border: 2px dashed #3b82f6;
+      border-radius: 14px;
+      padding: 26px 20px;
+      text-align: center;
+      margin: 24px 0;
+    }
+    .otp-label {
+      font-size: 12px;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 1.5px;
+      color: #1e40af;
+      margin-bottom: 12px;
+    }
+    .otp-code {
+      font-family: 'SF Pro Mono', Menlo, Monaco, Consolas, monospace;
+      font-size: 42px;
+      font-weight: 800;
+      letter-spacing: 10px;
+      color: #1d4ed8;
+      margin: 0;
+    }
+    .badge {
+      display: inline-block;
+      margin-top: 14px;
+      padding: 4px 12px;
+      background-color: #dbeafe;
+      color: #1e40af;
+      border-radius: 20px;
+      font-size: 12px;
+      font-weight: 600;
+    }
+    .instruction {
+      font-size: 14px;
+      line-height: 22px;
+      color: #475569;
+      margin: 20px 0 0 0;
+      text-align: left;
+    }
+    .footer {
+      background-color: #f8fafc;
+      padding: 24px 32px;
+      text-align: center;
+      border-top: 1px solid #e2e8f0;
+      font-size: 12px;
+      color: #94a3b8;
+    }
+  </style>
+</head>
+<body>
+  <div class="wrapper">
+    <div class="container">
+      <div class="header">
+        <h1 class="header-logo">CloseUrCase</h1>
+        <p class="header-tagline">Citizen Legal Services</p>
+      </div>
+
+      <div class="content">
+        <h2 class="greeting">Welcome to CloseUrCase!</h2>
+        <p class="description">
+          Thank you for registering. Use your one-time verification code below to verify your email and sign in:
+        </p>
+
+        <div class="otp-card">
+          <div class="otp-label">Verification Code (OTP)</div>
+          <div class="otp-code">{{ .Token }}</div>
+          <div class="badge">Valid for 10 minutes</div>
+        </div>
+
+        <p class="instruction">
+          Enter this code on the <strong>Citizen Sign In</strong> page to verify your email and start your consultation.
+        </p>
+      </div>
+
+      <div class="footer">
+        <p style="margin: 0;">&copy; CloseUrCase Platform &bull; Automated Security Verification</p>
+      </div>
+    </div>
+  </div>
+</body>
+</html>

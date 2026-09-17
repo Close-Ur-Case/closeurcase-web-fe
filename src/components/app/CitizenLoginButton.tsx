@@ -14,7 +14,7 @@ export function CitizenLoginButton({
   className,
   size = "card",
   label = "Citizen Login",
-  subtitle = "Mobile number only · No password",
+  subtitle = "Mobile number or Email · Instant OTP",
 }: CitizenLoginButtonProps) {
   if (size === "header") {
     return (

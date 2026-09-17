@@ -79,6 +79,42 @@ export function validateEmail(email: string): { isValid: boolean; error?: string
   return { isValid: true };
 }
 
+/** Validate Phone or Email */
+export function validatePhoneOrEmail(val: string): {
+  isValid: boolean;
+  type: "phone" | "email" | "unknown";
+  error?: string;
+  cleanedValue: string;
+} {
+  const trimmed = val.trim();
+  if (!trimmed) {
+    return {
+      isValid: false,
+      type: "unknown",
+      error: "Mobile number or email address is required.",
+      cleanedValue: "",
+    };
+  }
+
+  if (trimmed.includes("@") || /[a-zA-Z]/.test(trimmed)) {
+    const emailRes = validateEmail(trimmed);
+    return {
+      isValid: emailRes.isValid,
+      type: "email",
+      error: emailRes.error,
+      cleanedValue: trimmed.toLowerCase(),
+    };
+  }
+
+  const phoneRes = validatePhone(trimmed);
+  return {
+    isValid: phoneRes.isValid,
+    type: "phone",
+    error: phoneRes.error,
+    cleanedValue: trimmed.replace(/\D/g, "").slice(0, 10),
+  };
+}
+
 /** Validate CNR Number */
 export function validateCNR(cnr: string): { isValid: boolean; error?: string } {
   const sanitized = cnr.toUpperCase().replace(/[^A-Z0-9]/g, "");

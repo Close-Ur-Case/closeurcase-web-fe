@@ -15,10 +15,22 @@ async function main() {
   console.log("✓ All existing public tables dropped successfully.");
 
   console.log("\n=== Step 2: Re-migrating schema ===");
-  const migrationPath = new URL("./migrations/20260916000000_init_schema.sql", import.meta.url);
-  const schemaSql = await Deno.readTextFile(migrationPath);
-  await client.unsafe(schemaSql);
-  console.log("✓ Schema re-migrated successfully (all 20+ tables & constraints created).");
+  const migrationsDir = new URL("./migrations", import.meta.url);
+  const migrationFiles: string[] = [];
+  for await (const entry of Deno.readDir(migrationsDir)) {
+    if (entry.isFile && entry.name.endsWith(".sql")) {
+      migrationFiles.push(entry.name);
+    }
+  }
+  migrationFiles.sort();
+
+  for (const filename of migrationFiles) {
+    console.log(`-> Running migration: ${filename}`);
+    const filePath = new URL(`./migrations/${filename}`, import.meta.url);
+    const sql = await Deno.readTextFile(filePath);
+    await client.unsafe(sql);
+  }
+  console.log("✓ Schema re-migrated successfully (all migrations applied).");
 
   console.log("\n=== Step 3: Re-seeding database ===");
   const seedPath = new URL("./seed.sql", import.meta.url);

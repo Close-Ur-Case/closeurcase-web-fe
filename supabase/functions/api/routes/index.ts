@@ -14,6 +14,7 @@ import supportRoutes from "./supportRoutes.ts";
 import aiRoutes from "./aiRoutes.ts";
 import adminRoutes from "./adminRoutes.ts";
 import subscriptionRoutes from "./subscriptionRoutes.ts";
+import emailTemplateRoutes from "./emailTemplateRoutes.ts";
 import { ApiResponse } from "../utils/apiResponse.ts";
 
 const api = new Hono();
@@ -47,6 +48,7 @@ api.route("/support", supportRoutes);
 api.route("/ai", aiRoutes);
 api.route("/admin", adminRoutes);
 api.route("/subscriptions", subscriptionRoutes);
+api.route("/email-templates", emailTemplateRoutes);
 
 export default api;
 

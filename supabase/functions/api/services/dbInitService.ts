@@ -23,7 +23,7 @@ export class DbInitService {
           user_id VARCHAR(128) REFERENCES public.users(id) ON DELETE CASCADE,
           name VARCHAR(255) NOT NULL,
           email VARCHAR(255),
-          phone VARCHAR(32) NOT NULL,
+          phone VARCHAR(32),
           city VARCHAR(128),
           current_location TEXT,
           address TEXT,
@@ -37,6 +37,7 @@ export class DbInitService {
           updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW() NOT NULL
       );
 
+      ALTER TABLE public.citizens ALTER COLUMN phone DROP NOT NULL;
       ALTER TABLE public.citizens ADD COLUMN IF NOT EXISTS address TEXT;
       ALTER TABLE public.citizens ADD COLUMN IF NOT EXISTS state VARCHAR(128);
       ALTER TABLE public.citizens ADD COLUMN IF NOT EXISTS pincode VARCHAR(16);

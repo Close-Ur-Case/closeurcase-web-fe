@@ -8,6 +8,7 @@
     "start": "npx -y deno run --node-modules-dir=none --config=functions/api/deno.json --allow-net --allow-env --allow-read functions/api/index.ts",
     "deploy": "npx supabase functions deploy api --no-verify-jwt --project-ref zxsizwzjktorqjlzzchg",
     "seed": "curl -s http://localhost:8000/init-db",
+    "migrate": "npx -y deno run --node-modules-dir=none --config=functions/api/deno.json --allow-net --allow-env --allow-read migrate.ts",
     "reset-db": "npx -y deno run --node-modules-dir=none --config=functions/api/deno.json --allow-net --allow-env --allow-read reset-db.ts"
   }
 

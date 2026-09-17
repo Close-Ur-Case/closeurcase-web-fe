@@ -5,41 +5,155 @@ import { eq } from "drizzle-orm";
 import { ApiError } from "../utils/apiError.ts";
 
 export class AuthService {
-  static async sendCitizenOtp(phone: string) {
-    if (!phone) throw ApiError.badRequest("Phone number is required");
+  static async sendCitizenOtp(
+    param: string | { phone?: string; email?: string; identifier?: string }
+  ) {
+    let phone: string | undefined = typeof param === "string" ? param : param?.phone;
+    let email: string | undefined = typeof param === "object" ? param?.email : undefined;
+    const identifier: string | undefined = typeof param === "object" ? param?.identifier : undefined;
 
-    const { data, error } = await supabase.auth.signInWithOtp({ phone });
-    if (error) throw ApiError.badRequest(error.message);
+    if (!phone && !email && identifier) {
+      if (identifier.includes("@")) {
+        email = identifier.trim().toLowerCase();
+      } else {
+        phone = identifier.trim();
+      }
+    }
 
-    return { message: "OTP sent successfully via SMS", phone, data };
+    if (email) {
+      const cleanEmail = email.trim().toLowerCase();
+      const { data, error } = await supabase.auth.signInWithOtp({
+        email: cleanEmail,
+        options: {
+          shouldCreateUser: true,
+        },
+      });
+      if (error) throw ApiError.badRequest(error.message);
+
+      return {
+        message: `OTP sent successfully to email: ${cleanEmail}`,
+        channel: "email",
+        recipient: cleanEmail,
+        email: cleanEmail,
+        data,
+      };
+    }
+
+    if (phone) {
+      const cleanDigits = phone.replace(/\D/g, "");
+      if (!cleanDigits) throw ApiError.badRequest("Valid phone number is required");
+      const formattedPhone = phone.startsWith("+")
+        ? phone
+        : cleanDigits.length === 10
+        ? `+91${cleanDigits}`
+        : `+${cleanDigits}`;
+
+      const { data, error } = await supabase.auth.signInWithOtp({
+        phone: formattedPhone,
+        options: {
+          shouldCreateUser: true,
+        },
+      });
+      if (error) throw ApiError.badRequest(error.message);
+
+      return {
+        message: `OTP sent successfully via SMS to ${formattedPhone}`,
+        channel: "sms",
+        recipient: formattedPhone,
+        phone: formattedPhone,
+        data,
+      };
+    }
+
+    throw ApiError.badRequest("Mobile number or Email address is required");
   }
 
-  static async verifyCitizenOtp({ phone, token, name, city }: {
-    phone: string;
+  static async verifyCitizenOtp(params: {
+    phone?: string;
+    email?: string;
+    identifier?: string;
     token: string;
     name?: string;
     city?: string;
   }) {
-    if (!phone || !token) throw ApiError.badRequest("Phone and OTP token are required");
+    let { phone, email, identifier, token, name, city } = params;
+    if (!token) throw ApiError.badRequest("OTP token is required");
 
-    const { data, error } = await supabase.auth.verifyOtp({
-      phone,
-      token,
-      type: "sms",
-    });
+    if (!phone && !email && identifier) {
+      if (identifier.includes("@")) {
+        email = identifier.trim().toLowerCase();
+      } else {
+        phone = identifier.trim();
+      }
+    }
 
-    if (error) throw ApiError.badRequest(error.message);
+    let authResponse;
+    if (email) {
+      const cleanEmail = email.trim().toLowerCase();
+      authResponse = await supabase.auth.verifyOtp({
+        email: cleanEmail,
+        token: token.trim(),
+        type: "email",
+      });
 
-    const user = data.user!;
-    const session = data.session;
+      // If type: "email" failed, fallback to "magiclink" or "signup" OTP types
+      if (authResponse.error) {
+        const magicLinkRetry = await supabase.auth.verifyOtp({
+          email: cleanEmail,
+          token: token.trim(),
+          type: "magiclink",
+        });
+        if (!magicLinkRetry.error) {
+          authResponse = magicLinkRetry;
+        } else {
+          const signupRetry = await supabase.auth.verifyOtp({
+            email: cleanEmail,
+            token: token.trim(),
+            type: "signup",
+          });
+          if (!signupRetry.error) authResponse = signupRetry;
+        }
+      }
+      email = cleanEmail;
+    } else if (phone) {
+      const cleanDigits = phone.replace(/\D/g, "");
+      const formattedPhone = phone.startsWith("+")
+        ? phone
+        : cleanDigits.length === 10
+        ? `+91${cleanDigits}`
+        : `+${cleanDigits}`;
+      authResponse = await supabase.auth.verifyOtp({
+        phone: formattedPhone,
+        token: token.trim(),
+        type: "sms",
+      });
+      phone = formattedPhone;
+    } else {
+      throw ApiError.badRequest("Either mobile number or email address is required");
+    }
+
+    if (authResponse.error) throw ApiError.badRequest(authResponse.error.message);
+
+    const user = authResponse.data.user!;
+    const session = authResponse.data.session;
 
     const [existingUser] = await db.select().from(users).where(eq(users.id, user.id));
     if (!existingUser) {
       await db.insert(users).values({
         id: user.id,
         role: "citizen",
-        phone: user.phone || phone,
+        email: user.email || email || null,
+        phone: user.phone || phone || null,
       });
+    } else {
+      await db
+        .update(users)
+        .set({
+          email: user.email || email || existingUser.email,
+          phone: user.phone || phone || existingUser.phone,
+          updatedAt: new Date(),
+        })
+        .where(eq(users.id, user.id));
     }
 
     const [existingCitizen] = await db.select().from(citizens).where(eq(citizens.userId, user.id));
@@ -53,6 +167,8 @@ export class AuthService {
         .set({
           lastLoginAt: nowIso,
           ...(name && { name }),
+          ...(user.email || email ? { email: user.email || email } : {}),
+          ...(user.phone || phone ? { phone: user.phone || phone } : {}),
           ...(city && { city }),
           updatedAt: new Date(),
         })
@@ -66,8 +182,9 @@ export class AuthService {
         .values({
           id: citizenId,
           userId: user.id,
-          name: name || "Citizen User",
-          phone: user.phone || phone,
+          name: name || (user.email ? user.email.split("@")[0] : "Citizen User"),
+          email: user.email || email || null,
+          phone: user.phone || phone || null,
           city: city || "Hyderabad",
           status: "Active",
           joinedAt: today,
@@ -77,7 +194,12 @@ export class AuthService {
     }
 
     return {
-      user: { id: user.id, role: "citizen", phone: user.phone || phone },
+      user: {
+        id: user.id,
+        role: "citizen",
+        email: user.email || email || null,
+        phone: user.phone || phone || null,
+      },
       citizen: citizenRecord,
       session: {
         accessToken: session?.access_token,

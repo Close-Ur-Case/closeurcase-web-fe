@@ -48,7 +48,7 @@ export function Login() {
         <>
           Citizen user?{" "}
           <Link to="/citizen-login" className="font-semibold text-primary hover:underline">
-            Sign in with mobile number
+            Sign in with mobile or email
           </Link>
           {" · "}
           New Lawyer?{" "}

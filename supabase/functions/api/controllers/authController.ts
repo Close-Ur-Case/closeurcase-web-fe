@@ -3,14 +3,14 @@ import { AuthService } from "../services/authService.ts";
 import { ApiResponse } from "../utils/apiResponse.ts";
 
 export async function sendCitizenOtp(c: Context) {
-  const { phone } = await c.req.json();
-  const result = await AuthService.sendCitizenOtp(phone);
-  return ApiResponse.success(c, result, "OTP sent successfully");
+  const body = await c.req.json();
+  const result = await AuthService.sendCitizenOtp(body);
+  return ApiResponse.success(c, result, result.message || "OTP sent successfully");
 }
 
 export async function verifyCitizenOtp(c: Context) {
-  const { phone, token, name, city } = await c.req.json();
-  const result = await AuthService.verifyCitizenOtp({ phone, token, name, city });
+  const body = await c.req.json();
+  const result = await AuthService.verifyCitizenOtp(body);
   return ApiResponse.success(c, result, "Citizen authenticated successfully");
 }
 
