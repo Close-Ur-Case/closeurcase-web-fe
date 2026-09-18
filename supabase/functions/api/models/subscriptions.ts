@@ -1,6 +1,6 @@
 import { pgTable, text, timestamp, varchar, integer } from "drizzle-orm/pg-core";
 import { citizens } from "./users.ts";
-import { cases } from "./cases.ts";
+import { casesUser } from "./casesUser.ts";
 
 export const subscriptionPlans = pgTable("subscription_plans", {
   id: varchar("id", { length: 32 }).primaryKey(),
@@ -12,7 +12,7 @@ export const subscriptionPlans = pgTable("subscription_plans", {
   description: text("description").notNull(),
   features: text("features").array(),
   active: varchar("active", { length: 16 }).default("true"),
-  createdAt: timestamp("created_at").defaultNow().notNull(),
+  createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
 });
 
 export const subscriptions = pgTable("subscriptions", {
@@ -24,7 +24,6 @@ export const subscriptions = pgTable("subscriptions", {
   startedAt: varchar("started_at", { length: 32 }).notNull(),
   expiresAt: varchar("expires_at", { length: 64 }),
   status: varchar("status", { length: 32 }).default("Active").notNull(),
-  caseId: varchar("case_id", { length: 128 }).references(() => cases.id, { onDelete: "set null" }),
-  createdAt: timestamp("created_at").defaultNow().notNull(),
+  caseId: varchar("case_id", { length: 128 }).references(() => casesUser.id, { onDelete: "set null" }),
+  createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
 });
-

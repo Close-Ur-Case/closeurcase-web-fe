@@ -1,28 +1,54 @@
 import { z } from "@hono/zod-openapi";
 
-export const CreateCaseSchema = z
+export const CreateUserCaseSchema = z
   .object({
-    title: z.string().openapi({ example: "Commercial Lease Agreement Breach" }),
-    caseType: z.string().optional().openapi({ example: "Civil" }),
-    category: z.string().openapi({ example: "Corporate & Commercial" }),
-    courtName: z.string().optional().openapi({ example: "City Civil Court Mumbai" }),
-    caseNumber: z.string().optional().openapi({ example: "CC/4521/2026" }),
-    cnrNumber: z.string().optional().openapi({ example: "MHTC010045212026" }),
-    description: z.string().openapi({ example: "Dispute over unreturned security deposit and lease termination terms." }),
-    claimAmount: z.number().optional().openapi({ example: 500000 }),
-    priority: z.enum(["Low", "Medium", "High", "Urgent"]).optional().openapi({ example: "High" }),
-    city: z.string().optional().openapi({ example: "Mumbai" }),
-    isEmergency: z.boolean().optional().openapi({ example: false }),
-    courtLevel: z.string().optional().openapi({ example: "District Court" }),
-    state: z.string().optional().openapi({ example: "Maharashtra" }),
+    citizenId: z.string().optional().openapi({ example: "u_001" }),
+    lawyerId: z.string().optional().openapi({ example: "l_001" }),
+    caseType: z.string().openapi({ example: "new", description: "Case type from case_types lookup: new, pending, closed" }),
+    cnr: z.string().optional().transform((v) => (v ? v.trim().toUpperCase() : undefined)).openapi({ example: "DLND020047882015" }),
+    title: z.string().min(1).openapi({ example: "Property Handover Dispute" }),
+    description: z.string().min(1).openapi({ example: "Builder delay in handover under RERA Section 18." }),
+    documents: z
+      .array(
+        z.object({
+          id: z.string().optional(),
+          name: z.string(),
+          fileUrl: z.string(),
+          size: z.string().optional(),
+          fileMimeType: z.string().optional(),
+          uploadedAt: z.string().optional(),
+        })
+      )
+      .default([])
+      .openapi({ example: [{ name: "sale_deed.pdf", fileUrl: "https://closeurcase.app/docs/sale_deed.pdf", size: "1.2 MB" }] }),
+    practiceArea: z.string().min(1).openapi({ example: "cat_1" }),
+    specialization: z.string().min(1).openapi({ example: "spec_1_1" }),
+    legalServices: z.array(z.string()).default([]).openapi({ example: ["srv_1_1_1", "srv_1_1_2"] }),
+    city: z.string().optional().openapi({ example: "Hyderabad" }),
+    isEmergency: z.boolean().optional().default(false),
   })
-  .openapi("CreateCaseRequest");
+  .openapi("CreateUserCaseRequest");
 
-export const UpdateCaseStatusSchema = z
+// Also export CreateCaseSchema alias for existing router bindings if needed
+export const CreateCaseSchema = CreateUserCaseSchema;
+
+export const UpdateLawyerCaseStageSchema = z
   .object({
-    status: z.enum(["Draft", "Filed", "In Progress", "Hearing Scheduled", "Order Reserved", "Disposed", "Closed"]).openapi({ example: "In Progress" }),
+    stage: z.enum(["accepted", "rejected", "filinginprogress", "cnrgenerated"]).openapi({ example: "accepted" }),
+    rejectionReason: z.string().optional().openapi({ example: "Conflict of interest with opposing party." }),
+    generatedCnr: z.string().optional().transform((v) => (v ? v.trim().toUpperCase() : undefined)).openapi({ example: "TSHC010022112026" }),
   })
-  .openapi("UpdateCaseStatusRequest");
+  .openapi("UpdateLawyerCaseStageRequest");
+
+export const UpdateCaseStatusSchema = UpdateLawyerCaseStageSchema;
+
+export const ImportCaseSchema = z
+  .object({
+    cnr: z.string().optional().transform((v) => (v ? v.trim().toUpperCase() : undefined)).openapi({ example: "DLND020047882015" }),
+    rawData: z.any().optional().openapi({ description: "Total success response from eCourts API" }),
+  })
+  .passthrough()
+  .openapi("ImportCaseRequest");
 
 export const AssignLawyerSchema = z
   .object({
@@ -30,33 +56,32 @@ export const AssignLawyerSchema = z
   })
   .openapi("AssignLawyerRequest");
 
-export const AddHearingSchema = z
-  .object({
-    hearingDate: z.string().openapi({ example: "2026-10-15T10:30:00Z" }),
-    purpose: z.string().openapi({ example: "Admission & Interim Injunction Hearing" }),
-    judge: z.string().optional().openapi({ example: "Hon. Justice P. K. Sharma" }),
-    courtRoom: z.string().optional().openapi({ example: "Court Hall 4" }),
-    summary: z.string().optional().openapi({ example: "Arguments concluded on maintainability." }),
-    nextDate: z.string().optional().openapi({ example: "2026-11-02T10:30:00Z" }),
-  })
-  .openapi("AddHearingRequest");
-
-export const AddCaseNoteSchema = z
-  .object({
-    content: z.string().openapi({ example: "Opposite counsel filed counter-affidavit today. Verified Annexure C." }),
-    isConfidential: z.boolean().optional().openapi({ example: true }),
-  })
-  .openapi("AddCaseNoteRequest");
-
 export const SendChatMessageSchema = z
   .object({
     sender: z.enum(["citizen", "lawyer"]).optional().openapi({ example: "citizen" }),
     senderId: z.string().optional().openapi({ example: "u_001" }),
     senderRole: z.enum(["citizen", "lawyer"]).optional().openapi({ example: "citizen" }),
     senderName: z.string().optional().openapi({ example: "Sai Teja Reddy" }),
-    message: z.string().openapi({ example: "Advocate sir, I have uploaded the signed vakalatnama." }),
-    attachmentUrl: z.string().optional().openapi({ example: "https://zxsizwzjktorqjlzzchg.supabase.co/storage/v1/object/public/case-documents/doc_1.pdf" }),
+    message: z.string().openapi({ example: "Advocate sir, I have uploaded the signed documents." }),
+    attachmentUrl: z.string().optional().openapi({ example: "https://closeurcase.app/docs/doc_1.pdf" }),
     attachmentType: z.string().optional().openapi({ example: "application/pdf" }),
-    attachmentName: z.string().optional().openapi({ example: "vakalatnama_signed.pdf" }),
+    attachmentName: z.string().optional().openapi({ example: "vakalatnama.pdf" }),
+    attachmentSize: z.string().optional().openapi({ example: "500 KB" }),
   })
   .openapi("SendChatMessageRequest");
+
+export const LookupItemSchema = z
+  .object({
+    id: z.string().openapi({ example: "new" }),
+    category: z.string().openapi({ example: "case_type" }),
+    label: z.string().openapi({ example: "New Case" }),
+    description: z.string().nullable().optional().openapi({ example: "Brand new matter" }),
+    sortOrder: z.number().openapi({ example: 1 }),
+    createdAt: z.string().optional(),
+  })
+  .openapi("LookupItem");
+
+export const ListLookupsQuerySchema = z.object({
+  category: z.string().optional().openapi({ example: "case_type", description: "Filter by category: case_type, lawyer_casestage" }),
+});
+

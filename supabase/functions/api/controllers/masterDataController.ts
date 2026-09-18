@@ -115,6 +115,11 @@ export async function getCourtLevels(c: Context) {
 }
 
 export async function getDistricts(c: Context) {
+  const stateId = c.req.query("state_id") || c.req.query("stateId");
+  if (stateId) {
+    const data = await db.select().from(districts).where(eq(districts.stateId, stateId));
+    return ApiResponse.success(c, data, `Districts for state '${stateId}' retrieved successfully`);
+  }
   const data = await db.select().from(districts);
   return ApiResponse.success(c, data, "Districts retrieved successfully");
 }

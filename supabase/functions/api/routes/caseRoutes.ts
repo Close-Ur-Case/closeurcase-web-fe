@@ -1,13 +1,16 @@
 import { OpenAPIHono, createRoute, z } from "@hono/zod-openapi";
 import {
-  createCase,
-  listCases,
-  getCaseById,
-  getCaseByCnr,
-  updateCaseStatus,
+  getLookups,
+  getCaseTypes,
+  getLawyerCaseStages,
+  importCase,
+  getImportedCase,
+  listImportedCases,
+  createUserCase,
+  getUserCase,
+  listUserCases,
+  updateLawyerStage,
   assignLawyer,
-  addHearing,
-  addCaseNote,
 } from "../controllers/caseController.ts";
 import {
   getCaseMessages,
@@ -16,129 +19,263 @@ import {
 } from "../controllers/chatController.ts";
 import { optionalAuth } from "../middlewares/auth.ts";
 import {
-  CreateCaseSchema,
-  UpdateCaseStatusSchema,
+  CreateUserCaseSchema,
+  UpdateLawyerCaseStageSchema,
+  ImportCaseSchema,
   AssignLawyerSchema,
-  AddHearingSchema,
-  AddCaseNoteSchema,
   SendChatMessageSchema,
+  ListLookupsQuerySchema,
   SuccessResponseSchema,
 } from "../schemas/index.ts";
 
 const caseRouter = new OpenAPIHono();
 caseRouter.use(optionalAuth);
 
-const listCasesRoute = createRoute({
+// ============================================================================
+// Lookup Endpoints
+// ============================================================================
+
+const getLookupsRoute = createRoute({
   method: "get",
-  path: "/",
-  tags: ["Cases"],
-  summary: "List legal cases with filters",
+  path: "/lookups",
+  tags: ["Cases - Lookups"],
+  summary: "Get lookups filtered by optional category (case_type, lawyer_casestage)",
   request: {
-    query: z.object({
-      citizenId: z.string().optional(),
-      lawyerId: z.string().optional(),
-      status: z.string().optional(),
-    }),
+    query: ListLookupsQuerySchema,
   },
   responses: {
     200: {
-      description: "List of cases",
+      description: "List of lookups",
       content: { "application/json": { schema: SuccessResponseSchema } },
     },
   },
 });
 
-const createCaseRoute = createRoute({
+const getCaseTypesRoute = createRoute({
+  method: "get",
+  path: "/types",
+  tags: ["Cases - Lookups"],
+  summary: "Get case types lookup list (sorted by sort_order)",
+  responses: {
+    200: {
+      description: "List of case types (new, pending, closed)",
+      content: { "application/json": { schema: SuccessResponseSchema } },
+    },
+  },
+});
+
+const getLawyerCaseStagesRoute = createRoute({
+  method: "get",
+  path: "/stages",
+  tags: ["Cases - Lookups"],
+  summary: "Get lawyer case stages lookup list (sorted by sort_order)",
+  responses: {
+    200: {
+      description: "List of lawyer stages (submitted, accepted, filinginprogress, cnrgenerated, rejected)",
+      content: { "application/json": { schema: SuccessResponseSchema } },
+    },
+  },
+});
+
+// ============================================================================
+// 1. Cases Imported Endpoints (eCourts View-Only)
+// ============================================================================
+
+const importCaseRoute = createRoute({
   method: "post",
-  path: "/",
-  tags: ["Cases"],
-  summary: "File a new legal case docket",
+  path: "/imported/import",
+  tags: ["Cases - Imported"],
+  summary: "Import or sync case from eCourts API by CNR number",
   request: {
     body: {
       content: {
         "application/json": {
-          schema: CreateCaseSchema,
+          schema: ImportCaseSchema,
         },
       },
     },
   },
   responses: {
     201: {
-      description: "Case created successfully",
+      description: "Case imported successfully",
       content: { "application/json": { schema: SuccessResponseSchema } },
     },
   },
 });
 
-const getCaseByCnrRoute = createRoute({
+const getImportedCaseRoute = createRoute({
   method: "get",
-  path: "/cnr/:cnr",
-  tags: ["Cases"],
-  summary: "Lookup case by Indian court 16-digit CNR number",
+  path: "/imported/:cnr",
+  tags: ["Cases - Imported"],
+  summary: "View imported eCourts case docket (strictly view-only)",
   request: {
     params: z.object({
-      cnr: z.string().openapi({ example: "TSHC010023452024" }),
+      cnr: z.string().openapi({ example: "DLND020047882015" }),
     }),
   },
   responses: {
     200: {
-      description: "Case docket details",
+      description: "Imported case docket strictly following case_structure.json",
       content: { "application/json": { schema: SuccessResponseSchema } },
     },
   },
 });
 
-const getCaseByIdRoute = createRoute({
+const listImportedCasesRoute = createRoute({
   method: "get",
-  path: "/:id",
-  tags: ["Cases"],
-  summary: "Get complete case docket, timeline & notes",
+  path: "/imported",
+  tags: ["Cases - Imported"],
+  summary: "List imported eCourts cases",
   request: {
-    params: z.object({
-      id: z.string().openapi({ example: "c_101" }),
+    query: z.object({
+      search: z.string().optional(),
+      limit: z.string().optional(),
+      offset: z.string().optional(),
     }),
   },
   responses: {
     200: {
-      description: "Full case docket",
+      description: "List of imported cases",
       content: { "application/json": { schema: SuccessResponseSchema } },
     },
   },
 });
 
-const updateCaseStatusRoute = createRoute({
+// ============================================================================
+// 2. Cases User Endpoints (Booking & Representation)
+// ============================================================================
+
+const listUserCasesRoute = createRoute({
+  method: "get",
+  path: "/user",
+  tags: ["Cases - User"],
+  summary: "List user cases with filters",
+  request: {
+    query: z.object({
+      citizenId: z.string().optional(),
+      lawyerId: z.string().optional(),
+      status: z.string().optional(),
+      caseType: z.string().optional(),
+      search: z.string().optional(),
+    }),
+  },
+  responses: {
+    200: {
+      description: "List of user cases",
+      content: { "application/json": { schema: SuccessResponseSchema } },
+    },
+  },
+});
+
+const createUserCaseRoute = createRoute({
+  method: "post",
+  path: "/user",
+  tags: ["Cases - User"],
+  summary: "Book a lawyer & submit case details and documents",
+  request: {
+    body: {
+      content: {
+        "application/json": {
+          schema: CreateUserCaseSchema,
+        },
+      },
+    },
+  },
+  responses: {
+    201: {
+      description: "Case created and advocate booked successfully",
+      content: { "application/json": { schema: SuccessResponseSchema } },
+    },
+  },
+});
+
+const getUserCaseRoute = createRoute({
+  method: "get",
+  path: "/user/:id",
+  tags: ["Cases - User"],
+  summary: "Get user case docket by ID",
+  request: {
+    params: z.object({
+      id: z.string().openapi({ example: "CUC-20260831154512" }),
+    }),
+  },
+  responses: {
+    200: {
+      description: "User case docket details",
+      content: { "application/json": { schema: SuccessResponseSchema } },
+    },
+  },
+});
+
+const updateLawyerStageRoute = createRoute({
   method: "patch",
-  path: "/:id/status",
-  tags: ["Cases"],
-  summary: "Update case status",
+  path: "/user/:id/stage",
+  tags: ["Cases - User"],
+  summary: "Lawyer updates case stage from lawyer_casestages lookup",
   request: {
     params: z.object({
-      id: z.string().openapi({ example: "c_101" }),
+      id: z.string().openapi({ example: "CUC-20260831154512" }),
     }),
     body: {
       content: {
         "application/json": {
-          schema: UpdateCaseStatusSchema,
+          schema: UpdateLawyerCaseStageSchema,
         },
       },
     },
   },
   responses: {
     200: {
-      description: "Status updated",
+      description: "Case stage updated successfully",
       content: { "application/json": { schema: SuccessResponseSchema } },
     },
   },
 });
 
+// Root aliases for backward compatibility
+const listRootCasesRoute = createRoute({
+  method: "get",
+  path: "/",
+  tags: ["Cases - User"],
+  summary: "List cases (alias for /user)",
+  responses: { 200: { description: "List of cases", content: { "application/json": { schema: SuccessResponseSchema } } } },
+});
+
+const createRootCaseRoute = createRoute({
+  method: "post",
+  path: "/",
+  tags: ["Cases - User"],
+  summary: "Create case (alias for /user)",
+  request: { body: { content: { "application/json": { schema: CreateUserCaseSchema } } } },
+  responses: { 201: { description: "Case created", content: { "application/json": { schema: SuccessResponseSchema } } } },
+});
+
+const getRootCaseRoute = createRoute({
+  method: "get",
+  path: "/:id",
+  tags: ["Cases - User"],
+  summary: "Get case by ID (alias for /user/:id)",
+  request: { params: z.object({ id: z.string() }) },
+  responses: { 200: { description: "Case docket", content: { "application/json": { schema: SuccessResponseSchema } } } },
+});
+
+const updateRootCaseStatusRoute = createRoute({
+  method: "patch",
+  path: "/:id/status",
+  tags: ["Cases - User"],
+  summary: "Update stage / status (alias for /user/:id/stage)",
+  request: { params: z.object({ id: z.string() }), body: { content: { "application/json": { schema: UpdateLawyerCaseStageSchema } } } },
+  responses: { 200: { description: "Status updated", content: { "application/json": { schema: SuccessResponseSchema } } } },
+});
+
 const assignLawyerRoute = createRoute({
   method: "patch",
   path: "/:id/assign-lawyer",
-  tags: ["Cases"],
+  tags: ["Cases - User"],
   summary: "Assign advocate to case docket",
   request: {
     params: z.object({
-      id: z.string().openapi({ example: "c_101" }),
+      id: z.string().openapi({ example: "CUC-20260831154512" }),
     }),
     body: {
       content: {
@@ -156,125 +293,57 @@ const assignLawyerRoute = createRoute({
   },
 });
 
-const addHearingRoute = createRoute({
-  method: "post",
-  path: "/:id/hearings",
-  tags: ["Cases"],
-  summary: "Schedule or record a court hearing date",
-  request: {
-    params: z.object({
-      id: z.string().openapi({ example: "c_101" }),
-    }),
-    body: {
-      content: {
-        "application/json": {
-          schema: AddHearingSchema,
-        },
-      },
-    },
-  },
-  responses: {
-    201: {
-      description: "Hearing created",
-      content: { "application/json": { schema: SuccessResponseSchema } },
-    },
-  },
-});
-
-const addCaseNoteRoute = createRoute({
-  method: "post",
-  path: "/:id/notes",
-  tags: ["Cases"],
-  summary: "Add confidential internal case note",
-  request: {
-    params: z.object({
-      id: z.string().openapi({ example: "c_101" }),
-    }),
-    body: {
-      content: {
-        "application/json": {
-          schema: AddCaseNoteSchema,
-        },
-      },
-    },
-  },
-  responses: {
-    201: {
-      description: "Note added",
-      content: { "application/json": { schema: SuccessResponseSchema } },
-    },
-  },
-});
-
+// Chat Endpoints
 const getCaseMessagesRoute = createRoute({
   method: "get",
   path: "/:id/messages",
   tags: ["Chat"],
-  summary: "Get consultation chat messages for a case",
-  request: {
-    params: z.object({
-      id: z.string().openapi({ example: "c_101" }),
-    }),
-  },
-  responses: {
-    200: {
-      description: "List of chat messages",
-      content: { "application/json": { schema: SuccessResponseSchema } },
-    },
-  },
+  summary: "Get consultation chat messages for a user case",
+  request: { params: z.object({ id: z.string() }) },
+  responses: { 200: { description: "Chat messages", content: { "application/json": { schema: SuccessResponseSchema } } } },
 });
 
 const sendCaseMessageRoute = createRoute({
   method: "post",
   path: "/:id/messages",
   tags: ["Chat"],
-  summary: "Send text message or file attachment in case chat",
+  summary: "Send message in case chat",
   request: {
-    params: z.object({
-      id: z.string().openapi({ example: "c_101" }),
-    }),
-    body: {
-      content: {
-        "application/json": {
-          schema: SendChatMessageSchema,
-        },
-      },
-    },
+    params: z.object({ id: z.string() }),
+    body: { content: { "application/json": { schema: SendChatMessageSchema } } },
   },
-  responses: {
-    201: {
-      description: "Message sent",
-      content: { "application/json": { schema: SuccessResponseSchema } },
-    },
-  },
+  responses: { 201: { description: "Message sent", content: { "application/json": { schema: SuccessResponseSchema } } } },
 });
 
 const markCaseMessagesReadRoute = createRoute({
   method: "patch",
   path: "/:id/messages/read",
   tags: ["Chat"],
-  summary: "Mark consultation chat messages as read",
-  request: {
-    params: z.object({
-      id: z.string().openapi({ example: "c_101" }),
-    }),
-  },
-  responses: {
-    200: {
-      description: "Messages marked as read",
-      content: { "application/json": { schema: SuccessResponseSchema } },
-    },
-  },
+  summary: "Mark messages as read",
+  request: { params: z.object({ id: z.string() }) },
+  responses: { 200: { description: "Messages read", content: { "application/json": { schema: SuccessResponseSchema } } } },
 });
 
-caseRouter.openapi(listCasesRoute, listCases as any);
-caseRouter.openapi(createCaseRoute, createCase as any);
-caseRouter.openapi(getCaseByCnrRoute, getCaseByCnr as any);
-caseRouter.openapi(getCaseByIdRoute, getCaseById as any);
-caseRouter.openapi(updateCaseStatusRoute, updateCaseStatus as any);
+// Register routes
+caseRouter.openapi(getLookupsRoute, getLookups as any);
+caseRouter.openapi(getCaseTypesRoute, getCaseTypes as any);
+caseRouter.openapi(getLawyerCaseStagesRoute, getLawyerCaseStages as any);
+
+caseRouter.openapi(importCaseRoute, importCase as any);
+caseRouter.openapi(getImportedCaseRoute, getImportedCase as any);
+caseRouter.openapi(listImportedCasesRoute, listImportedCases as any);
+
+caseRouter.openapi(listUserCasesRoute, listUserCases as any);
+caseRouter.openapi(createUserCaseRoute, createUserCase as any);
+caseRouter.openapi(getUserCaseRoute, getUserCase as any);
+caseRouter.openapi(updateLawyerStageRoute, updateLawyerStage as any);
+
+caseRouter.openapi(listRootCasesRoute, listUserCases as any);
+caseRouter.openapi(createRootCaseRoute, createUserCase as any);
+caseRouter.openapi(getRootCaseRoute, getUserCase as any);
+caseRouter.openapi(updateRootCaseStatusRoute, updateLawyerStage as any);
 caseRouter.openapi(assignLawyerRoute, assignLawyer as any);
-caseRouter.openapi(addHearingRoute, addHearing as any);
-caseRouter.openapi(addCaseNoteRoute, addCaseNote as any);
+
 caseRouter.openapi(getCaseMessagesRoute, getCaseMessages as any);
 caseRouter.openapi(sendCaseMessageRoute, sendCaseMessage as any);
 caseRouter.openapi(markCaseMessagesReadRoute, markCaseMessagesRead as any);

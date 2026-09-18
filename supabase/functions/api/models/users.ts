@@ -1,4 +1,5 @@
 import { pgTable, text, timestamp, varchar, integer, boolean, jsonb } from "drizzle-orm/pg-core";
+import { states, districts } from "./masterData.ts";
 
 export const users = pgTable("users", {
   id: varchar("id", { length: 128 }).primaryKey(),
@@ -19,6 +20,8 @@ export const citizens = pgTable("citizens", {
   currentLocation: text("current_location"),
   address: text("address"),
   state: varchar("state", { length: 128 }),
+  stateId: varchar("state_id", { length: 64 }).references(() => states.id, { onDelete: "set null" }),
+  districtId: varchar("district_id", { length: 64 }).references(() => districts.id, { onDelete: "set null" }),
   pincode: varchar("pincode", { length: 16 }),
   emergencyContact: varchar("emergency_contact", { length: 32 }),
   status: varchar("status", { length: 32 }).default("Active").notNull(),
@@ -41,6 +44,8 @@ export const lawyers = pgTable("lawyers", {
   registrationType: varchar("registration_type", { length: 32 }).default("lawyer"),
   declarationAccepted: boolean("declaration_accepted").default(true),
   city: varchar("city", { length: 128 }).notNull(),
+  stateId: varchar("state_id", { length: 64 }).references(() => states.id, { onDelete: "set null" }),
+  districtId: varchar("district_id", { length: 64 }).references(() => districts.id, { onDelete: "set null" }),
   cities: jsonb("cities").$type<string[]>().default([]),
   currentLocation: text("current_location"),
   area: varchar("area", { length: 128 }),

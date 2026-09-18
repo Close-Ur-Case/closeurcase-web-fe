@@ -54,11 +54,10 @@ export const legalServices = pgTable("legal_services", {
   updatedAt: timestamp("updated_at").defaultNow().notNull(),
 });
 
-export const cities = pgTable("cities", {
+export const states = pgTable("states", {
   id: varchar("id", { length: 64 }).primaryKey(),
   name: varchar("name", { length: 128 }).notNull(),
-  state: varchar("state", { length: 128 }).notNull(),
-  tier: varchar("tier", { length: 32 }).default("Tier 1"),
+  code: varchar("code", { length: 16 }).notNull(),
   active: boolean("active").default(true).notNull(),
   updatedAt: varchar("updated_at", { length: 64 }),
   createdAt: timestamp("created_at").defaultNow().notNull(),
@@ -68,6 +67,19 @@ export const districts = pgTable("districts", {
   id: varchar("id", { length: 64 }).primaryKey(),
   name: varchar("name", { length: 128 }).notNull(),
   state: varchar("state", { length: 128 }).notNull(),
+  stateId: varchar("state_id", { length: 64 }).references(() => states.id, { onDelete: "cascade" }),
+  active: boolean("active").default(true).notNull(),
+  updatedAt: varchar("updated_at", { length: 64 }),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+});
+
+export const cities = pgTable("cities", {
+  id: varchar("id", { length: 64 }).primaryKey(),
+  name: varchar("name", { length: 128 }).notNull(),
+  state: varchar("state", { length: 128 }).notNull(),
+  stateId: varchar("state_id", { length: 64 }).references(() => states.id, { onDelete: "set null" }),
+  districtId: varchar("district_id", { length: 64 }).references(() => districts.id, { onDelete: "set null" }),
+  tier: varchar("tier", { length: 32 }).default("Tier 1"),
   active: boolean("active").default(true).notNull(),
   updatedAt: varchar("updated_at", { length: 64 }),
   createdAt: timestamp("created_at").defaultNow().notNull(),
@@ -80,16 +92,8 @@ export const courts = pgTable("courts", {
   state: varchar("state", { length: 128 }).notNull(),
   city: varchar("city", { length: 128 }),
   district: varchar("district", { length: 128 }),
-  active: boolean("active").default(true).notNull(),
-  updatedAt: varchar("updated_at", { length: 64 }),
-  createdAt: timestamp("created_at").defaultNow().notNull(),
-});
-
-export const states = pgTable("states", {
-  id: varchar("id", { length: 64 }).primaryKey(),
-  name: varchar("name", { length: 128 }).notNull(),
-  code: varchar("code", { length: 16 }).notNull(),
-  districts: jsonb("districts").$type<string[]>().default([]),
+  stateId: varchar("state_id", { length: 64 }).references(() => states.id, { onDelete: "set null" }),
+  districtId: varchar("district_id", { length: 64 }).references(() => districts.id, { onDelete: "set null" }),
   active: boolean("active").default(true).notNull(),
   updatedAt: varchar("updated_at", { length: 64 }),
   createdAt: timestamp("created_at").defaultNow().notNull(),

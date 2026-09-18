@@ -1,9 +1,9 @@
 import { pgTable, text, timestamp, varchar, integer, boolean } from "drizzle-orm/pg-core";
-import { cases } from "./cases.ts";
+import { casesUser } from "./casesUser.ts";
 
 export const chatMessages = pgTable("chat_messages", {
   id: varchar("id", { length: 64 }).primaryKey(),
-  caseId: varchar("case_id", { length: 128 }).notNull().references(() => cases.id, { onDelete: "cascade" }),
+  caseId: varchar("case_id", { length: 128 }).notNull().references(() => casesUser.id, { onDelete: "cascade" }),
   sender: varchar("sender", { length: 32 }).notNull(), // 'citizen' | 'lawyer'
   senderName: varchar("sender_name", { length: 255 }).notNull(),
   text: text("text"),
@@ -14,5 +14,5 @@ export const chatMessages = pgTable("chat_messages", {
   audioDuration: integer("audio_duration"),
   read: boolean("read").default(false).notNull(),
   at: varchar("at", { length: 64 }).notNull(),
-  createdAt: timestamp("created_at").defaultNow().notNull(),
+  createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
 });

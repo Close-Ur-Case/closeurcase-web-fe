@@ -15,6 +15,7 @@ import aiRoutes from "./aiRoutes.ts";
 import adminRoutes from "./adminRoutes.ts";
 import subscriptionRoutes from "./subscriptionRoutes.ts";
 import emailTemplateRoutes from "./emailTemplateRoutes.ts";
+import lookupRoutes from "./lookupRoutes.ts";
 import { ApiResponse } from "../utils/apiResponse.ts";
 
 const api = new OpenAPIHono();
@@ -37,6 +38,7 @@ api.route("/auth", authRoutes);
 api.route("/citizens", citizenRoutes);
 api.route("/lawyers", lawyerRoutes);
 api.route("/cases", caseRoutes);
+api.route("/lookups", lookupRoutes);
 api.route("/payments", paymentRoutes);
 api.route("/withdrawals", withdrawalRoutes);
 api.route("/video-calls", videoCallRoutes);

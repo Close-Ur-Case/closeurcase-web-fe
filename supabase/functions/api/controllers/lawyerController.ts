@@ -31,6 +31,11 @@ export async function getLawyers(c: Context) {
   if (category) conditions.push(eq(lawyers.category, category));
   if (status) conditions.push(eq(lawyers.status, status));
 
+  const stateId = c.req.query("state_id") || c.req.query("stateId");
+  const districtId = c.req.query("district_id") || c.req.query("districtId");
+  if (stateId) conditions.push(eq(lawyers.stateId, stateId));
+  if (districtId) conditions.push(eq(lawyers.districtId, districtId));
+
   // Taxonomy filters: practiceArea, specialization, legalService
   const taxonomyConditions = [];
 

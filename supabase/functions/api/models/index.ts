@@ -1,10 +1,15 @@
 import { relations } from "drizzle-orm";
 import { users, citizens, lawyers, adminProfiles, type LawyerPracticeAreaItem } from "./users.ts";
-import { cases } from "./cases.ts";
-import { caseHearings } from "./hearings.ts";
-import { caseOrders } from "./orders.ts";
-import { caseNotes } from "./notes.ts";
-import { caseDocuments, lawyerDocuments } from "./documents.ts";
+import { casesImported, type CaseImported, type NewCaseImported } from "./casesImported.ts";
+import { lookups, type Lookup, type NewLookup } from "./lookups.ts";
+import {
+  casesUser,
+  type CaseUser,
+  type NewCaseUser,
+  type UserCaseDocument,
+  type UserCaseTimelineEvent,
+} from "./casesUser.ts";
+import { lawyerDocuments } from "./documents.ts";
 import { lawyerRatings } from "./ratings.ts";
 import { subscriptions, subscriptionPlans } from "./subscriptions.ts";
 import { payments } from "./payments.ts";
@@ -48,7 +53,7 @@ export const citizenRelations = relations(citizens, ({ one, many }: any) => ({
     fields: [citizens.userId],
     references: [users.id],
   }),
-  cases: many(cases),
+  cases: many(casesUser),
   subscriptions: many(subscriptions),
   payments: many(payments),
 }));
@@ -58,28 +63,35 @@ export const lawyerRelations = relations(lawyers, ({ one, many }: any) => ({
     fields: [lawyers.userId],
     references: [users.id],
   }),
-  cases: many(cases),
+  cases: many(casesUser),
   ratings: many(lawyerRatings),
   withdrawals: many(withdrawalRequests),
   documents: many(lawyerDocuments),
 }));
 
-export const caseRelations = relations(cases, ({ one, many }: any) => ({
+export const caseUserRelations = relations(casesUser, ({ one, many }: any) => ({
   citizen: one(citizens, {
-    fields: [cases.citizenId],
+    fields: [casesUser.citizenId],
     references: [citizens.id],
   }),
   lawyer: one(lawyers, {
-    fields: [cases.lawyerId],
+    fields: [casesUser.lawyerId],
     references: [lawyers.id],
   }),
-  hearings: many(caseHearings),
-  orders: many(caseOrders),
-  notes: many(caseNotes),
-  documents: many(caseDocuments),
+  caseTypeRel: one(lookups, {
+    fields: [casesUser.caseType],
+    references: [lookups.id],
+  }),
+  stageRel: one(lookups, {
+    fields: [casesUser.lawyerCasestageId],
+    references: [lookups.id],
+  }),
+  importedCase: one(casesImported, {
+    fields: [casesUser.cnr],
+    references: [casesImported.cnr],
+  }),
   videoCalls: many(videoCalls),
   messages: many(chatMessages),
-  aiAnalyses: many(aiCaseAnalyses),
 }));
 
 export const caseCategoriesRelations = relations(caseCategories, ({ many }: any) => ({
@@ -106,16 +118,42 @@ export const legalServicesRelations = relations(legalServices, ({ one }: any) =>
   }),
 }));
 
+export const stateRelations = relations(states, ({ many }: any) => ({
+  districts: many(districts),
+  citizens: many(citizens),
+  lawyers: many(lawyers),
+  cases: many(casesUser),
+  courts: many(courts),
+}));
+
+export const districtRelations = relations(districts, ({ one, many }: any) => ({
+  state: one(states, {
+    fields: [districts.stateId],
+    references: [states.id],
+  }),
+  citizens: many(citizens),
+  lawyers: many(lawyers),
+  cases: many(casesUser),
+  courts: many(courts),
+}));
+
 export {
   users,
   citizens,
   lawyers,
   adminProfiles,
-  cases,
-  caseHearings,
-  caseOrders,
-  caseNotes,
-  caseDocuments,
+  lookups,
+  type Lookup,
+  type NewLookup,
+  casesImported,
+  type CaseImported,
+  type NewCaseImported,
+  casesUser,
+  casesUser as cases,
+  type CaseUser,
+  type NewCaseUser,
+  type UserCaseDocument,
+  type UserCaseTimelineEvent,
   lawyerDocuments,
   lawyerRatings,
   subscriptions,
@@ -143,4 +181,3 @@ export {
   type NewMigration,
   type LawyerPracticeAreaItem,
 };
-

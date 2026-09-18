@@ -1,7 +1,7 @@
 import type { Context } from "hono";
 import { db } from "../config/db.ts";
-import { citizens, lawyers, cases, payments, withdrawalRequests } from "../models/index.ts";
-import { eq, sql } from "drizzle-orm";
+import { citizens, lawyers, casesUser, payments, withdrawalRequests } from "../models/index.ts";
+import { eq, ne, sql } from "drizzle-orm";
 import { ApiResponse } from "../utils/apiResponse.ts";
 
 export async function getDashboardStats(c: Context) {
@@ -11,11 +11,11 @@ export async function getDashboardStats(c: Context) {
     .select({ count: sql<number>`count(*)::int` })
     .from(lawyers)
     .where(eq(lawyers.status, "Pending"));
-  const [totalCases] = await db.select({ count: sql<number>`count(*)::int` }).from(cases);
+  const [totalCases] = await db.select({ count: sql<number>`count(*)::int` }).from(casesUser);
   const [activeCases] = await db
     .select({ count: sql<number>`count(*)::int` })
-    .from(cases)
-    .where(eq(cases.status, "Active"));
+    .from(casesUser)
+    .where(ne(casesUser.caseStatus, "rejected"));
 
   const [revenueResult] = await db
     .select({
@@ -44,10 +44,12 @@ export async function getDashboardStats(c: Context) {
       revenue: {
         totalVolume: revenueResult?.totalGross || 0,
         platformCommission: revenueResult?.totalPlatform || 0,
-        pendingWithdrawalsCount: pendingWithdrawals?.count || 0,
-        pendingWithdrawalsAmount: pendingWithdrawals?.amount || 0,
+      },
+      withdrawals: {
+        pendingCount: pendingWithdrawals?.count || 0,
+        pendingAmount: pendingWithdrawals?.amount || 0,
       },
     },
-    "Admin dashboard metrics retrieved successfully"
+    "Dashboard statistics retrieved successfully"
   );
 }

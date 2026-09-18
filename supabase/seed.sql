@@ -65,17 +65,144 @@ SET name = EXCLUDED.name,
     active = EXCLUDED.active,
     updated_at = NOW();
 
--- Master Taxonomies: Cities
-INSERT INTO public.cities (id, name, state, tier, active) VALUES
-('city_1', 'Hyderabad', 'Telangana', 'Tier 1', true),
-('city_2', 'Visakhapatnam', 'Andhra Pradesh', 'Tier 2', true),
-('city_3', 'Bengaluru', 'Karnataka', 'Tier 1', true),
-('city_4', 'Chennai', 'Tamil Nadu', 'Tier 1', true),
-('city_5', 'Mumbai', 'Maharashtra', 'Tier 1', true),
-('city_6', 'Delhi / New Delhi', 'Delhi', 'Tier 1', true),
-('city_7', 'Vijayawada', 'Andhra Pradesh', 'Tier 2', true),
-('city_8', 'Pune', 'Maharashtra', 'Tier 1', true)
-ON CONFLICT (id) DO NOTHING;
+-- Master Taxonomies: States (All 29 Indian States & UTs from locations.json)
+INSERT INTO public.states (id, name, code, active) VALUES
+('andhra_pradesh', 'Andhra Pradesh', 'AP', true),
+('arunachal_pradesh', 'Arunachal Pradesh', 'AR', true),
+('assam', 'Assam', 'AS', true),
+('bihar', 'Bihar', 'BR', true),
+('chhattisgarh', 'Chhattisgarh', 'CG', true),
+('goa', 'Goa', 'GA', true),
+('gujarat', 'Gujarat', 'GJ', true),
+('haryana', 'Haryana', 'HR', true),
+('himachal_pradesh', 'Himachal Pradesh', 'HP', true),
+('jammu_kashmir', 'Jammu & Kashmir', 'JK', true),
+('jharkhand', 'Jharkhand', 'JH', true),
+('karnataka', 'Karnataka', 'KA', true),
+('kerala', 'Kerala', 'KL', true),
+('madhya_pradesh', 'Madhya Pradesh', 'MP', true),
+('maharashtra', 'Maharashtra', 'MH', true),
+('manipur', 'Manipur', 'MN', true),
+('meghalaya', 'Meghalaya', 'ML', true),
+('mizoram', 'Mizoram', 'MZ', true),
+('nagaland', 'Nagaland', 'NL', true),
+('odisha', 'Odisha', 'OD', true),
+('punjab', 'Punjab', 'PB', true),
+('rajasthan', 'Rajasthan', 'RJ', true),
+('sikkim', 'Sikkim', 'SK', true),
+('tamil_nadu', 'Tamil Nadu', 'TN', true),
+('telangana', 'Telangana', 'TS', true),
+('tripura', 'Tripura', 'TR', true),
+('uttar_pradesh', 'Uttar Pradesh', 'UP', true),
+('uttarakhand', 'Uttarakhand', 'UK', true),
+('west_bengal', 'West Bengal', 'WB', true)
+ON CONFLICT (id) DO UPDATE SET
+    name = EXCLUDED.name,
+    code = EXCLUDED.code,
+    active = EXCLUDED.active;
+
+-- Master Taxonomies: Districts (All 59 Districts from locations.json)
+INSERT INTO public.districts (id, name, state, state_id, active) VALUES
+-- Telangana (33)
+('adilabad', 'Adilabad', 'Telangana', 'telangana', true),
+('bhadradri_kothagudem', 'Bhadradri Kothagudem', 'Telangana', 'telangana', true),
+('hyderabad', 'Hyderabad', 'Telangana', 'telangana', true),
+('jagtial', 'Jagtial', 'Telangana', 'telangana', true),
+('jangaon', 'Jangaon', 'Telangana', 'telangana', true),
+('jayashankar_bhupalpally', 'Jayashankar Bhupalpally', 'Telangana', 'telangana', true),
+('jogulamba_gadwal', 'Jogulamba Gadwal', 'Telangana', 'telangana', true),
+('kamareddy', 'Kamareddy', 'Telangana', 'telangana', true),
+('karimnagar', 'Karimnagar', 'Telangana', 'telangana', true),
+('khammam', 'Khammam', 'Telangana', 'telangana', true),
+('komaram_bheem_asifabad', 'Komaram Bheem Asifabad', 'Telangana', 'telangana', true),
+('mahabubabad', 'Mahabubabad', 'Telangana', 'telangana', true),
+('mahabubnagar', 'Mahabubnagar', 'Telangana', 'telangana', true),
+('mancherial', 'Mancherial', 'Telangana', 'telangana', true),
+('medak', 'Medak', 'Telangana', 'telangana', true),
+('medchal_malkajgiri', 'Medchal Malkajgiri', 'Telangana', 'telangana', true),
+('mulugu', 'Mulugu', 'Telangana', 'telangana', true),
+('nagarkurnool', 'Nagarkurnool', 'Telangana', 'telangana', true),
+('nalgonda', 'Nalgonda', 'Telangana', 'telangana', true),
+('narayanpet', 'Narayanpet', 'Telangana', 'telangana', true),
+('nirmal', 'Nirmal', 'Telangana', 'telangana', true),
+('nizamabad', 'Nizamabad', 'Telangana', 'telangana', true),
+('peddapalli', 'Peddapalli', 'Telangana', 'telangana', true),
+('rajanna_sircilla', 'Rajanna Sircilla', 'Telangana', 'telangana', true),
+('rangareddy', 'Rangareddy', 'Telangana', 'telangana', true),
+('sangareddy', 'Sangareddy', 'Telangana', 'telangana', true),
+('siddipet', 'Siddipet', 'Telangana', 'telangana', true),
+('suryapet', 'Suryapet', 'Telangana', 'telangana', true),
+('vikarabad', 'Vikarabad', 'Telangana', 'telangana', true),
+('wanaparthy', 'Wanaparthy', 'Telangana', 'telangana', true),
+('warangal', 'Warangal', 'Telangana', 'telangana', true),
+('hanumakonda', 'Hanumakonda', 'Telangana', 'telangana', true),
+('yadadri_bhuvanagiri', 'Yadadri Bhuvanagiri', 'Telangana', 'telangana', true),
+-- Andhra Pradesh (26)
+('alluri_sitharama_raju', 'Alluri Sitharama Raju', 'Andhra Pradesh', 'andhra_pradesh', true),
+('anakapalli', 'Anakapalli', 'Andhra Pradesh', 'andhra_pradesh', true),
+('anantapur', 'Anantapur', 'Andhra Pradesh', 'andhra_pradesh', true),
+('annamayya', 'Annamayya', 'Andhra Pradesh', 'andhra_pradesh', true),
+('bapatla', 'Bapatla', 'Andhra Pradesh', 'andhra_pradesh', true),
+('chittoor', 'Chittoor', 'Andhra Pradesh', 'andhra_pradesh', true),
+('east_godavari', 'East Godavari', 'Andhra Pradesh', 'andhra_pradesh', true),
+('eluru', 'Eluru', 'Andhra Pradesh', 'andhra_pradesh', true),
+('guntur', 'Guntur', 'Andhra Pradesh', 'andhra_pradesh', true),
+('kakinada', 'Kakinada', 'Andhra Pradesh', 'andhra_pradesh', true),
+('konaseema', 'Konaseema', 'Andhra Pradesh', 'andhra_pradesh', true),
+('krishna', 'Krishna', 'Andhra Pradesh', 'andhra_pradesh', true),
+('kurnool', 'Kurnool', 'Andhra Pradesh', 'andhra_pradesh', true),
+('nandyal', 'Nandyal', 'Andhra Pradesh', 'andhra_pradesh', true),
+('ntr', 'NTR', 'Andhra Pradesh', 'andhra_pradesh', true),
+('palnadu', 'Palnadu', 'Andhra Pradesh', 'andhra_pradesh', true),
+('parvathipuram_manyam', 'Parvathipuram Manyam', 'Andhra Pradesh', 'andhra_pradesh', true),
+('prakasam', 'Prakasam', 'Andhra Pradesh', 'andhra_pradesh', true),
+('spsr_nellore', 'Sri Potti Sriramulu Nellore', 'Andhra Pradesh', 'andhra_pradesh', true),
+('sri_sathya_sai', 'Sri Sathya Sai', 'Andhra Pradesh', 'andhra_pradesh', true),
+('srikakulam', 'Srikakulam', 'Andhra Pradesh', 'andhra_pradesh', true),
+('tirupati', 'Tirupati', 'Andhra Pradesh', 'andhra_pradesh', true),
+('visakhapatnam', 'Visakhapatnam', 'Andhra Pradesh', 'andhra_pradesh', true),
+('vizianagaram', 'Vizianagaram', 'Andhra Pradesh', 'andhra_pradesh', true),
+('west_godavari', 'West Godavari', 'Andhra Pradesh', 'andhra_pradesh', true),
+('ysr_kadapa', 'YSR Kadapa', 'Andhra Pradesh', 'andhra_pradesh', true)
+ON CONFLICT (id) DO UPDATE SET
+    name = EXCLUDED.name,
+    state = EXCLUDED.state,
+    state_id = EXCLUDED.state_id,
+    active = EXCLUDED.active;
+
+-- Master Taxonomies: Courts
+INSERT INTO public.courts (id, name, level, state, city, district, state_id, district_id, active) VALUES
+('court_hyd_dc', 'City Civil Court, Hyderabad', 'lvl_3', 'Telangana', 'Hyderabad', 'Hyderabad', 'telangana', 'hyderabad', true),
+('court_vzg_dc', 'District & Sessions Court, Visakhapatnam', 'lvl_3', 'Andhra Pradesh', 'Visakhapatnam', 'Visakhapatnam', 'andhra_pradesh', 'visakhapatnam', true),
+('court_tshc', 'High Court for the State of Telangana', 'lvl_2', 'Telangana', 'Hyderabad', 'Hyderabad', 'telangana', 'hyderabad', true),
+('court_aphc', 'High Court of Andhra Pradesh, Amaravati', 'lvl_2', 'Andhra Pradesh', 'Amaravati', 'Guntur', 'andhra_pradesh', 'guntur', true)
+ON CONFLICT (id) DO UPDATE SET
+    name = EXCLUDED.name,
+    level = EXCLUDED.level,
+    state = EXCLUDED.state,
+    city = EXCLUDED.city,
+    district = EXCLUDED.district,
+    state_id = EXCLUDED.state_id,
+    district_id = EXCLUDED.district_id,
+    active = EXCLUDED.active;
+
+-- Master Taxonomies: Cities (with state_id & district_id)
+INSERT INTO public.cities (id, name, state, state_id, district_id, tier, active) VALUES
+('city_1', 'Hyderabad', 'Telangana', 'telangana', 'hyderabad', 'Tier 1', true),
+('city_2', 'Visakhapatnam', 'Andhra Pradesh', 'andhra_pradesh', 'visakhapatnam', 'Tier 2', true),
+('city_3', 'Bengaluru', 'Karnataka', 'karnataka', NULL, 'Tier 1', true),
+('city_4', 'Chennai', 'Tamil Nadu', 'tamil_nadu', NULL, 'Tier 1', true),
+('city_5', 'Mumbai', 'Maharashtra', 'maharashtra', NULL, 'Tier 1', true),
+('city_6', 'Delhi / New Delhi', 'Delhi', NULL, NULL, 'Tier 1', true),
+('city_7', 'Vijayawada', 'Andhra Pradesh', 'andhra_pradesh', 'ntr', 'Tier 2', true),
+('city_8', 'Pune', 'Maharashtra', 'maharashtra', NULL, 'Tier 1', true)
+ON CONFLICT (id) DO UPDATE SET
+    name = EXCLUDED.name,
+    state = EXCLUDED.state,
+    state_id = EXCLUDED.state_id,
+    district_id = EXCLUDED.district_id,
+    tier = EXCLUDED.tier,
+    active = EXCLUDED.active;
 
 -- Master Taxonomies: Languages
 INSERT INTO public.languages (id, name, native_name, code, active) VALUES
@@ -88,7 +215,7 @@ INSERT INTO public.languages (id, name, native_name, code, active) VALUES
 ('lang_mr', 'Marathi', 'मराठी', 'mr', true),
 ('lang_bn', 'Bengali', 'বাংলা', 'bn', true),
 ('lang_gu', 'Gujarati', 'ગુજરાતી', 'gu', true),
-('lang_or', 'Odia', 'ଓଡ଼ିଆ', 'or', true),
+('lang_or', 'Odia', 'ଓଡ଼ಿଆ', 'or', true),
 ('lang_pa', 'Punjabi', 'ਪੰਜਾਬੀ', 'pa', true),
 ('lang_ur', 'Urdu', 'اردو', 'ur', true),
 ('lang_as', 'Assamese', 'অসমীয়া', 'as', true)
@@ -115,7 +242,7 @@ INSERT INTO public.admin_profiles (id, user_id, name, email, phone, role) VALUES
 ('admin_01', 'usr_admin_master', 'Platform Super Admin', 'admin@closeurcase.app', '+919800000000', 'superadmin')
 ON CONFLICT (id) DO NOTHING;
 
--- 3. Citizens
+-- 3. Citizens (with state_id & district_id)
 INSERT INTO public.users (id, role, email, phone) VALUES
 ('usr_u_001', 'citizen', 'saiteja.reddy@gmail.com', '+91 98110 22111'),
 ('usr_u_002', 'citizen', 'lakshmi.prasanna92@gmail.com', '+91 98320 45123'),
@@ -123,14 +250,18 @@ INSERT INTO public.users (id, role, email, phone) VALUES
 ('usr_u_004', 'citizen', 'ramana.naidu.vzg@gmail.com', '+91 98333 11902')
 ON CONFLICT (id) DO NOTHING;
 
-INSERT INTO public.citizens (id, user_id, name, email, phone, city, status, joined_at, last_login_at) VALUES
-('u_001', 'usr_u_001', 'Sai Teja Reddy', 'saiteja.reddy@gmail.com', '+91 98110 22111', 'Hyderabad', 'Active', '2025-02-14', '2026-09-06T09:15:00'),
-('u_002', 'usr_u_002', 'Lakshmi Prasanna', 'lakshmi.prasanna92@gmail.com', '+91 98320 45123', 'Visakhapatnam', 'Active', '2025-04-01', '2026-09-04T18:42:00'),
-('u_003', 'usr_u_003', 'Divya Sri Chowdary', 'divya.chowdary@gmail.com', '+91 98450 88321', 'Hyderabad', 'Active', '2025-06-11', '2026-09-05T11:20:00'),
-('u_004', 'usr_u_004', 'Venkata Ramana Naidu', 'ramana.naidu.vzg@gmail.com', '+91 98333 11902', 'Visakhapatnam', 'Inactive', '2025-11-08', '2026-05-20T08:05:00')
-ON CONFLICT (id) DO NOTHING;
+INSERT INTO public.citizens (id, user_id, name, email, phone, city, state, state_id, district_id, status, joined_at, last_login_at) VALUES
+('u_001', 'usr_u_001', 'Sai Teja Reddy', 'saiteja.reddy@gmail.com', '+91 98110 22111', 'Hyderabad', 'Telangana', 'telangana', 'hyderabad', 'Active', '2025-02-14', '2026-09-06T09:15:00'),
+('u_002', 'usr_u_002', 'Lakshmi Prasanna', 'lakshmi.prasanna92@gmail.com', '+91 98320 45123', 'Visakhapatnam', 'Andhra Pradesh', 'andhra_pradesh', 'visakhapatnam', 'Active', '2025-04-01', '2026-09-04T18:42:00'),
+('u_003', 'usr_u_003', 'Divya Sri Chowdary', 'divya.chowdary@gmail.com', '+91 98450 88321', 'Hyderabad', 'Telangana', 'telangana', 'hyderabad', 'Active', '2025-06-11', '2026-09-05T11:20:00'),
+('u_004', 'usr_u_004', 'Venkata Ramana Naidu', 'ramana.naidu.vzg@gmail.com', '+91 98333 11902', 'Visakhapatnam', 'Andhra Pradesh', 'andhra_pradesh', 'visakhapatnam', 'Inactive', '2025-11-08', '2026-05-20T08:05:00')
+ON CONFLICT (id) DO UPDATE SET
+    city = EXCLUDED.city,
+    state = EXCLUDED.state,
+    state_id = EXCLUDED.state_id,
+    district_id = EXCLUDED.district_id;
 
--- 4. Lawyers
+-- 4. Lawyers (with state_id & district_id)
 INSERT INTO public.users (id, role, email, phone) VALUES
 ('usr_l_001', 'lawyer', 'swathi.reddy@legal.in', '+91 98765 43210'),
 ('usr_l_002', 'lawyer', 'srinivas.chowdary@courtlaw.in', '+91 98490 11223'),
@@ -140,13 +271,13 @@ INSERT INTO public.users (id, role, email, phone) VALUES
 ('usr_l_006', 'lawyer', 'meera.nambiar@cyberlaw.in', '+91 98777 88990')
 ON CONFLICT (id) DO NOTHING;
 
-INSERT INTO public.lawyers (id, user_id, name, email, phone, category, role_title, city, area, bar_id, experience_years, rating, status, active_cases, office_address, bio, languages, practice_areas, specializations, legal_services, rating_count, consultation_fee, availability_status, bank_name, account_number, ifsc_code, registration_type, declaration_accepted, joined_at) VALUES
-('l_001', 'usr_l_001', 'Adv. Swathi Reddy', 'swathi.reddy@legal.in', '+91 98765 43210', 'Criminal Defense', 'Senior Advocate — High Court', 'Hyderabad', 'Banjara Hills', 'TS/1234/2014', 12, '4.9', 'Approved', 8, 'Road No. 12, Banjara Hills, Hyderabad', 'Civil litigation, corporate writs, and property title dispute settlements.', '["lang_en", "lang_te", "lang_hi"]'::jsonb, '["cat_1", "cat_6"]'::jsonb, '["spec_1_1", "spec_1_2", "spec_6_3"]'::jsonb, '["srv_1_1_1", "srv_1_1_2", "srv_1_2_2", "srv_6_3_2"]'::jsonb, 42, 1500, 'Online', 'HDFC Bank Ltd', '50100234567890', 'HDFC0001234', 'lawyer', true, '2024-03-10'),
-('l_002', 'usr_l_002', 'Adv. Srinivas Chowdary', 'srinivas.chowdary@courtlaw.in', '+91 98490 11223', 'Property Law', 'Criminal Defense Advocate', 'Hyderabad', 'Gachibowli', 'TS/5678/2012', 14, '4.8', 'Approved', 11, 'Plot 45, Telecom Nagar, Gachibowli, Hyderabad', 'Courtroom experience in anticipatory bails, economic offences, and criminal revisions.', '["lang_en", "lang_te"]'::jsonb, '["cat_9", "cat_8"]'::jsonb, '["spec_9_2", "spec_9_3", "spec_8_3"]'::jsonb, '["srv_9_2_1", "srv_9_2_6", "srv_9_3_2", "srv_8_3_3"]'::jsonb, 38, 2000, 'Online', 'State Bank of India', '38920194829', 'SBIN0004812', 'lawyer', true, '2024-05-18'),
-('l_003', 'usr_l_003', 'Adv. Sailaja Naidu', 'sailaja.naidu@familylaw.org', '+91 98220 33445', 'Family Law', 'Family & Matrimonial Advocate', 'Visakhapatnam', 'MVP Colony', 'AP/9102/2016', 9, '4.9', 'Approved', 6, 'Sector 3, MVP Colony, Visakhapatnam', 'Expert counsel in divorce mediation, child custody, and domestic disputes.', '["lang_en", "lang_te"]'::jsonb, '["cat_3"]'::jsonb, '["spec_3_6", "spec_3_2", "spec_3_7"]'::jsonb, '["srv_3_6_5", "srv_3_2_1", "srv_3_7_1"]'::jsonb, 29, 1200, 'Online', 'ICICI Bank', '192801948201', 'ICIC0000281', 'lawyer', true, '2024-08-22'),
-('l_004', 'usr_l_004', 'Adv. Ananya Rao', 'ananya.rao@corplaw.in', '+91 98111 22334', 'Corporate Law', 'Corporate & M&A Specialist', 'Bengaluru', 'Indiranagar', 'KAR/3421/2015', 11, '4.9', 'Approved', 9, '100 Feet Road, Indiranagar, Bengaluru', 'Corporate restructuring, venture funding agreements, commercial arbitration.', '["lang_en", "lang_kn", "lang_hi"]'::jsonb, '["cat_2", "cat_4"]'::jsonb, '["spec_2_1", "spec_2_4", "spec_2_5"]'::jsonb, '["srv_2_1_1", "srv_2_4_1", "srv_2_5_1"]'::jsonb, 51, 2500, 'Online', 'Axis Bank', '9180200482910', 'UTIB0000421', 'lawyer', true, '2024-02-15'),
-('l_005', 'usr_l_005', 'Adv. Rajeshwar Rao', 'rajeshwar.rao@propertylaw.in', '+91 98444 55667', 'Property Law', 'Property & Revenue Law Specialist', 'Hyderabad', 'Jubilee Hills', 'TS/7891/2010', 16, '4.8', 'Approved', 14, 'Road No. 36, Jubilee Hills, Hyderabad', 'Specialized in land acquisition, partition suits, title search, and High Court writs.', '["lang_en", "lang_te"]'::jsonb, '["cat_9"]'::jsonb, '["spec_9_1", "spec_9_2", "spec_9_3"]'::jsonb, '["srv_9_1_1", "srv_9_2_1", "srv_9_3_1"]'::jsonb, 67, 1800, 'Online', 'State Bank of India', '20194829104', 'SBIN0001048', 'lawyer', true, '2023-11-20'),
-('l_006', 'usr_l_006', 'Adv. Meera Nambiar', 'meera.nambiar@cyberlaw.in', '+91 98777 88990', 'Cyber', 'Cyber Crime & Data Privacy Counsel', 'Chennai', 'T. Nagar', 'TN/2049/2018', 8, '4.7', 'Approved', 5, 'G.N. Chetty Road, T. Nagar, Chennai', 'Handling cyber fraud, online defamation, digital evidence authentication under Section 65B.', '["lang_en", "lang_ta", "lang_ml"]'::jsonb, '["cat_10"]'::jsonb, '["spec_10_1", "spec_10_2"]'::jsonb, '["srv_10_1_1", "srv_10_1_2", "srv_10_2_1"]'::jsonb, 24, 1500, 'Online', 'HDFC Bank', '50100482910492', 'HDFC0000192', 'lawyer', true, '2024-06-10')
+INSERT INTO public.lawyers (id, user_id, name, email, phone, category, role_title, city, state_id, district_id, area, bar_id, experience_years, rating, status, active_cases, office_address, bio, languages, practice_areas, specializations, legal_services, rating_count, consultation_fee, availability_status, bank_name, account_number, ifsc_code, registration_type, declaration_accepted, joined_at) VALUES
+('l_001', 'usr_l_001', 'Adv. Swathi Reddy', 'swathi.reddy@legal.in', '+91 98765 43210', 'Criminal Defense', 'Senior Advocate — High Court', 'Hyderabad', 'telangana', 'hyderabad', 'Banjara Hills', 'TS/1234/2014', 12, '4.9', 'Approved', 8, 'Road No. 12, Banjara Hills, Hyderabad', 'Civil litigation, corporate writs, and property title dispute settlements.', '["lang_en", "lang_te", "lang_hi"]'::jsonb, '["cat_1", "cat_6"]'::jsonb, '["spec_1_1", "spec_1_2", "spec_6_3"]'::jsonb, '["srv_1_1_1", "srv_1_1_2", "srv_1_2_2", "srv_6_3_2"]'::jsonb, 42, 1500, 'Online', 'HDFC Bank Ltd', '50100234567890', 'HDFC0001234', 'lawyer', true, '2024-03-10'),
+('l_002', 'usr_l_002', 'Adv. Srinivas Chowdary', 'srinivas.chowdary@courtlaw.in', '+91 98490 11223', 'Property Law', 'Criminal Defense Advocate', 'Hyderabad', 'telangana', 'hyderabad', 'Gachibowli', 'TS/5678/2012', 14, '4.8', 'Approved', 11, 'Plot 45, Telecom Nagar, Gachibowli, Hyderabad', 'Courtroom experience in anticipatory bails, economic offences, and criminal revisions.', '["lang_en", "lang_te"]'::jsonb, '["cat_9", "cat_8"]'::jsonb, '["spec_9_2", "spec_9_3", "spec_8_3"]'::jsonb, '["srv_9_2_1", "srv_9_2_6", "srv_9_3_2", "srv_8_3_3"]'::jsonb, 38, 2000, 'Online', 'State Bank of India', '38920194829', 'SBIN0004812', 'lawyer', true, '2024-05-18'),
+('l_003', 'usr_l_003', 'Adv. Sailaja Naidu', 'sailaja.naidu@familylaw.org', '+91 98220 33445', 'Family Law', 'Family & Matrimonial Advocate', 'Visakhapatnam', 'andhra_pradesh', 'visakhapatnam', 'MVP Colony', 'AP/9102/2016', 9, '4.9', 'Approved', 6, 'Sector 3, MVP Colony, Visakhapatnam', 'Expert counsel in divorce mediation, child custody, and domestic disputes.', '["lang_en", "lang_te"]'::jsonb, '["cat_3"]'::jsonb, '["spec_3_6", "spec_3_2", "spec_3_7"]'::jsonb, '["srv_3_6_5", "srv_3_2_1", "srv_3_7_1"]'::jsonb, 29, 1200, 'Online', 'ICICI Bank', '192801948201', 'ICIC0000281', 'lawyer', true, '2024-08-22'),
+('l_004', 'usr_l_004', 'Adv. Ananya Rao', 'ananya.rao@corplaw.in', '+91 98111 22334', 'Corporate Law', 'Corporate & M&A Specialist', 'Bengaluru', 'karnataka', NULL, 'Indiranagar', 'KAR/3421/2015', 11, '4.9', 'Approved', 9, '100 Feet Road, Indiranagar, Bengaluru', 'Corporate restructuring, venture funding agreements, commercial arbitration.', '["lang_en", "lang_kn", "lang_hi"]'::jsonb, '["cat_2", "cat_4"]'::jsonb, '["spec_2_1", "spec_2_4", "spec_2_5"]'::jsonb, '["srv_2_1_1", "srv_2_4_1", "srv_2_5_1"]'::jsonb, 51, 2500, 'Online', 'Axis Bank', '9180200482910', 'UTIB0000421', 'lawyer', true, '2024-02-15'),
+('l_005', 'usr_l_005', 'Adv. Rajeshwar Rao', 'rajeshwar.rao@propertylaw.in', '+91 98444 55667', 'Property Law', 'Property & Revenue Law Specialist', 'Hyderabad', 'telangana', 'hyderabad', 'Jubilee Hills', 'TS/7891/2010', 16, '4.8', 'Approved', 14, 'Road No. 36, Jubilee Hills, Hyderabad', 'Specialized in land acquisition, partition suits, title search, and High Court writs.', '["lang_en", "lang_te"]'::jsonb, '["cat_9"]'::jsonb, '["spec_9_1", "spec_9_2", "spec_9_3"]'::jsonb, '["srv_9_1_1", "srv_9_2_1", "srv_9_3_1"]'::jsonb, 67, 1800, 'Online', 'State Bank of India', '20194829104', 'SBIN0001048', 'lawyer', true, '2023-11-20'),
+('l_006', 'usr_l_006', 'Adv. Meera Nambiar', 'meera.nambiar@cyberlaw.in', '+91 98777 88990', 'Cyber', 'Cyber Crime & Data Privacy Counsel', 'Chennai', 'tamil_nadu', NULL, 'T. Nagar', 'TN/2049/2018', 8, '4.7', 'Approved', 5, 'G.N. Chetty Road, T. Nagar, Chennai', 'Handling cyber fraud, online defamation, digital evidence authentication under Section 65B.', '["lang_en", "lang_ta", "lang_ml"]'::jsonb, '["cat_10"]'::jsonb, '["spec_10_1", "spec_10_2"]'::jsonb, '["srv_10_1_1", "srv_10_1_2", "srv_10_2_1"]'::jsonb, 24, 1500, 'Online', 'HDFC Bank', '50100482910492', 'HDFC0000192', 'lawyer', true, '2024-06-10')
 ON CONFLICT (id) DO UPDATE
 SET languages = EXCLUDED.languages,
     practice_areas = EXCLUDED.practice_areas,
@@ -155,43 +286,42 @@ SET languages = EXCLUDED.languages,
     registration_type = EXCLUDED.registration_type,
     declaration_accepted = EXCLUDED.declaration_accepted;
 
--- 5. Legal Cases (Includes eCourts canonical case DLND020047882015 from case_structure.json)
-INSERT INTO public.cases (id, cnr, title, description, category, citizen_id, citizen_name, lawyer_id, lawyer_name, status, city, source, is_emergency, practice_area, specialization, legal_service, case_details, entity_info, files, descriptions, timeline, created_at, updated_at) VALUES
-('CUC-20260831154512', 'TSHC010022112026', 'Sai Teja Reddy vs. ABC Developers Pvt Ltd', 'Delay in apartment handover and violation of RERA sanctioned plan in Kondapur project.', 'Property', 'u_001', 'Sai Teja Reddy', 'l_001', 'Adv. Swathi Reddy', 'In Progress', 'Hyderabad', 'manual', false, 'Real Estate & RERA', 'Possession Delay', 'File RERA Dispute Notice', '{"cnr":"TSHC010022112026","caseNumber":"CC/248/2026","courtName":"City Civil Court, Hyderabad","petitioners":["Sai Teja Reddy"],"respondents":["ABC Developers Pvt Ltd"]}'::jsonb, '{"cnr":"TSHC010022112026","dateCreated":"2026-08-31T15:45:12Z","dateModified":"2026-09-03T14:15:00Z"}'::jsonb, '{"files":[]}'::jsonb, '{"enumFields":[],"enumLookup":{}}'::jsonb, '[{"id":"tl_1","status":"Pending","at":"2026-08-31","time":"3:45 PM","note":"Case filed by citizen"},{"id":"tl_2","status":"Assigned","at":"2026-09-01","time":"11:30 AM","note":"Assigned to Adv. Swathi Reddy"},{"id":"tl_3","status":"In Progress","at":"2026-09-03","time":"2:15 PM","note":"Notice served"}]'::jsonb, '2026-08-31', '2026-09-03'),
-('CUC-20260902112040', 'APVK020001172026', 'Lakshmi Prasanna vs. State of AP & Ors', 'Anticipatory bail petition in connection with commercial dispute.', 'Criminal', 'u_002', 'Lakshmi Prasanna', 'l_002', 'Adv. Srinivas Chowdary', 'Under Review', 'Visakhapatnam', 'manual', true, 'Criminal Defense', 'Anticipatory Bail', 'File Anticipatory Bail Application', '{"cnr":"APVK020001172026","caseNumber":"BAIL/117/2026","courtName":"District & Sessions Court, Visakhapatnam","petitioners":["Lakshmi Prasanna"],"respondents":["State of AP & Ors"]}'::jsonb, '{"cnr":"APVK020001172026","dateCreated":"2026-09-02T11:20:40Z","dateModified":"2026-09-02T13:00:00Z"}'::jsonb, '{"files":[]}'::jsonb, '{"enumFields":[],"enumLookup":{}}'::jsonb, '[{"id":"tl_4","status":"Pending","at":"2026-09-02","time":"11:20 AM","note":"Emergency case created"},{"id":"tl_5","status":"Under Review","at":"2026-09-02","time":"1:00 PM","note":"FIR records reviewed"}]'::jsonb, '2026-09-02', '2026-09-02'),
-('CUC-20260904093015', 'TSFC050000892026', 'Divya Sri Chowdary vs. K. Ramesh', 'Mutual consent divorce petition with agreed child custody and asset division.', 'Family', 'u_003', 'Divya Sri Chowdary', 'l_003', 'Adv. Sailaja Naidu', 'Submitted', 'Hyderabad', 'manual', false, 'Family & Matrimonial', 'Mutual Consent Divorce', 'File First Motion Application', '{"cnr":"TSFC050000892026","caseNumber":"FC/89/2026","courtName":"Family Court, Hyderabad","petitioners":["Divya Sri Chowdary"],"respondents":["K. Ramesh"]}'::jsonb, '{"cnr":"TSFC050000892026","dateCreated":"2026-09-04T09:30:15Z","dateModified":"2026-09-04T09:30:15Z"}'::jsonb, '{"files":[]}'::jsonb, '{"enumFields":[],"enumLookup":{}}'::jsonb, '[{"id":"tl_6","status":"Submitted","at":"2026-09-04","time":"9:30 AM","note":"Draft petition uploaded"}]'::jsonb, '2026-09-04', '2026-09-04'),
-('CUC-ECOURT-DLND020047882015', 'DLND020047882015', 'MR.ARUN JAITLEY vs MR. ARVIND KEJRIWAL', 'Criminal complaint case under Criminal Procedure Code before Chief Metropolitan Magistrate, New Delhi, PHC.', 'Criminal', 'u_001', 'Sai Teja Reddy', 'l_002', 'Adv. Srinivas Chowdary', 'Disposed', 'New Delhi', 'ecourt', false, 'Criminal Law/Other Criminal Matters', 'Plaintiff/Petitioner Evidence', 'Criminal Procedure Code',
-'{"caseNumber":"202400248072016","district":"New Delhi","state":"DL","stateCode":"26","districtCode":"7","courtCode":2,"caseTypeSub":"Criminal Procedure Code.","courtName":"Chief Metropolitan Magistrate, New Delhi, PHC","courtNo":2,"firDetails":{"caseNumber":"273","policeStation":"Central Crime Branch-CCB I","year":"2018"},"filedDocuments":[],"subordinateCourt":{},"linkCases":[],"purpose":"Plaintiff/Petitioner Evidence","disposalType":"DISMISSED_AS_WITHDRAWN","disposalTypeRaw":"DISMISSED AS WITHDRAWN","contestedStatus":"UNCONTESTED","lastHearingDate":"2018-07-07","cnr":"DLND020047882015","cnrCourtCode":"DLND02","courtComplexCode":"DLND02","cnrCaseNumber":"0047882015","cnrYear":"2015","caseType":"CC","caseTypeRaw":"Ct Cases","caseStatus":"DISPOSED","filingNumber":"27843/2015","filingDate":"2015-12-21","registrationNumber":"24807/2016","registrationDate":"2015-12-21","firstHearingDate":"2016-01-05","nextHearingDate":"2018-07-07","decisionDate":"2018-07-07","caseDurationDays":929,"filingToFirstHearingDays":15,"judges":[],"petitioners":["MR.ARUN JAITLEY"],"petitionerAdvocates":[],"respondents":["MR. ARVIND KEJRIWAL"],"respondentAdvocates":[],"caseCategoryFacetPath":"Criminal Law/Other Criminal Matters","hasOrders":true,"hasJudgments":true,"orderCount":10,"interimOrderCount":9,"judgmentCount":1,"hearingCount":25,"iaCount":0,"taggedMatters":[{"type":"Case Number","caseNumber":"CRLMP/33524/2024"}],"earlierCourtDetails":[],"interlocutoryApplications":[],"listingDates":[],"notices":[],"caveatDetails":[]}'::jsonb,
+-- 5. Centralized Project Lookups (Case Types & Lawyer Case Stages)
+INSERT INTO public.lookups (id, category, label, description, sort_order) VALUES
+('new', 'case_type', 'New Case', 'Brand new matter requiring advocate filing and initial court registration', 1),
+('pending', 'case_type', 'Pending Case', 'Existing matter currently pending before a court with assigned CNR', 2),
+('closed', 'case_type', 'Closed / Disposed Case', 'Past or disposed court matter with assigned CNR', 3),
+('submitted', 'lawyer_casestage', 'Submitted', 'Case submitted by citizen, awaiting advocate review', 0),
+('accepted', 'lawyer_casestage', 'Accepted', 'Advocate accepted representation', 1),
+('filinginprogress', 'lawyer_casestage', 'Filing in Progress', 'Court filing and petition drafting in progress', 2),
+('cnrgenerated', 'lawyer_casestage', 'CNR Generated', 'Case filed and CNR number assigned by court registry', 3),
+('rejected', 'lawyer_casestage', 'Rejected', 'Advocate declined representation', 4)
+ON CONFLICT (id) DO UPDATE SET
+    category = EXCLUDED.category,
+    label = EXCLUDED.label,
+    description = EXCLUDED.description,
+    sort_order = EXCLUDED.sort_order;
+
+-- 5c. Imported Cases (eCourts Canonical DLND020047882015 from case_structure.json)
+INSERT INTO public.cases_imported (cnr, case_details, entity_info, files, descriptions, case_ai_analysis, raw_data) VALUES
+('DLND020047882015',
+'{"cnr":"DLND020047882015","caseNumber":"202400248072016","district":"New Delhi","state":"DL","stateCode":"26","districtCode":"7","courtCode":2,"caseTypeSub":"Criminal Procedure Code.","courtName":"Chief Metropolitan Magistrate, New Delhi, PHC","courtNo":2,"firDetails":{"caseNumber":"273","policeStation":"Central Crime Branch-CCB I","year":"2018"},"filedDocuments":[],"subordinateCourt":{},"linkCases":[],"purpose":"Plaintiff/Petitioner Evidence","disposalType":"DISMISSED_AS_WITHDRAWN","disposalTypeRaw":"DISMISSED AS WITHDRAWN","contestedStatus":"UNCONTESTED","lastHearingDate":"2018-07-07","cnrCourtCode":"DLND02","courtComplexCode":"DLND02","cnrCaseNumber":"0047882015","cnrYear":"2015","caseType":"CC","caseTypeRaw":"Ct Cases","caseStatus":"DISPOSED","filingNumber":"27843/2015","filingDate":"2015-12-21","registrationNumber":"24807/2016","registrationDate":"2015-12-21","firstHearingDate":"2016-01-05","nextHearingDate":"2018-07-07","decisionDate":"2018-07-07","caseDurationDays":929,"filingToFirstHearingDays":15,"judges":[],"petitioners":["MR.ARUN JAITLEY"],"petitionerAdvocates":[],"respondents":["MR. ARVIND KEJRIWAL"],"respondentAdvocates":[],"caseCategoryFacetPath":"Criminal Law/Other Criminal Matters","hasOrders":true,"hasJudgments":true,"orderCount":10,"interimOrderCount":9,"judgmentCount":1,"hearingCount":25,"iaCount":0,"taggedMatters":[{"type":"Case Number","caseNumber":"CRLMP/33524/2024"}],"earlierCourtDetails":[],"interlocutoryApplications":[],"listingDates":[],"notices":[],"caveatDetails":[],"historyOfCaseHearings":[{"judge":"Chief Metropolitan Magistrate","businessOnDate":"2016-01-05","hearingDate":"2016-04-07","purposeOfListing":"Misc./ Appearance"},{"judge":"Addl. Chief Metropolitan Magistrate","businessOnDate":"2018-07-07","purposeOfListing":"Disposed"}],"interimOrders":[{"orderDate":"2017-10-27","description":"COPY OF ORDER","orderUrl":"order-1.pdf"}],"judgmentOrders":[{"orderDate":"2018-07-07","orderType":"COPY OF ORDER","orderUrl":"order-10.pdf"}]}'::jsonb,
 '{"cnr":"DLND020047882015","nextDateOfHearing":"2018-07-07T00:00:00Z","lastDateOfHearing":"2018-07-07T00:00:00Z","dateCreated":"2026-02-18T15:33:18.064345Z","dateModified":"2026-05-01T09:38:35.670942Z"}'::jsonb,
 '{"files":[]}'::jsonb,
 '{"enumFields":["caseType","caseStatus","courtCode","judicialSection","caseCategory","benchType","stateCode"],"enumLookup":{"caseType":{"CC":"Criminal Complaint Case"},"caseStatus":{"DISPOSED":"Disposed"},"courtCode":{"DLND02":"Chief Metropolitan Magistrate, New Delhi, PHC"}}}'::jsonb,
-'[{"id":"tl_ec_1","status":"Disposed","at":"2018-07-07","time":"11:00 AM","note":"DISMISSED AS WITHDRAWN by Addl. Chief Metropolitan Magistrate"}]'::jsonb,
-'2015-12-21', '2018-07-07')
-ON CONFLICT (id) DO NOTHING;
+NULL,
+$rawjson${"caseDetails":{"caseNumber":"202400248072016","district":"New Delhi","state":"DL","stateCode":"26","districtCode":"7","courtCode":2,"caseTypeSub":"Criminal Procedure Code.","courtName":"Chief Metropolitan Magistrate, New Delhi, PHC","courtNo":2,"firDetails":{"caseNumber":"273","policeStation":"Central Crime Branch-CCB I","year":"2018"},"historyOfCaseHearings":[{"judge":"","businessOnDate":"2016-01-05","hearingDate":"2016-04-07","purposeOfListing":"Misc./ Appearance"},{"judge":"Chief Metropolitan Magistrate","businessOnDate":"2016-04-07","hearingDate":"2016-05-19","purposeOfListing":"Misc./ Appearance"},{"judge":"Chief Metropolitan Magistrate","businessOnDate":"2016-05-19","hearingDate":"2016-07-16","purposeOfListing":"Misc./ Appearance"},{"judge":"Chief Metropolitan Magistrate","businessOnDate":"2016-07-16","hearingDate":"2016-08-16","purposeOfListing":"Misc./ Appearance"},{"judge":"Chief Metropolitan Magistrate","businessOnDate":"2016-08-16","hearingDate":"2016-10-24","purposeOfListing":"Misc./ Appearance"},{"judge":"Chief Metropolitan Magistrate","businessOnDate":"2016-10-24","hearingDate":"2016-11-26","purposeOfListing":"Misc. Arguments"},{"judge":"Chief Metropolitan Magistrate","businessOnDate":"2016-11-26","hearingDate":"2016-12-20","purposeOfListing":"Misc. Arguments"},{"judge":"Chief Metropolitan Magistrate","businessOnDate":"2016-12-20","hearingDate":"2017-01-18","purposeOfListing":"Misc. Arguments"},{"judge":"Chief Metropolitan Magistrate","businessOnDate":"2017-01-18","hearingDate":"2017-03-25","purposeOfListing":"Misc. Arguments"},{"judge":"Chief Metropolitan Magistrate","businessOnDate":"2017-03-25","hearingDate":"2017-05-20","purposeOfListing":"Misc. Arguments"},{"judge":"Chief Metropolitan Magistrate","businessOnDate":"2017-05-20","hearingDate":"2017-08-05","purposeOfListing":"Misc. Arguments"},{"judge":"Chief Metropolitan Magistrate","businessOnDate":"2017-08-05","hearingDate":"2017-09-25","purposeOfListing":"Misc. Arguments"},{"judge":"Chief Metropolitan Magistrate","businessOnDate":"2017-09-25","hearingDate":"2017-10-27","purposeOfListing":"Misc. Arguments"},{"judge":"Chief Metropolitan Magistrate","businessOnDate":"2017-10-27","hearingDate":"2017-12-15","purposeOfListing":"Misc. Arguments"},{"judge":"Chief Metropolitan Magistrate","businessOnDate":"2017-12-15","hearingDate":"2017-12-18","purposeOfListing":"Misc. Arguments"},{"judge":"Chief Metropolitan Magistrate","businessOnDate":"2017-12-18","hearingDate":"2018-01-02","purposeOfListing":"Misc. Arguments"},{"judge":"Chief Metropolitan Magistrate","businessOnDate":"2018-01-02","hearingDate":"2018-02-08","purposeOfListing":"Prosecution Evidence"},{"judge":"Chief Metropolitan Magistrate","businessOnDate":"2018-02-08","hearingDate":"2018-02-28","purposeOfListing":"Prosecution Evidence"},{"judge":"Chief Metropolitan Magistrate","businessOnDate":"2018-02-28","hearingDate":"2018-03-01","purposeOfListing":"Prosecution Evidence"},{"judge":"Addl. Chief Metropolitan Magistrate","businessOnDate":"2018-03-01","hearingDate":"2018-04-03","purposeOfListing":"Misc. Arguments"},{"judge":"Addl. Chief Metropolitan Magistrate","businessOnDate":"2018-04-03","hearingDate":"2018-04-07","purposeOfListing":"Misc. Arguments"},{"judge":"Addl. Chief Metropolitan Magistrate","businessOnDate":"2018-04-07","hearingDate":"2018-05-11","purposeOfListing":"Plaintiff/Petitioner Evidence"},{"judge":"Addl. Chief Metropolitan Magistrate","businessOnDate":"2018-05-11","hearingDate":"2018-05-19","purposeOfListing":"Plaintiff/Petitioner Evidence"},{"judge":"Addl. Chief Metropolitan Magistrate","businessOnDate":"2018-05-19","hearingDate":"2018-07-07","purposeOfListing":"Plaintiff/Petitioner Evidence"},{"judge":"Addl. Chief Metropolitan Magistrate","businessOnDate":"2018-07-07","purposeOfListing":"Disposed"}],"filedDocuments":[],"subordinateCourt":{},"linkCases":[],"purpose":"Plaintiff/Petitioner Evidence","disposalType":"DISMISSED_AS_WITHDRAWN","disposalTypeRaw":"DISMISSED AS WITHDRAWN","contestedStatus":"UNCONTESTED","lastHearingDate":"2018-07-07","interimOrders":[{"orderDate":"2017-10-27","description":"COPY OF ORDER","orderUrl":"order-1.pdf"},{"orderDate":"2017-12-15","description":"COPY OF ORDER","orderUrl":"order-2.pdf"},{"orderDate":"2017-12-18","description":"COPY OF ORDER","orderUrl":"order-3.pdf"},{"orderDate":"2018-01-02","description":"COPY OF ORDER","orderUrl":"order-4.pdf"},{"orderDate":"2018-02-08","description":"COPY OF ORDER","orderUrl":"order-5.pdf"},{"orderDate":"2018-02-28","description":"COPY OF ORDER","orderUrl":"order-6.pdf"},{"orderDate":"2018-03-01","description":"COPY OF JUDICIAL PROCEEDINGS","orderUrl":"order-7.pdf"},{"orderDate":"2018-04-03","description":"COPY OF ORDER","orderUrl":"order-8.pdf"},{"orderDate":"2018-05-19","description":"COPY OF JUDICIAL PROCEEDINGS","orderUrl":"order-9.pdf"}],"processes":[],"businessOnDateEntries":[{"date":"2016-01-05","petitioner":"MR.ARUN JAITLEY","respondent":"MR. ARVIND KEJRIWAL","business":"--","nextPurpose":"Misc./ Appearance","nextHearingDate":"2016-04-07"},{"date":"2016-04-07","courtOf":"Chief Metropolitan Magistrate","petitioner":"MR.ARUN JAITLEY","respondent":"MR. ARVIND KEJRIWAL","business":"--","nextPurpose":"Misc./ Appearance","nextHearingDate":"2016-05-19"},{"date":"2016-05-19","courtOf":"Chief Metropolitan Magistrate","petitioner":"MR.ARUN JAITLEY","respondent":"MR. ARVIND KEJRIWAL","business":"P F","nextPurpose":"Misc./ Appearance","nextHearingDate":"2016-07-16"},{"date":"2016-07-16","courtOf":"Chief Metropolitan Magistrate","petitioner":"MR.ARUN JAITLEY","respondent":"MR. ARVIND KEJRIWAL","business":"FP","nextPurpose":"Misc./ Appearance","nextHearingDate":"2016-08-16"},{"date":"2016-08-16","courtOf":"Chief Metropolitan Magistrate","petitioner":"MR.ARUN JAITLEY","respondent":"MR. ARVIND KEJRIWAL","business":"CON","nextPurpose":"Misc./ Appearance","nextHearingDate":"2016-10-24"},{"date":"2016-10-24","courtOf":"Chief Metropolitan Magistrate","petitioner":"MR.ARUN JAITLEY","respondent":"MR. ARVIND KEJRIWAL","business":"arg","nextPurpose":"Misc. Arguments","nextHearingDate":"2016-11-26"},{"date":"2016-11-26","courtOf":"Chief Metropolitan Magistrate","petitioner":"MR.ARUN JAITLEY","respondent":"MR. ARVIND KEJRIWAL","business":"arg","nextPurpose":"Misc. Arguments","nextHearingDate":"2016-12-20"},{"date":"2016-12-20","courtOf":"Chief Metropolitan Magistrate","petitioner":"MR.ARUN JAITLEY","respondent":"MR. ARVIND KEJRIWAL","business":"or","nextPurpose":"Misc. Arguments","nextHearingDate":"2017-01-18"},{"date":"2017-01-18","courtOf":"Chief Metropolitan Magistrate","petitioner":"MR.ARUN JAITLEY","respondent":"MR. ARVIND KEJRIWAL","business":"m","nextPurpose":"Misc. Arguments","nextHearingDate":"2017-03-25"},{"date":"2017-03-25","courtOf":"Chief Metropolitan Magistrate","petitioner":"MR.ARUN JAITLEY","respondent":"MR. ARVIND KEJRIWAL","business":"ch","nextPurpose":"Misc. Arguments","nextHearingDate":"2017-05-20"},{"date":"2017-05-20","courtOf":"Chief Metropolitan Magistrate","petitioner":"MR.ARUN JAITLEY","respondent":"MR. ARVIND KEJRIWAL","business":"further proceedings","nextPurpose":"Misc. Arguments","nextHearingDate":"2017-08-05"},{"date":"2017-08-05","courtOf":"Chief Metropolitan Magistrate","petitioner":"MR.ARUN JAITLEY","respondent":"MR. ARVIND KEJRIWAL","business":"heard","nextPurpose":"Misc. Arguments","nextHearingDate":"2017-09-25"},{"date":"2017-09-25","courtOf":"Chief Metropolitan Magistrate","petitioner":"MR.ARUN JAITLEY","respondent":"MR. ARVIND KEJRIWAL","business":"FP","nextPurpose":"Misc. Arguments","nextHearingDate":"2017-10-27"},{"date":"2017-10-27","courtOf":"Chief Metropolitan Magistrate","petitioner":"MR.ARUN JAITLEY","respondent":"MR. ARVIND KEJRIWAL","business":"Heard","nextPurpose":"Misc. Arguments","nextHearingDate":"2017-12-15"},{"date":"2017-12-15","courtOf":"Chief Metropolitan Magistrate","petitioner":"MR.ARUN JAITLEY","respondent":"MR. ARVIND KEJRIWAL","business":"heard","nextPurpose":"Misc. Arguments","nextHearingDate":"2017-12-18"},{"date":"2017-12-18","courtOf":"Chief Metropolitan Magistrate","petitioner":"MR.ARUN JAITLEY","respondent":"MR. ARVIND KEJRIWAL","business":"heard","nextPurpose":"Misc. Arguments","nextHearingDate":"2018-01-02"},{"date":"2018-01-02","courtOf":"Chief Metropolitan Magistrate","petitioner":"MR.ARUN JAITLEY","respondent":"MR. ARVIND KEJRIWAL","business":"heard","nextPurpose":"Prosecution Evidence","nextHearingDate":"2018-02-08"},{"date":"2018-02-08","courtOf":"Chief Metropolitan Magistrate","petitioner":"MR.ARUN JAITLEY","respondent":"MR. ARVIND KEJRIWAL","business":"heard","nextPurpose":"Prosecution Evidence","nextHearingDate":"2018-02-28"},{"date":"2018-02-28","courtOf":"Chief Metropolitan Magistrate","petitioner":"MR.ARUN JAITLEY","respondent":"MR. ARVIND KEJRIWAL","business":"FP","nextPurpose":"Prosecution Evidence","nextHearingDate":"2018-03-01"},{"date":"2018-03-01","courtOf":"Addl. Chief Metropolitan Magistrate","petitioner":"MR.ARUN JAITLEY","respondent":"MR. ARVIND KEJRIWAL","business":"CN","nextPurpose":"Misc. Arguments","nextHearingDate":"2018-04-03"},{"date":"2018-04-03","courtOf":"Addl. Chief Metropolitan Magistrate","petitioner":"MR.ARUN JAITLEY","respondent":"MR. ARVIND KEJRIWAL","business":"accused no. 1,2,3,5,6 withdraw the case. put up on date fixed","nextPurpose":"Misc. Arguments","nextHearingDate":"2018-04-07"},{"date":"2018-04-07","courtOf":"Addl. Chief Metropolitan Magistrate","petitioner":"MR.ARUN JAITLEY","respondent":"MR. ARVIND KEJRIWAL","business":"CE","nextPurpose":"Plaintiff/Petitioner Evidence","nextHearingDate":"2018-05-11"},{"date":"2018-05-11","courtOf":"Addl. Chief Metropolitan Magistrate","petitioner":"MR.ARUN JAITLEY","respondent":"MR. ARVIND KEJRIWAL","business":"--\nReason for Adjournment\n:\nJudge on Leave","nextPurpose":"Plaintiff/Petitioner Evidence","nextHearingDate":"2018-05-19"},{"date":"2018-05-19","courtOf":"Addl. Chief Metropolitan Magistrate","petitioner":"MR.ARUN JAITLEY","respondent":"MR. ARVIND KEJRIWAL","business":"Two applications have been moved on behalf of the sureties Gopal Mohan and Naresh Balyan for release of FDR.\nApplication perused. Considered.","nextPurpose":"Plaintiff/Petitioner Evidence","nextHearingDate":"2018-07-07"},{"date":"2018-07-07","courtOf":"Addl. Chief Metropolitan Magistrate","petitioner":"MR.ARUN JAITLEY","respondent":"MR. ARVIND KEJRIWAL","business":"DAW\nNature of Disposal\n:\nDISMISSED AS WITHDRAWN\nDisposal Date\n:\n07-07-2018\nAddl. Chief Metropolitan Magistrate"}],"cnr":"DLND020047882015","cnrCourtCode":"DLND02","courtComplexCode":"DLND02","cnrCaseNumber":"0047882015","cnrYear":"2015","caseType":"CC","caseTypeRaw":"Ct Cases","caseStatus":"DISPOSED","filingNumber":"27843/2015","filingDate":"2015-12-21","registrationNumber":"24807/2016","registrationDate":"2015-12-21","firstHearingDate":"2016-01-05","nextHearingDate":"2018-07-07","decisionDate":"2018-07-07","caseDurationDays":929,"filingToFirstHearingDays":15,"judges":[],"petitioners":["MR.ARUN JAITLEY"],"petitionerAdvocates":[],"respondents":["MR. ARVIND KEJRIWAL"],"respondentAdvocates":[],"caseCategoryFacetPath":"Criminal Law/Other Criminal Matters","hasOrders":true,"hasJudgments":true,"orderCount":10,"interimOrderCount":9,"judgmentCount":1,"hearingCount":25,"iaCount":0,"taggedMatters":[{"type":"Case Number","caseNumber":"CRLMP/33524/2024"}],"earlierCourtDetails":[],"interlocutoryApplications":[],"listingDates":[],"notices":[],"judgmentOrders":[{"orderDate":"2018-07-07","orderType":"COPY OF ORDER","orderUrl":"order-10.pdf"}],"caveatDetails":[]},"entityInfo":{"cnr":"DLND020047882015","nextDateOfHearing":"2018-07-07T00:00:00Z","lastDateOfHearing":"2018-07-07T00:00:00Z","dateCreated":"2026-02-18T15:33:18.064345Z","dateModified":"2026-05-01T09:38:35.670942Z"},"files":{"files":[]},"descriptions":{"enumFields":["caseType","caseStatus","courtCode","judicialSection","caseCategory","benchType","stateCode"],"enumLookup":{"caseType":{"CC":"Criminal Complaint Case"},"caseStatus":{"DISPOSED":"Disposed"},"courtCode":{"DLND02":"Chief Metropolitan Magistrate, New Delhi, PHC"},"judicialSection":{},"caseCategory":{},"benchType":{},"stateCode":{}}},"caseAiAnalysis":null}$rawjson$::jsonb
+)
+ON CONFLICT (cnr) DO NOTHING;
 
--- Case Hearings & Orders
-INSERT INTO public.case_hearings (id, case_id, judge, business_on_date, hearing_date, time, purpose_of_listing) VALUES
-('h_101', 'CUC-20260831154512', 'Hon''ble Judicial Member RERA', '2026-09-10', '2026-09-28', '11:30 AM', 'Respondent Appearance and Counter Filing'),
-('h_ec_1', 'CUC-ECOURT-DLND020047882015', 'Chief Metropolitan Magistrate', '2016-01-05', '2016-04-07', '10:30 AM', 'Misc./ Appearance'),
-('h_ec_2', 'CUC-ECOURT-DLND020047882015', 'Chief Metropolitan Magistrate', '2016-04-07', '2016-05-19', '10:30 AM', 'Misc./ Appearance'),
-('h_ec_3', 'CUC-ECOURT-DLND020047882015', 'Chief Metropolitan Magistrate', '2016-10-24', '2016-11-26', '11:00 AM', 'Misc. Arguments'),
-('h_ec_4', 'CUC-ECOURT-DLND020047882015', 'Chief Metropolitan Magistrate', '2018-01-02', '2018-02-08', '11:30 AM', 'Prosecution Evidence'),
-('h_ec_5', 'CUC-ECOURT-DLND020047882015', 'Addl. Chief Metropolitan Magistrate', '2018-05-19', '2018-07-07', '11:00 AM', 'Plaintiff/Petitioner Evidence'),
-('h_ec_6', 'CUC-ECOURT-DLND020047882015', 'Addl. Chief Metropolitan Magistrate', '2018-07-07', NULL, '12:00 PM', 'Disposed — DISMISSED AS WITHDRAWN')
-ON CONFLICT (id) DO NOTHING;
-
-INSERT INTO public.case_orders (id, case_id, order_date, order_type, description, order_url) VALUES
-('ord_1', 'CUC-ECOURT-DLND020047882015', '2017-10-27', 'INTERIM', 'COPY OF ORDER', 'order-1.pdf'),
-('ord_2', 'CUC-ECOURT-DLND020047882015', '2017-12-15', 'INTERIM', 'COPY OF ORDER', 'order-2.pdf'),
-('ord_3', 'CUC-ECOURT-DLND020047882015', '2018-01-02', 'INTERIM', 'COPY OF ORDER', 'order-4.pdf'),
-('ord_4', 'CUC-ECOURT-DLND020047882015', '2018-03-01', 'INTERIM', 'COPY OF JUDICIAL PROCEEDINGS', 'order-7.pdf'),
-('ord_5', 'CUC-ECOURT-DLND020047882015', '2018-07-07', 'JUDGMENT', 'COPY OF FINAL ORDER / JUDGMENT', 'order-10.pdf')
-ON CONFLICT (id) DO NOTHING;
-
-INSERT INTO public.case_notes (id, case_id, text, author, created_at) VALUES
-('note_101', 'CUC-20260831154512', 'Client submitted original payment receipts and developer allotment letter.', 'Adv. Swathi Reddy', '2026-09-02T14:00:00'),
-('note_ec_1', 'CUC-ECOURT-DLND020047882015', 'Imported canonical matter DLND020047882015 from eCourts record.', 'Adv. Srinivas Chowdary', '2018-07-07T14:00:00')
-ON CONFLICT (id) DO NOTHING;
+-- 5d. Cases User (Citizen Bookings & Submissions with state_id & district_id)
+INSERT INTO public.cases_user (id, citizen_id, lawyer_id, case_type, cnr, title, description, documents, practice_area, specialization, legal_services, case_status, lawyer_casestage_id, rejection_reason, city, state_id, district_id, is_emergency, timeline) VALUES
+('CUC-20260831154512', 'u_001', 'l_001', 'new', NULL, 'Sai Teja Reddy vs. ABC Developers Pvt Ltd', 'Delay in apartment handover and violation of RERA sanctioned plan in Kondapur project.', '[]'::jsonb, 'cat_1', 'spec_1_1', '["srv_1_1_1", "srv_1_1_2"]'::jsonb, 'filinginprogress', 'filinginprogress', NULL, 'Hyderabad', 'telangana', 'hyderabad', false, '[{"id":"tl_1","status":"submitted","at":"2026-08-31T15:45:12Z","note":"Case submitted by citizen"},{"id":"tl_2","status":"accepted","at":"2026-09-01T11:30:00Z","note":"Assigned to Adv. Swathi Reddy"},{"id":"tl_3","status":"filinginprogress","at":"2026-09-03T14:15:00Z","note":"Drafting petition"}]'::jsonb),
+('CUC-20260902112040', 'u_002', 'l_002', 'pending', 'DLND020047882015', 'Lakshmi Prasanna vs. State of AP & Ors', 'Anticipatory bail petition in connection with commercial dispute.', '[]'::jsonb, 'cat_6', 'spec_6_3', '["srv_6_3_2"]'::jsonb, 'accepted', 'accepted', NULL, 'Visakhapatnam', 'andhra_pradesh', 'visakhapatnam', true, '[{"id":"tl_4","status":"submitted","at":"2026-09-02T11:20:40Z","note":"Emergency case created"},{"id":"tl_5","status":"accepted","at":"2026-09-02T13:00:00Z","note":"Advocate accepted brief"}]'::jsonb)
+ON CONFLICT (id) DO UPDATE SET
+    city = EXCLUDED.city,
+    state_id = EXCLUDED.state_id,
+    district_id = EXCLUDED.district_id;
 
 -- 6. Subscriptions
 INSERT INTO public.subscriptions (id, citizen_id, plan_id, plan_label, amount, started_at, status, case_id) VALUES

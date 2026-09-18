@@ -177,8 +177,8 @@ export class AuthService {
         .where(eq(citizens.id, existingCitizen.id));
 
       [citizenRecord] = await db.select().from(citizens).where(eq(citizens.id, existingCitizen.id));
-    } else {
       const citizenId = `u_${Date.now()}`;
+      const citizenCity = city || "Hyderabad";
       [citizenRecord] = await db
         .insert(citizens)
         .values({
@@ -187,7 +187,10 @@ export class AuthService {
           name: name || (user.email ? user.email.split("@")[0] : "Citizen User"),
           email: user.email || email || null,
           phone: user.phone || phone || null,
-          city: city || "Hyderabad",
+          city: citizenCity,
+          state: citizenCity === "Visakhapatnam" ? "Andhra Pradesh" : "Telangana",
+          stateId: citizenCity === "Visakhapatnam" ? "andhra_pradesh" : "telangana",
+          districtId: citizenCity === "Visakhapatnam" ? "visakhapatnam" : "hyderabad",
           status: "Active",
           joinedAt: today,
           lastLoginAt: nowIso,
@@ -212,7 +215,20 @@ export class AuthService {
   }
 
   static async registerLawyer(lawyerData: any) {
-    const { email, password, confirmPassword, name, phone, category, city, barId, experienceYears, practiceAreas, legalServices } = lawyerData;
+    const {
+      email,
+      password,
+      confirmPassword,
+      name,
+      phone,
+      category,
+      city,
+      barId,
+      experienceYears,
+      practiceAreas,
+      legalServices,
+    } = lawyerData;
+
     if (!email || !password || !name || !phone || !barId) {
       throw ApiError.badRequest("Email, password, name, phone, and barId are required");
     }
@@ -223,18 +239,31 @@ export class AuthService {
       throw ApiError.badRequest("Password must be at least 6 characters long");
     }
 
-    const { data: authData, error: authError } = await supabase.auth.signUp({
-      email,
-      password,
-      options: { data: { role: "lawyer", name } },
-    });
+    let userId = lawyerData.userId;
+    let authSession = null;
+    if (!userId) {
+      const { data, error } = await supabase.auth.signUp({
+        email,
+        password: password || "Legal@12345",
+        options: {
+          data: { role: "lawyer", full_name: name, phone },
+        },
+      });
 
-    if (authError) throw ApiError.badRequest(authError.message);
+      if (error) throw ApiError.badRequest(error.message);
+      userId = data.user?.id || `usr_${Date.now()}`;
+      authSession = data.session;
+    }
 
-    const userId = authData.user?.id;
-    if (!userId) throw ApiError.internal("Failed to create user");
-
-    await db.insert(users).values({ id: userId, role: "lawyer", email, phone });
+    const [existingUser] = await db.select().from(users).where(eq(users.id, userId));
+    if (!existingUser) {
+      await db.insert(users).values({
+        id: userId,
+        role: "lawyer",
+        email,
+        phone,
+      });
+    }
 
     const lawyerId = `l_${Date.now()}`;
     const today = new Date().toISOString().slice(0, 10);
@@ -254,6 +283,7 @@ export class AuthService {
       legalServices || []
     );
 
+    const targetCity = city || lawyerData.cities?.[0] || "Hyderabad";
     const [lawyerRecord] = await db
       .insert(lawyers)
       .values({
@@ -265,8 +295,10 @@ export class AuthService {
         category: category || primaryCategory,
         roleTitle: lawyerData.roleTitle || (lawyerData.registrationType === "firm" ? "Law Firm / Organisation" : "Advocate"),
         registrationType: lawyerData.registrationType || "lawyer",
-        city: city || lawyerData.cities?.[0] || "Hyderabad",
-        cities: lawyerData.cities || (city ? [city] : ["Hyderabad"]),
+        city: targetCity,
+        cities: lawyerData.cities || (targetCity ? [targetCity] : ["Hyderabad"]),
+        stateId: lawyerData.stateId || (targetCity === "Visakhapatnam" ? "andhra_pradesh" : targetCity === "Hyderabad" ? "telangana" : null),
+        districtId: lawyerData.districtId || (targetCity === "Visakhapatnam" ? "visakhapatnam" : targetCity === "Hyderabad" ? "hyderabad" : null),
         barId,
         experienceYears: experienceYears || 0,
         status: "Pending",
@@ -302,7 +334,7 @@ export class AuthService {
         languagesDetails: linkedLanguagesList,
         categoriesDetails,
       },
-      session: authData.session,
+      session: authSession,
     };
   }
 
