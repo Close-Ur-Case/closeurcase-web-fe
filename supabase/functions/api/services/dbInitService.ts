@@ -393,7 +393,7 @@ export class DbInitService {
 
       CREATE TABLE IF NOT EXISTS public.court_levels (
           id VARCHAR(64) PRIMARY KEY,
-          name VARCHAR(128) NOT NULL,
+          name VARCHAR(128) UNIQUE NOT NULL,
           code VARCHAR(32) NOT NULL,
           active BOOLEAN DEFAULT TRUE NOT NULL,
           updated_at VARCHAR(64),
@@ -428,6 +428,12 @@ export class DbInitService {
       ALTER TABLE public.districts ADD COLUMN IF NOT EXISTS state_id VARCHAR(64) REFERENCES public.states(id) ON DELETE CASCADE;
       DO $$
       BEGIN
+          IF NOT EXISTS (
+              SELECT 1 FROM information_schema.table_constraints 
+              WHERE constraint_name = 'uq_court_levels_name' AND table_name = 'court_levels'
+          ) THEN
+              ALTER TABLE public.court_levels ADD CONSTRAINT uq_court_levels_name UNIQUE (name);
+          END IF;
           IF NOT EXISTS (
               SELECT 1 FROM information_schema.table_constraints 
               WHERE constraint_name = 'courts_level_fkey' AND table_name = 'courts'
@@ -680,11 +686,7 @@ export class DbInitService {
       ('lvl_mact', 'Motor Accident Claims Tribunal', 'MACT', true),
       ('lvl_nclt', 'National Company Law Tribunal (NCLT)', 'NCLT', true),
       ('lvl_cat', 'Central Administrative Tribunal (CAT)', 'CAT', true),
-      ('lvl_drt', 'Debt Recovery Tribunal (DRT)', 'DRT', true),
-      ('lvl_1', 'Supreme Court', 'SC', true),
-      ('lvl_2', 'High Court', 'HC', true),
-      ('lvl_3', 'District Court', 'DC', true),
-      ('lvl_4', 'Tribunal', 'TRB', true)
+      ('lvl_drt', 'Debt Recovery Tribunal (DRT)', 'DRT', true)
       ON CONFLICT (id) DO UPDATE SET
           name = EXCLUDED.name,
           code = EXCLUDED.code,

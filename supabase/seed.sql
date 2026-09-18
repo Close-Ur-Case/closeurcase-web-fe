@@ -188,11 +188,7 @@ INSERT INTO public.court_levels (id, name, code, active) VALUES
 ('lvl_mact', 'Motor Accident Claims Tribunal', 'MACT', true),
 ('lvl_nclt', 'National Company Law Tribunal (NCLT)', 'NCLT', true),
 ('lvl_cat', 'Central Administrative Tribunal (CAT)', 'CAT', true),
-('lvl_drt', 'Debt Recovery Tribunal (DRT)', 'DRT', true),
-('lvl_1', 'Supreme Court', 'SC', true),
-('lvl_2', 'High Court', 'HC', true),
-('lvl_3', 'District Court', 'DC', true),
-('lvl_4', 'Tribunal', 'TRB', true)
+('lvl_drt', 'Debt Recovery Tribunal (DRT)', 'DRT', true)
 ON CONFLICT (id) DO UPDATE SET
     name = EXCLUDED.name,
     code = EXCLUDED.code,
