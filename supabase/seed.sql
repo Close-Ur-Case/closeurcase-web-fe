@@ -170,12 +170,105 @@ ON CONFLICT (id) DO UPDATE SET
     state_id = EXCLUDED.state_id,
     active = EXCLUDED.active;
 
+-- Master Taxonomies: Court Levels
+INSERT INTO public.court_levels (id, name, code, active) VALUES
+('lvl_supreme_court', 'Supreme Court', 'SC', true),
+('lvl_high_court', 'High Court', 'HC', true),
+('lvl_district_court', 'District Court', 'DC', true),
+('lvl_sessions_court', 'Sessions Court', 'SESS', true),
+('lvl_civil_court', 'Civil Court', 'CIV', true),
+('lvl_criminal_court', 'Criminal Court', 'CRIM', true),
+('lvl_family_court', 'Family Court', 'FC', true),
+('lvl_commercial_court', 'Commercial Court', 'COMM', true),
+('lvl_labour_court', 'Labour Court', 'LC', true),
+('lvl_consumer_court', 'Consumer Court', 'CDRC', true),
+('lvl_juvenile_justice_court', 'Juvenile Justice Court', 'JJB', true),
+('lvl_pocso_court', 'POCSO Court', 'POCSO', true),
+('lvl_ndps_court', 'NDPS Court', 'NDPS', true),
+('lvl_mact', 'Motor Accident Claims Tribunal', 'MACT', true),
+('lvl_nclt', 'National Company Law Tribunal (NCLT)', 'NCLT', true),
+('lvl_cat', 'Central Administrative Tribunal (CAT)', 'CAT', true),
+('lvl_drt', 'Debt Recovery Tribunal (DRT)', 'DRT', true),
+('lvl_1', 'Supreme Court', 'SC', true),
+('lvl_2', 'High Court', 'HC', true),
+('lvl_3', 'District Court', 'DC', true),
+('lvl_4', 'Tribunal', 'TRB', true)
+ON CONFLICT (id) DO UPDATE SET
+    name = EXCLUDED.name,
+    code = EXCLUDED.code,
+    active = EXCLUDED.active;
+
 -- Master Taxonomies: Courts
 INSERT INTO public.courts (id, name, level, state, city, district, state_id, district_id, active) VALUES
-('court_hyd_dc', 'City Civil Court, Hyderabad', 'lvl_3', 'Telangana', 'Hyderabad', 'Hyderabad', 'telangana', 'hyderabad', true),
-('court_vzg_dc', 'District & Sessions Court, Visakhapatnam', 'lvl_3', 'Andhra Pradesh', 'Visakhapatnam', 'Visakhapatnam', 'andhra_pradesh', 'visakhapatnam', true),
-('court_tshc', 'High Court for the State of Telangana', 'lvl_2', 'Telangana', 'Hyderabad', 'Hyderabad', 'telangana', 'hyderabad', true),
-('court_aphc', 'High Court of Andhra Pradesh, Amaravati', 'lvl_2', 'Andhra Pradesh', 'Amaravati', 'Guntur', 'andhra_pradesh', 'guntur', true)
+-- Existing Regional Courts
+('court_hyd_dc', 'City Civil Court, Hyderabad', 'lvl_civil_court', 'Telangana', 'Hyderabad', 'Hyderabad', 'telangana', 'hyderabad', true),
+('court_vzg_dc', 'District & Sessions Court, Visakhapatnam', 'lvl_district_court', 'Andhra Pradesh', 'Visakhapatnam', 'Visakhapatnam', 'andhra_pradesh', 'visakhapatnam', true),
+('court_tshc', 'High Court for the State of Telangana', 'lvl_high_court', 'Telangana', 'Hyderabad', 'Hyderabad', 'telangana', 'hyderabad', true),
+('court_aphc', 'High Court of Andhra Pradesh, Amaravati', 'lvl_high_court', 'Andhra Pradesh', 'Amaravati', 'Guntur', 'andhra_pradesh', 'guntur', true),
+
+-- COURTS_DATA: High Court
+('court_telangana_hc', 'Telangana High Court', 'lvl_high_court', 'Telangana', 'Hyderabad', 'Hyderabad', 'telangana', 'hyderabad', true),
+('court_ap_hc_vzg', 'High Court of Andhra Pradesh (Visakhapatnam Bench)', 'lvl_high_court', 'Andhra Pradesh', 'Visakhapatnam', 'Visakhapatnam', 'andhra_pradesh', 'visakhapatnam', true),
+
+-- COURTS_DATA: District Court
+('court_dc_hyderabad', 'District Court, Hyderabad', 'lvl_district_court', 'Telangana', 'Hyderabad', 'Hyderabad', 'telangana', 'hyderabad', true),
+('court_dc_visakhapatnam', 'District Court, Visakhapatnam', 'lvl_district_court', 'Andhra Pradesh', 'Visakhapatnam', 'Visakhapatnam', 'andhra_pradesh', 'visakhapatnam', true),
+
+-- COURTS_DATA: Sessions Court
+('court_sessions_hyderabad', 'Sessions Court, Hyderabad', 'lvl_sessions_court', 'Telangana', 'Hyderabad', 'Hyderabad', 'telangana', 'hyderabad', true),
+('court_sessions_visakhapatnam', 'Sessions Court, Visakhapatnam', 'lvl_sessions_court', 'Andhra Pradesh', 'Visakhapatnam', 'Visakhapatnam', 'andhra_pradesh', 'visakhapatnam', true),
+
+-- COURTS_DATA: Civil Court
+('court_civil_hyderabad', 'City Civil Court, Hyderabad', 'lvl_civil_court', 'Telangana', 'Hyderabad', 'Hyderabad', 'telangana', 'hyderabad', true),
+('court_civil_visakhapatnam', 'City Civil Court, Visakhapatnam', 'lvl_civil_court', 'Andhra Pradesh', 'Visakhapatnam', 'Visakhapatnam', 'andhra_pradesh', 'visakhapatnam', true),
+
+-- COURTS_DATA: Criminal Court
+('court_cmm_hyderabad', 'Chief Metropolitan Magistrate Court, Hyderabad', 'lvl_criminal_court', 'Telangana', 'Hyderabad', 'Hyderabad', 'telangana', 'hyderabad', true),
+('court_cjm_visakhapatnam', 'Chief Judicial Magistrate Court, Visakhapatnam', 'lvl_criminal_court', 'Andhra Pradesh', 'Visakhapatnam', 'Visakhapatnam', 'andhra_pradesh', 'visakhapatnam', true),
+
+-- COURTS_DATA: Family Court
+('court_family_hyderabad', 'Family Court, Hyderabad', 'lvl_family_court', 'Telangana', 'Hyderabad', 'Hyderabad', 'telangana', 'hyderabad', true),
+('court_family_visakhapatnam', 'Family Court, Visakhapatnam', 'lvl_family_court', 'Andhra Pradesh', 'Visakhapatnam', 'Visakhapatnam', 'andhra_pradesh', 'visakhapatnam', true),
+
+-- COURTS_DATA: Commercial Court
+('court_commercial_hyderabad', 'Commercial Court, Hyderabad', 'lvl_commercial_court', 'Telangana', 'Hyderabad', 'Hyderabad', 'telangana', 'hyderabad', true),
+('court_commercial_visakhapatnam', 'Commercial Court, Visakhapatnam', 'lvl_commercial_court', 'Andhra Pradesh', 'Visakhapatnam', 'Visakhapatnam', 'andhra_pradesh', 'visakhapatnam', true),
+
+-- COURTS_DATA: Labour Court
+('court_labour_hyderabad', 'Labour Court, Hyderabad', 'lvl_labour_court', 'Telangana', 'Hyderabad', 'Hyderabad', 'telangana', 'hyderabad', true),
+('court_labour_visakhapatnam', 'Labour Court, Visakhapatnam', 'lvl_labour_court', 'Andhra Pradesh', 'Visakhapatnam', 'Visakhapatnam', 'andhra_pradesh', 'visakhapatnam', true),
+
+-- COURTS_DATA: Consumer Court
+('court_consumer_hyderabad', 'District Consumer Disputes Redressal Commission, Hyderabad', 'lvl_consumer_court', 'Telangana', 'Hyderabad', 'Hyderabad', 'telangana', 'hyderabad', true),
+('court_consumer_visakhapatnam', 'District Consumer Disputes Redressal Commission, Visakhapatnam', 'lvl_consumer_court', 'Andhra Pradesh', 'Visakhapatnam', 'Visakhapatnam', 'andhra_pradesh', 'visakhapatnam', true),
+
+-- COURTS_DATA: Juvenile Justice Court
+('court_jjb_hyderabad', 'Juvenile Justice Board, Hyderabad', 'lvl_juvenile_justice_court', 'Telangana', 'Hyderabad', 'Hyderabad', 'telangana', 'hyderabad', true),
+('court_jjb_visakhapatnam', 'Juvenile Justice Board, Visakhapatnam', 'lvl_juvenile_justice_court', 'Andhra Pradesh', 'Visakhapatnam', 'Visakhapatnam', 'andhra_pradesh', 'visakhapatnam', true),
+
+-- COURTS_DATA: POCSO Court
+('court_pocso_hyderabad', 'Special Court for POCSO Cases, Hyderabad', 'lvl_pocso_court', 'Telangana', 'Hyderabad', 'Hyderabad', 'telangana', 'hyderabad', true),
+('court_pocso_visakhapatnam', 'Special Court for POCSO Cases, Visakhapatnam', 'lvl_pocso_court', 'Andhra Pradesh', 'Visakhapatnam', 'Visakhapatnam', 'andhra_pradesh', 'visakhapatnam', true),
+
+-- COURTS_DATA: NDPS Court
+('court_ndps_hyderabad', 'Special Court for NDPS Cases, Hyderabad', 'lvl_ndps_court', 'Telangana', 'Hyderabad', 'Hyderabad', 'telangana', 'hyderabad', true),
+('court_ndps_visakhapatnam', 'Special Court for NDPS Cases, Visakhapatnam', 'lvl_ndps_court', 'Andhra Pradesh', 'Visakhapatnam', 'Visakhapatnam', 'andhra_pradesh', 'visakhapatnam', true),
+
+-- COURTS_DATA: Motor Accident Claims Tribunal
+('court_mact_hyderabad', 'Motor Accidents Claims Tribunal, Hyderabad', 'lvl_mact', 'Telangana', 'Hyderabad', 'Hyderabad', 'telangana', 'hyderabad', true),
+('court_mact_visakhapatnam', 'Motor Accidents Claims Tribunal, Visakhapatnam', 'lvl_mact', 'Andhra Pradesh', 'Visakhapatnam', 'Visakhapatnam', 'andhra_pradesh', 'visakhapatnam', true),
+
+-- COURTS_DATA: NCLT
+('court_nclt_hyderabad', 'National Company Law Tribunal, Hyderabad Bench', 'lvl_nclt', 'Telangana', 'Hyderabad', 'Hyderabad', 'telangana', 'hyderabad', true),
+('court_nclt_visakhapatnam', 'National Company Law Tribunal, Visakhapatnam Bench', 'lvl_nclt', 'Andhra Pradesh', 'Visakhapatnam', 'Visakhapatnam', 'andhra_pradesh', 'visakhapatnam', true),
+
+-- COURTS_DATA: CAT
+('court_cat_hyderabad', 'Central Administrative Tribunal, Hyderabad Bench', 'lvl_cat', 'Telangana', 'Hyderabad', 'Hyderabad', 'telangana', 'hyderabad', true),
+('court_cat_visakhapatnam', 'Central Administrative Tribunal, Visakhapatnam Bench', 'lvl_cat', 'Andhra Pradesh', 'Visakhapatnam', 'Visakhapatnam', 'andhra_pradesh', 'visakhapatnam', true),
+
+-- COURTS_DATA: DRT
+('court_drt_hyderabad', 'Debt Recovery Tribunal, Hyderabad', 'lvl_drt', 'Telangana', 'Hyderabad', 'Hyderabad', 'telangana', 'hyderabad', true),
+('court_drt_visakhapatnam', 'Debt Recovery Tribunal, Visakhapatnam', 'lvl_drt', 'Andhra Pradesh', 'Visakhapatnam', 'Visakhapatnam', 'andhra_pradesh', 'visakhapatnam', true)
 ON CONFLICT (id) DO UPDATE SET
     name = EXCLUDED.name,
     level = EXCLUDED.level,
@@ -215,7 +308,7 @@ INSERT INTO public.languages (id, name, native_name, code, active) VALUES
 ('lang_mr', 'Marathi', 'मराठी', 'mr', true),
 ('lang_bn', 'Bengali', 'বাংলা', 'bn', true),
 ('lang_gu', 'Gujarati', 'ગુજરાતી', 'gu', true),
-('lang_or', 'Odia', 'ଓଡ଼ಿଆ', 'or', true),
+('lang_or', 'Odia', 'ଓଡ଼ିଆ', 'or', true),
 ('lang_pa', 'Punjabi', 'ਪੰਜਾਬੀ', 'pa', true),
 ('lang_ur', 'Urdu', 'اردو', 'ur', true),
 ('lang_as', 'Assamese', 'অসমীয়া', 'as', true)
@@ -224,14 +317,6 @@ SET name = EXCLUDED.name,
     native_name = EXCLUDED.native_name,
     code = EXCLUDED.code,
     active = EXCLUDED.active;
-
--- Master Taxonomies: Court Levels
-INSERT INTO public.court_levels (id, name, code, active) VALUES
-('lvl_1', 'Supreme Court', 'SC', true),
-('lvl_2', 'High Court', 'HC', true),
-('lvl_3', 'District Court', 'DC', true),
-('lvl_4', 'Tribunal', 'TRB', true)
-ON CONFLICT (id) DO NOTHING;
 
 -- 2. Super Admin User
 INSERT INTO public.users (id, role, email, phone) VALUES

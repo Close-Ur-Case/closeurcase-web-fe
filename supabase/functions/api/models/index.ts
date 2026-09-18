@@ -125,6 +125,25 @@ export const stateRelations = relations(states, ({ many }: any) => ({
   courts: many(courts),
 }));
 
+export const courtLevelRelations = relations(courtLevels, ({ many }: any) => ({
+  courts: many(courts),
+}));
+
+export const courtRelations = relations(courts, ({ one }: any) => ({
+  courtLevel: one(courtLevels, {
+    fields: [courts.level],
+    references: [courtLevels.id],
+  }),
+  state: one(states, {
+    fields: [courts.stateId],
+    references: [states.id],
+  }),
+  district: one(districts, {
+    fields: [courts.districtId],
+    references: [districts.id],
+  }),
+}));
+
 export const districtRelations = relations(districts, ({ one, many }: any) => ({
   state: one(states, {
     fields: [districts.stateId],

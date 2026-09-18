@@ -85,24 +85,24 @@ export const cities = pgTable("cities", {
   createdAt: timestamp("created_at").defaultNow().notNull(),
 });
 
-export const courts = pgTable("courts", {
+export const courtLevels = pgTable("court_levels", {
   id: varchar("id", { length: 64 }).primaryKey(),
-  name: text("name").notNull(),
-  level: varchar("level", { length: 64 }).notNull(),
-  state: varchar("state", { length: 128 }).notNull(),
-  city: varchar("city", { length: 128 }),
-  district: varchar("district", { length: 128 }),
-  stateId: varchar("state_id", { length: 64 }).references(() => states.id, { onDelete: "set null" }),
-  districtId: varchar("district_id", { length: 64 }).references(() => districts.id, { onDelete: "set null" }),
+  name: varchar("name", { length: 128 }).notNull(),
+  code: varchar("code", { length: 32 }).notNull(),
   active: boolean("active").default(true).notNull(),
   updatedAt: varchar("updated_at", { length: 64 }),
   createdAt: timestamp("created_at").defaultNow().notNull(),
 });
 
-export const courtLevels = pgTable("court_levels", {
+export const courts = pgTable("courts", {
   id: varchar("id", { length: 64 }).primaryKey(),
-  name: varchar("name", { length: 128 }).notNull(),
-  code: varchar("code", { length: 32 }).notNull(),
+  name: text("name").notNull(),
+  level: varchar("level", { length: 64 }).references(() => courtLevels.id, { onDelete: "set null" }).notNull(),
+  state: varchar("state", { length: 128 }).notNull(),
+  city: varchar("city", { length: 128 }),
+  district: varchar("district", { length: 128 }),
+  stateId: varchar("state_id", { length: 64 }).references(() => states.id, { onDelete: "set null" }),
+  districtId: varchar("district_id", { length: 64 }).references(() => districts.id, { onDelete: "set null" }),
   active: boolean("active").default(true).notNull(),
   updatedAt: varchar("updated_at", { length: 64 }),
   createdAt: timestamp("created_at").defaultNow().notNull(),

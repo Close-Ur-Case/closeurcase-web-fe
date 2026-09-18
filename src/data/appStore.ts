@@ -2340,13 +2340,23 @@ export const DEFAULT_STATES: StateItem[] = [
 ];
 
 export const DEFAULT_COURT_LEVELS: CourtLevelItem[] = [
-  { id: "clv_1", name: "Supreme Court", code: "SC", active: true },
-  { id: "clv_2", name: "High Court", code: "HC", active: true },
-  { id: "clv_3", name: "District Court", code: "DC", active: true },
-  { id: "clv_4", name: "Tribunal", code: "TRB", active: true },
-  { id: "clv_5", name: "Consumer Commission", code: "CDRC", active: true },
-  { id: "clv_6", name: "Family Court", code: "FC", active: true },
-  { id: "clv_7", name: "Labour Court", code: "LC", active: true },
+  { id: "lvl_supreme_court", name: "Supreme Court", code: "SC", active: true },
+  { id: "lvl_high_court", name: "High Court", code: "HC", active: true },
+  { id: "lvl_district_court", name: "District Court", code: "DC", active: true },
+  { id: "lvl_sessions_court", name: "Sessions Court", code: "SESS", active: true },
+  { id: "lvl_civil_court", name: "Civil Court", code: "CIV", active: true },
+  { id: "lvl_criminal_court", name: "Criminal Court", code: "CRIM", active: true },
+  { id: "lvl_family_court", name: "Family Court", code: "FC", active: true },
+  { id: "lvl_commercial_court", name: "Commercial Court", code: "COMM", active: true },
+  { id: "lvl_labour_court", name: "Labour Court", code: "LC", active: true },
+  { id: "lvl_consumer_court", name: "Consumer Court", code: "CDRC", active: true },
+  { id: "lvl_juvenile_justice_court", name: "Juvenile Justice Court", code: "JJB", active: true },
+  { id: "lvl_pocso_court", name: "POCSO Court", code: "POCSO", active: true },
+  { id: "lvl_ndps_court", name: "NDPS Court", code: "NDPS", active: true },
+  { id: "lvl_mact", name: "Motor Accident Claims Tribunal", code: "MACT", active: true },
+  { id: "lvl_nclt", name: "National Company Law Tribunal (NCLT)", code: "NCLT", active: true },
+  { id: "lvl_cat", name: "Central Administrative Tribunal (CAT)", code: "CAT", active: true },
+  { id: "lvl_drt", name: "Debt Recovery Tribunal (DRT)", code: "DRT", active: true },
 ];
 
 // --- Case Categories CRUD ---
