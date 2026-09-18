@@ -32,10 +32,18 @@ const getLawyersRoute = createRoute({
   summary: "Search & browse verified lawyers directory",
   request: {
     query: z.object({
-      search: z.string().optional(),
-      city: z.string().optional(),
-      practiceArea: z.string().optional(),
+      search: z.string().optional().openapi({ description: "Search keyword matching name, bio, barId, practiceAreas, specializations, or legalServices" }),
+      city: z.string().optional().openapi({ example: "Hyderabad" }),
+      area: z.string().optional().openapi({ example: "Banjara Hills" }),
+      category: z.string().optional().openapi({ example: "Criminal Defense" }),
+      status: z.string().optional().openapi({ example: "Approved" }),
+      practiceArea: z.string().optional().openapi({ example: "cat_1", description: "Filter by practice area ID (e.g. 'cat_1') or category name/code (comma-separated for multiple, e.g. 'cat_1,cat_6')" }),
+      specialization: z.string().optional().openapi({ example: "spec_1_1", description: "Filter by specialization ID (e.g. 'spec_1_1') or name (comma-separated for multiple, e.g. 'spec_1_1,spec_1_2')" }),
+      legalService: z.string().optional().openapi({ example: "srv_1_1_1", description: "Filter by legal service ID (e.g. 'srv_1_1_1') or name (comma-separated for multiple, e.g. 'srv_1_1_1,srv_1_1_2')" }),
+      matchMode: z.enum(["all", "any"]).optional().openapi({ example: "all", description: "Taxonomy match mode: 'all' (default) requires matching all provided criteria, 'any' matches if any criteria matches" }),
       language: z.string().optional().openapi({ example: "Telugu", description: "Filter advocates by language name, code, or ID" }),
+      limit: z.string().optional().openapi({ example: "50" }),
+      offset: z.string().optional().openapi({ example: "0" }),
     }),
   },
   responses: {

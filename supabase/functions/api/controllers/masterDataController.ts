@@ -2,6 +2,8 @@ import type { Context } from "hono";
 import { db } from "../config/db.ts";
 import {
   caseCategories,
+  caseSpecializations,
+  legalServices,
   cities,
   districts,
   courts,
@@ -9,13 +11,82 @@ import {
   courtLevels,
   languages,
 } from "../models/masterData.ts";
-import { eq } from "drizzle-orm";
+import { eq, and } from "drizzle-orm";
 import { ApiResponse } from "../utils/apiResponse.ts";
 import { ApiError } from "../utils/apiError.ts";
 
 export async function getCategories(c: Context) {
-  const data = await db.select().from(caseCategories);
-  return ApiResponse.success(c, data, "Categories retrieved successfully");
+  const [cats, specs, srvs] = await Promise.all([
+    db.select().from(caseCategories),
+    db.select().from(caseSpecializations).orderBy(caseSpecializations.displayOrder),
+    db.select().from(legalServices).orderBy(legalServices.displayOrder),
+  ]);
+
+  // Group legal services by specializationId
+  const servicesBySpec = new Map<string, any[]>();
+  for (const s of srvs) {
+    const list = servicesBySpec.get(s.specializationId) || [];
+    list.push({
+      id: s.id,
+      specializationId: s.specializationId,
+      categoryId: s.categoryId,
+      name: s.name,
+      description: s.description,
+      estimatedDays: s.estimatedDays,
+      baseFee: s.baseFee,
+      requiredDocuments: s.requiredDocuments,
+      active: s.active,
+      displayOrder: s.displayOrder,
+    });
+    servicesBySpec.set(s.specializationId, list);
+  }
+
+  // Group specializations by categoryId
+  const specsByCat = new Map<string, any[]>();
+  for (const sp of specs) {
+    const list = specsByCat.get(sp.categoryId) || [];
+    list.push({
+      id: sp.id,
+      categoryId: sp.categoryId,
+      name: sp.name,
+      description: sp.description,
+      active: sp.active,
+      displayOrder: sp.displayOrder,
+      services: servicesBySpec.get(sp.id) || [],
+    });
+    specsByCat.set(sp.categoryId, list);
+  }
+
+  const enriched = cats.map((cat) => ({
+    ...cat,
+    subCategories: specsByCat.get(cat.id) || cat.subCategories || [],
+  }));
+
+  return ApiResponse.success(c, enriched, "Categories retrieved successfully");
+}
+
+export async function getSpecializations(c: Context) {
+  const categoryId = c.req.query("categoryId");
+  let query = db.select().from(caseSpecializations);
+  if (categoryId) {
+    query = query.where(eq(caseSpecializations.categoryId, categoryId)) as any;
+  }
+  const data = await query.orderBy(caseSpecializations.displayOrder);
+  return ApiResponse.success(c, data, "Specializations retrieved successfully");
+}
+
+export async function getLegalServices(c: Context) {
+  const categoryId = c.req.query("categoryId");
+  const specializationId = c.req.query("specializationId");
+  let query = db.select().from(legalServices);
+  const conditions = [];
+  if (categoryId) conditions.push(eq(legalServices.categoryId, categoryId));
+  if (specializationId) conditions.push(eq(legalServices.specializationId, specializationId));
+  if (conditions.length > 0) {
+    query = query.where(and(...conditions)) as any;
+  }
+  const data = await query.orderBy(legalServices.displayOrder);
+  return ApiResponse.success(c, data, "Legal services retrieved successfully");
 }
 
 export async function getCities(c: Context) {
@@ -50,6 +121,8 @@ export async function getDistricts(c: Context) {
 
 const tableMap: Record<string, any> = {
   categories: caseCategories,
+  specializations: caseSpecializations,
+  "legal-services": legalServices,
   cities,
   districts,
   courts,
@@ -103,5 +176,3 @@ export async function deleteTaxonomyItem(c: Context) {
   await db.delete(targetTable).where(eq(targetTable.id, id));
   return ApiResponse.success(c, { id }, `${type} item deleted successfully`);
 }
-
-

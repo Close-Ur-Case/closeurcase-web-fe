@@ -2364,8 +2364,11 @@ function normalizeSubCategories(raw: unknown): CaseSubCategoryItem[] {
         const name = String((entry as { name?: unknown }).name ?? "").trim();
         if (!name) return null;
         const svc = (entry as { services?: unknown }).services;
-        const services = Array.isArray(svc) ? svc.map((x) => String(x).trim()).filter(Boolean) : [];
-        return { name, services };
+        const services: string[] = Array.isArray(svc)
+          ? svc.map((x: any) => (typeof x === "string" ? x.trim() : String(x?.name || x?.id || "").trim())).filter(Boolean)
+          : [];
+        const id = (entry as { id?: string }).id;
+        return { ...(id ? { id } : {}), name, services };
       }
       return null;
     })

@@ -4,6 +4,7 @@ import { users, citizens, lawyers, adminProfiles } from "../models/users.ts";
 import { eq } from "drizzle-orm";
 import { ApiError } from "../utils/apiError.ts";
 import { LawyerLanguageService } from "./lawyerLanguageService.ts";
+import { LawyerCategoryService } from "./lawyerCategoryService.ts";
 
 export class AuthService {
   static async sendCitizenOtp(
@@ -242,6 +243,17 @@ export class AuthService {
       lawyerData.languages || []
     );
 
+    const {
+      practiceAreas: normalizedAreas,
+      specializations: normalizedSpecs,
+      legalServices: normalizedServices,
+      primaryCategory,
+    } = await LawyerCategoryService.validateAndNormalize(
+      practiceAreas || [],
+      lawyerData.specializations || [],
+      legalServices || []
+    );
+
     const [lawyerRecord] = await db
       .insert(lawyers)
       .values({
@@ -250,7 +262,7 @@ export class AuthService {
         name,
         email,
         phone,
-        category: category || "Civil",
+        category: category || primaryCategory,
         roleTitle: lawyerData.roleTitle || (lawyerData.registrationType === "firm" ? "Law Firm / Organisation" : "Advocate"),
         registrationType: lawyerData.registrationType || "lawyer",
         city: city || lawyerData.cities?.[0] || "Hyderabad",
@@ -266,13 +278,9 @@ export class AuthService {
         officeAddress: lawyerData.officeAddress || null,
         bio: lawyerData.bio || null,
         languages: languageIds,
-        practiceAreas: Array.isArray(practiceAreas)
-          ? practiceAreas
-              .map((pa: any) => (typeof pa === "string" ? pa.trim() : String(pa?.name || "").trim()))
-              .filter(Boolean)
-          : [],
-        specializations: lawyerData.specializations || [],
-        legalServices: legalServices || [],
+        practiceAreas: normalizedAreas,
+        specializations: normalizedSpecs,
+        legalServices: normalizedServices,
         courts: lawyerData.courts || [],
         awards: lawyerData.awards || [],
         consultationFee: lawyerData.consultationFee || 1000,
@@ -281,11 +289,18 @@ export class AuthService {
       })
       .returning();
 
+    const categoriesDetails = await LawyerCategoryService.getCategoriesForLawyer(
+      normalizedAreas,
+      normalizedSpecs,
+      normalizedServices
+    );
+
     return {
       message: "Lawyer registration submitted successfully. Pending administrative verification.",
       lawyer: {
         ...lawyerRecord,
         languagesDetails: linkedLanguagesList,
+        categoriesDetails,
       },
       session: authData.session,
     };
@@ -300,9 +315,22 @@ export class AuthService {
     const user = data.user!;
     const [lawyerRecord] = await db.select().from(lawyers).where(eq(lawyers.userId, user.id));
 
+    let languagesDetails: any[] = [];
+    let categoriesDetails: any[] = [];
+    if (lawyerRecord) {
+      [languagesDetails, categoriesDetails] = await Promise.all([
+        LawyerLanguageService.getLanguagesForLawyer(lawyerRecord.id),
+        LawyerCategoryService.getCategoriesForLawyer(
+          (lawyerRecord.practiceAreas || []) as string[],
+          (lawyerRecord.specializations || []) as string[],
+          (lawyerRecord.legalServices || []) as string[]
+        ),
+      ]);
+    }
+
     return {
       user: { id: user.id, role: "lawyer", email: user.email },
-      lawyer: lawyerRecord,
+      lawyer: lawyerRecord ? { ...lawyerRecord, languagesDetails, categoriesDetails } : null,
       session: {
         accessToken: data.session?.access_token,
         refreshToken: data.session?.refresh_token,

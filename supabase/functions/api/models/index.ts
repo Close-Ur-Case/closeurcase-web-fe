@@ -15,8 +15,11 @@ import { knowledgeItems } from "./knowledgeBase.ts";
 import { chatMessages } from "./chat.ts";
 import { contactInquiries } from "./support.ts";
 import { aiCaseAnalyses } from "./ai.ts";
+import { migrations, type Migration, type NewMigration } from "./migrations.ts";
 import {
   caseCategories,
+  caseSpecializations,
+  legalServices,
   cities,
   districts,
   courts,
@@ -79,6 +82,30 @@ export const caseRelations = relations(cases, ({ one, many }: any) => ({
   aiAnalyses: many(aiCaseAnalyses),
 }));
 
+export const caseCategoriesRelations = relations(caseCategories, ({ many }: any) => ({
+  specializations: many(caseSpecializations),
+  legalServices: many(legalServices),
+}));
+
+export const caseSpecializationsRelations = relations(caseSpecializations, ({ one, many }: any) => ({
+  category: one(caseCategories, {
+    fields: [caseSpecializations.categoryId],
+    references: [caseCategories.id],
+  }),
+  legalServices: many(legalServices),
+}));
+
+export const legalServicesRelations = relations(legalServices, ({ one }: any) => ({
+  specialization: one(caseSpecializations, {
+    fields: [legalServices.specializationId],
+    references: [caseSpecializations.id],
+  }),
+  category: one(caseCategories, {
+    fields: [legalServices.categoryId],
+    references: [caseCategories.id],
+  }),
+}));
+
 export {
   users,
   citizens,
@@ -103,12 +130,17 @@ export {
   contactInquiries,
   aiCaseAnalyses,
   caseCategories,
+  caseSpecializations,
+  legalServices,
   cities,
   districts,
   courts,
   states,
   courtLevels,
   languages,
+  migrations,
+  type Migration,
+  type NewMigration,
   type LawyerPracticeAreaItem,
 };
 

@@ -7,6 +7,7 @@ import { eq, and, or, ilike, desc, sql } from "drizzle-orm";
 import { ApiResponse } from "../utils/apiResponse.ts";
 import { ApiError } from "../utils/apiError.ts";
 import { LawyerLanguageService } from "../services/lawyerLanguageService.ts";
+import { LawyerCategoryService } from "../services/lawyerCategoryService.ts";
 
 export async function getLawyers(c: Context) {
   const city = c.req.query("city");
@@ -16,6 +17,9 @@ export async function getLawyers(c: Context) {
   const search = c.req.query("search");
   const language = c.req.query("language");
   const practiceArea = c.req.query("practiceArea");
+  const specialization = c.req.query("specialization");
+  const legalService = c.req.query("legalService");
+  const matchMode = (c.req.query("matchMode") || "all").toLowerCase();
   const limit = Number(c.req.query("limit") || "50");
   const offset = Number(c.req.query("offset") || "0");
 
@@ -26,11 +30,70 @@ export async function getLawyers(c: Context) {
   if (area) conditions.push(ilike(lawyers.area, `%${area}%`));
   if (category) conditions.push(eq(lawyers.category, category));
   if (status) conditions.push(eq(lawyers.status, status));
+
+  // Taxonomy filters: practiceArea, specialization, legalService
+  const taxonomyConditions = [];
+
   if (practiceArea) {
-    conditions.push(
-      sql`(${lawyers.practiceAreas}::jsonb ? ${practiceArea} OR ${lawyers.practiceAreas}::text ILIKE ${'%' + practiceArea + '%'})`
-    );
+    const rawAreas = practiceArea.split(",").map((s) => s.trim()).filter(Boolean);
+    if (rawAreas.length > 0) {
+      const { ids, terms } = await LawyerCategoryService.resolveCategoryQuery(rawAreas);
+      const conds = [];
+      for (const id of ids) {
+        conds.push(sql`${lawyers.practiceAreas}::jsonb ? ${id}`);
+      }
+      for (const term of terms) {
+        conds.push(sql`(${lawyers.practiceAreas}::jsonb ? ${term} OR ${lawyers.practiceAreas}::text ILIKE ${'%' + term + '%'})`);
+      }
+      if (conds.length > 0) {
+        taxonomyConditions.push(or(...conds));
+      }
+    }
   }
+
+  if (specialization) {
+    const rawSpecs = specialization.split(",").map((s) => s.trim()).filter(Boolean);
+    if (rawSpecs.length > 0) {
+      const { ids, terms } = await LawyerCategoryService.resolveSpecializationQuery(rawSpecs);
+      const conds = [];
+      for (const id of ids) {
+        conds.push(sql`${lawyers.specializations}::jsonb ? ${id}`);
+      }
+      for (const term of terms) {
+        conds.push(sql`(${lawyers.specializations}::jsonb ? ${term} OR ${lawyers.specializations}::text ILIKE ${'%' + term + '%'})`);
+      }
+      if (conds.length > 0) {
+        taxonomyConditions.push(or(...conds));
+      }
+    }
+  }
+
+  if (legalService) {
+    const rawServices = legalService.split(",").map((s) => s.trim()).filter(Boolean);
+    if (rawServices.length > 0) {
+      const { ids, terms } = await LawyerCategoryService.resolveLegalServiceQuery(rawServices);
+      const conds = [];
+      for (const id of ids) {
+        conds.push(sql`${lawyers.legalServices}::jsonb ? ${id}`);
+      }
+      for (const term of terms) {
+        conds.push(sql`(${lawyers.legalServices}::jsonb ? ${term} OR ${lawyers.legalServices}::text ILIKE ${'%' + term + '%'})`);
+      }
+      if (conds.length > 0) {
+        taxonomyConditions.push(or(...conds));
+      }
+    }
+  }
+
+  if (taxonomyConditions.length > 0) {
+    if (matchMode === "any") {
+      conditions.push(or(...taxonomyConditions));
+    } else {
+      // Default: "all" mode requires matching all provided taxonomy criteria
+      conditions.push(and(...taxonomyConditions));
+    }
+  }
+
   if (language) {
     const { languageIds } = await LawyerLanguageService.resolveLanguageIds([language]);
     const targetId = languageIds[0] || language;
@@ -38,14 +101,32 @@ export async function getLawyers(c: Context) {
       sql`(${lawyers.languages}::jsonb ? ${targetId} OR ${lawyers.languages}::jsonb ? ${language})`
     );
   }
+
   if (search) {
-    conditions.push(
-      or(
-        ilike(lawyers.name, `%${search}%`),
-        ilike(lawyers.bio, `%${search}%`),
-        ilike(lawyers.barId, `%${search}%`)
-      )
-    );
+    const { categoryIds, specializationIds, serviceIds } =
+      await LawyerCategoryService.findTaxonomyIdsForKeyword(search);
+
+    const searchConds = [
+      ilike(lawyers.name, `%${search}%`),
+      ilike(lawyers.bio, `%${search}%`),
+      ilike(lawyers.barId, `%${search}%`),
+      ilike(lawyers.city, `%${search}%`),
+      sql`${lawyers.practiceAreas}::text ILIKE ${'%' + search + '%'}`,
+      sql`${lawyers.specializations}::text ILIKE ${'%' + search + '%'}`,
+      sql`${lawyers.legalServices}::text ILIKE ${'%' + search + '%'}`,
+    ];
+
+    for (const catId of categoryIds) {
+      searchConds.push(sql`${lawyers.practiceAreas}::jsonb ? ${catId}`);
+    }
+    for (const specId of specializationIds) {
+      searchConds.push(sql`${lawyers.specializations}::jsonb ? ${specId}`);
+    }
+    for (const srvId of serviceIds) {
+      searchConds.push(sql`${lawyers.legalServices}::jsonb ? ${srvId}`);
+    }
+
+    conditions.push(or(...searchConds));
   }
 
   if (conditions.length > 0) {
@@ -62,13 +143,22 @@ export async function getLawyerById(c: Context) {
 
   if (!lawyer) throw ApiError.notFound(`Lawyer '${id}' not found`);
 
-  const [ratings, documents, languagesDetails] = await Promise.all([
+  const [ratings, documents, languagesDetails, categoriesDetails] = await Promise.all([
     db.select().from(lawyerRatings).where(eq(lawyerRatings.lawyerId, id)),
     db.select().from(lawyerDocuments).where(eq(lawyerDocuments.lawyerId, id)),
     LawyerLanguageService.getLanguagesForLawyer(id),
+    LawyerCategoryService.getCategoriesForLawyer(
+      (lawyer.practiceAreas || []) as string[],
+      (lawyer.specializations || []) as string[],
+      (lawyer.legalServices || []) as string[]
+    ),
   ]);
 
-  return ApiResponse.success(c, { ...lawyer, languagesDetails, ratings, documents }, "Lawyer profile retrieved");
+  return ApiResponse.success(
+    c,
+    { ...lawyer, languagesDetails, categoriesDetails, ratings, documents },
+    "Lawyer profile retrieved"
+  );
 }
 
 export async function updateLawyerStatus(c: Context) {
@@ -96,11 +186,27 @@ export async function updateLawyerProfile(c: Context) {
     patch.languages = languageIds;
   }
 
-  // If practice areas are being updated, ensure array of strings
-  if (patch.practiceAreas && Array.isArray(patch.practiceAreas)) {
-    patch.practiceAreas = patch.practiceAreas
-      .map((pa: any) => (typeof pa === "string" ? pa.trim() : String(pa?.name || "").trim()))
-      .filter(Boolean);
+  // If practice areas, specializations, or legal services are updated, validate against master categories
+  if (patch.practiceAreas !== undefined || patch.specializations !== undefined || patch.legalServices !== undefined) {
+    const [current] = await db.select().from(lawyers).where(eq(lawyers.id, id));
+    if (!current) throw ApiError.notFound(`Lawyer '${id}' not found`);
+
+    const inputPracticeAreas = patch.practiceAreas !== undefined ? patch.practiceAreas : current.practiceAreas;
+    const inputSpecializations = patch.specializations !== undefined ? patch.specializations : current.specializations;
+    const inputLegalServices = patch.legalServices !== undefined ? patch.legalServices : current.legalServices;
+
+    const normalized = await LawyerCategoryService.validateAndNormalize(
+      inputPracticeAreas,
+      inputSpecializations,
+      inputLegalServices
+    );
+
+    if (patch.practiceAreas !== undefined) patch.practiceAreas = normalized.practiceAreas;
+    if (patch.specializations !== undefined) patch.specializations = normalized.specializations;
+    if (patch.legalServices !== undefined) patch.legalServices = normalized.legalServices;
+    if (!patch.category && normalized.primaryCategory) {
+      patch.category = normalized.primaryCategory;
+    }
   }
 
   const [updated] = await db
@@ -111,8 +217,20 @@ export async function updateLawyerProfile(c: Context) {
 
   if (!updated) throw ApiError.notFound(`Lawyer '${id}' not found`);
 
-  const languagesDetails = await LawyerLanguageService.getLanguagesForLawyer(id);
-  return ApiResponse.success(c, { ...updated, languagesDetails }, "Lawyer profile updated successfully");
+  const [languagesDetails, categoriesDetails] = await Promise.all([
+    LawyerLanguageService.getLanguagesForLawyer(id),
+    LawyerCategoryService.getCategoriesForLawyer(
+      (updated.practiceAreas || []) as string[],
+      (updated.specializations || []) as string[],
+      (updated.legalServices || []) as string[]
+    ),
+  ]);
+
+  return ApiResponse.success(
+    c,
+    { ...updated, languagesDetails, categoriesDetails },
+    "Lawyer profile updated successfully"
+  );
 }
 
 export async function submitRating(c: Context) {

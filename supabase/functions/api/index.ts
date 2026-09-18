@@ -56,6 +56,14 @@ mainRouter.doc("/openapi.json", {
   },
 });
 
+mainRouter.doc("/swagger.json", {
+  openapi: "3.0.0",
+  info: {
+    title: "CloseUrCase Supabase Edge API",
+    version: "1.0.0",
+  },
+});
+
 // Swagger UI Documentation viewer
 mainRouter.get("/api-docs", swaggerUI({ url: "./swagger.json" }) as any);
 

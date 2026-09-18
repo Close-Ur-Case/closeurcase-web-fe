@@ -1,6 +1,8 @@
 import { OpenAPIHono, createRoute, z } from "@hono/zod-openapi";
 import {
   getCategories,
+  getSpecializations,
+  getLegalServices,
   getCities,
   getDistricts,
   getCourts,
@@ -21,10 +23,47 @@ const getCategoriesRoute = createRoute({
   method: "get",
   path: "/categories",
   tags: ["Master Data"],
-  summary: "Get legal practice areas & categories (Civil, Criminal, Corporate, etc.)",
+  summary: "Get legal practice areas & categories (with nested specializations & legal services)",
   responses: {
     200: {
-      description: "Categories list",
+      description: "Categories list with subCategories tree",
+      content: { "application/json": { schema: SuccessResponseSchema } },
+    },
+  },
+});
+
+const getSpecializationsRoute = createRoute({
+  method: "get",
+  path: "/specializations",
+  tags: ["Master Data"],
+  summary: "Get specializations / sub-categories (optionally filtered by categoryId)",
+  request: {
+    query: z.object({
+      categoryId: z.string().optional().openapi({ example: "cat_1", description: "Filter by category ID" }),
+    }),
+  },
+  responses: {
+    200: {
+      description: "List of specializations",
+      content: { "application/json": { schema: SuccessResponseSchema } },
+    },
+  },
+});
+
+const getLegalServicesRoute = createRoute({
+  method: "get",
+  path: "/legal-services",
+  tags: ["Master Data"],
+  summary: "Get individual legal services catalog (optionally filtered by specializationId or categoryId)",
+  request: {
+    query: z.object({
+      categoryId: z.string().optional().openapi({ example: "cat_1", description: "Filter by category ID" }),
+      specializationId: z.string().optional().openapi({ example: "spec_1_1", description: "Filter by specialization ID" }),
+    }),
+  },
+  responses: {
+    200: {
+      description: "List of legal services",
       content: { "application/json": { schema: SuccessResponseSchema } },
     },
   },
@@ -179,6 +218,8 @@ const deleteTaxonomyRoute = createRoute({
 });
 
 masterData.openapi(getCategoriesRoute, getCategories as any);
+masterData.openapi(getSpecializationsRoute, getSpecializations as any);
+masterData.openapi(getLegalServicesRoute, getLegalServices as any);
 masterData.openapi(getCitiesRoute, getCities as any);
 masterData.openapi(getDistrictsRoute, getDistricts as any);
 masterData.openapi(getCourtsRoute, getCourts as any);

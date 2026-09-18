@@ -410,9 +410,16 @@ export interface LawyerDocument {
 /** Tier-2 of the case taxonomy — a case type / specialization under a category
  * (e.g. "Anticipatory Bail" under "Criminal Defense"), carrying its tier-3
  * legal services (e.g. "File Anticipatory Bail Application"). */
+export interface CaseServiceItem {
+  id: string;
+  name: string;
+}
+
 export interface CaseSubCategoryItem {
+  id?: string;
   name: string;
   services: string[];
+  serviceItems?: CaseServiceItem[];
 }
 
 export interface CaseCategoryItem {
@@ -420,8 +427,6 @@ export interface CaseCategoryItem {
   name: string;
   code: string;
   description: string;
-  /** Tier-2 sub-categories, each with a tier-3 service list. Older stored data
-   * may still hold a plain `string[]`; `getCaseCategories()` migrates it. */
   subCategories?: CaseSubCategoryItem[];
   active: boolean;
   updatedAt?: string;

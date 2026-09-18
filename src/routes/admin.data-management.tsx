@@ -82,8 +82,8 @@ const subCats = (v: unknown): SubCat[] =>
             : e && typeof e === "object"
               ? {
                   name: String((e as SubCat).name ?? ""),
-                  services: Array.isArray((e as SubCat).services)
-                    ? (e as SubCat).services.map(String)
+                  services: Array.isArray((e as any).services)
+                    ? (e as any).services.map((s: any) => typeof s === "string" ? s : String(s?.name || s?.id || ""))
                     : [],
                 }
               : { name: "", services: [] },

@@ -15,6 +15,15 @@ async function main() {
   console.log("✓ All existing public tables dropped successfully.");
 
   console.log("\n=== Step 2: Re-migrating schema ===");
+  await client.unsafe(`
+    CREATE TABLE IF NOT EXISTS public._migrations (
+      id VARCHAR(255) PRIMARY KEY,
+      applied_at TIMESTAMP WITH TIME ZONE DEFAULT NOW() NOT NULL,
+      error_message TEXT DEFAULT NULL
+    );
+    ALTER TABLE public._migrations ADD COLUMN IF NOT EXISTS error_message TEXT DEFAULT NULL;
+  `);
+
   const migrationsDir = new URL("./migrations", import.meta.url);
   const migrationFiles: string[] = [];
   for await (const entry of Deno.readDir(migrationsDir)) {
@@ -28,7 +37,28 @@ async function main() {
     console.log(`-> Running migration: ${filename}`);
     const filePath = new URL(`./migrations/${filename}`, import.meta.url);
     const sql = await Deno.readTextFile(filePath);
-    await client.unsafe(sql);
+    try {
+      await client.unsafe(sql);
+      await client.unsafe(`
+        INSERT INTO public._migrations (id, applied_at, error_message)
+        VALUES ($1, NOW(), NULL)
+        ON CONFLICT (id) DO UPDATE SET applied_at = NOW(), error_message = NULL;
+      `, [filename]);
+    } catch (err: any) {
+      const errMsg = err?.message || String(err);
+      console.error(`❌ Migration failed for ${filename}:`, errMsg);
+      await client.unsafe("ROLLBACK").catch(() => {});
+      try {
+        await client.unsafe(`
+          INSERT INTO public._migrations (id, applied_at, error_message)
+          VALUES ($1, NOW(), $2)
+          ON CONFLICT (id) DO UPDATE SET applied_at = NOW(), error_message = $2;
+        `, [filename, errMsg]);
+      } catch (trackErr) {
+        console.error("Failed to record migration error into _migrations table:", trackErr);
+      }
+      throw err;
+    }
   }
   console.log("✓ Schema re-migrated successfully (all migrations applied).");
 

@@ -19,6 +19,26 @@ export const SyncLawyerLanguagesSchema = z
   })
   .openapi("SyncLawyerLanguagesRequest");
 
+export const LawyerCategoryDetailSchema = z
+  .object({
+    categoryId: z.string().openapi({ example: "cat_1", description: "Master case category ID" }),
+    categoryName: z.string().openapi({ example: "Criminal Defense", description: "Category / Practice Area name" }),
+    code: z.string().openapi({ example: "CRIM", description: "Category code" }),
+    specializations: z.array(
+      z.object({
+        id: z.string().openapi({ example: "spec_1_1", description: "Specialization ID" }),
+        name: z.string().openapi({ example: "Anticipatory Bail", description: "Sub-category specialization name" }),
+        services: z.array(
+          z.object({
+            id: z.string().openapi({ example: "srv_1_1_1", description: "Legal service ID" }),
+            name: z.string().openapi({ example: "File Anticipatory Bail Application", description: "Legal service name" }),
+          })
+        ),
+      })
+    ),
+  })
+  .openapi("LawyerCategoryDetail");
+
 export const UpdateLawyerProfileSchema = z
   .object({
     name: z.string().optional().openapi({ example: "Adv. Sneha Kulkarni" }),
@@ -30,14 +50,26 @@ export const UpdateLawyerProfileSchema = z
       .array(z.string())
       .optional()
       .openapi({
-        example: ["Corporate Law", "Arbitration"],
-        description: "Array of practice area names",
+        example: ["cat_1", "cat_6"],
+        description: "Array of category IDs from master case_categories (e.g. 'cat_1', 'cat_6'). Display names or codes are also accepted on write and normalized to IDs.",
       }),
-    specializations: z.array(z.string()).optional().openapi({ example: ["Corporate", "Arbitration"] }),
-    legalServices: z.array(z.string()).optional().openapi({ example: ["Contract Review", "Arbitration Consultation"] }),
+    specializations: z
+      .array(z.string())
+      .optional()
+      .openapi({
+        example: ["spec_1_1", "spec_1_2"],
+        description: "Array of specialization IDs from case_categories.sub_categories[].id (e.g. 'spec_1_1'). Display names are also accepted on write and normalized to IDs.",
+      }),
+    legalServices: z
+      .array(z.string())
+      .optional()
+      .openapi({
+        example: ["srv_1_1_1", "srv_1_1_2"],
+        description: "Array of legal service IDs from case_categories.sub_categories[].services[].id (e.g. 'srv_1_1_1'). Display names are also accepted on write and normalized to IDs.",
+      }),
     languages: z.array(z.string()).optional().openapi({
       example: ["lang_en", "lang_te", "lang_hi"],
-      description: "Array of master data language IDs saved in languages column",
+      description: "Array of master data language IDs (e.g. 'lang_en', 'lang_te') saved in languages column",
     }),
   })
   .openapi("UpdateLawyerProfileRequest");

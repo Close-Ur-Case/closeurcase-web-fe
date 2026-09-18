@@ -46,11 +46,23 @@ export const LawyerRegisterSchema = z
       .array(z.string())
       .optional()
       .openapi({
-        example: ["Family Law", "Civil Litigation"],
-        description: "Array of lawyer practice area names",
+        example: ["cat_1", "cat_6"],
+        description: "Array of category IDs from master case_categories (e.g. 'cat_1', 'cat_6'). Display names or codes are also accepted on registration and normalized to IDs.",
       }),
-    specializations: z.array(z.string()).optional().openapi({ example: ["Mutual Consent Divorce", "Child Custody"] }),
-    legalServices: z.array(z.string()).optional().openapi({ example: ["Legal Notice Drafting", "Court Representation"] }),
+    specializations: z
+      .array(z.string())
+      .optional()
+      .openapi({
+        example: ["spec_1_1", "spec_1_2"],
+        description: "Array of specialization IDs from case_categories.sub_categories[].id (e.g. 'spec_1_1'). Display names are also accepted on registration and normalized to IDs.",
+      }),
+    legalServices: z
+      .array(z.string())
+      .optional()
+      .openapi({
+        example: ["srv_1_1_1", "srv_1_1_2"],
+        description: "Array of legal service IDs from case_categories.sub_categories[].services[].id (e.g. 'srv_1_1_1'). Display names are also accepted on registration and normalized to IDs.",
+      }),
     experienceYears: z.number().optional().openapi({ example: 8 }),
     languages: z.array(z.string()).optional().openapi({
       example: ["lang_en", "lang_hi", "lang_mr"],
