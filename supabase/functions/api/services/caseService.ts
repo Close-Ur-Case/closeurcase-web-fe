@@ -275,10 +275,6 @@ export class CaseService {
       ? [caseData.legalService]
       : [];
 
-    const city = caseData.city || "Hyderabad";
-    const stateId = caseData.stateId || (city.toLowerCase().includes("visakhapatnam") ? "andhra_pradesh" : city.toLowerCase().includes("hyderabad") ? "telangana" : null);
-    const districtId = caseData.districtId || (city.toLowerCase().includes("visakhapatnam") ? "visakhapatnam" : city.toLowerCase().includes("hyderabad") ? "hyderabad" : null);
-
     const newCase = {
       id,
       citizenId: caseData.citizenId,
@@ -294,9 +290,6 @@ export class CaseService {
       caseStatus: "submitted",
       lawyerCasestageId: "submitted",
       rejectionReason: null,
-      city,
-      stateId,
-      districtId,
       isEmergency: !!caseData.isEmergency,
       timeline: caseData.timeline?.length ? caseData.timeline : initialTimeline,
       createdAt: new Date(),

@@ -62,7 +62,7 @@ export async function caseQA(c: Context) {
     } else if (/summary|describe|what is this case/.test(q)) {
       answer = foundCase.description || foundCase.title;
     } else if (/category|type of case|law/.test(q)) {
-      answer = `This is a ${foundCase.practiceArea} matter filed in ${foundCase.city || "court"}.`;
+      answer = `This is a ${foundCase.practiceArea} (${foundCase.specialization}) matter.`;
     } else {
       answer = `Regarding case ${foundCase.title} (${foundCase.id}): Stage is "${foundCase.caseStatus}". Description: ${foundCase.description}`;
     }

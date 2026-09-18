@@ -122,7 +122,6 @@ export const stateRelations = relations(states, ({ many }: any) => ({
   districts: many(districts),
   citizens: many(citizens),
   lawyers: many(lawyers),
-  cases: many(casesUser),
   courts: many(courts),
 }));
 
@@ -133,7 +132,6 @@ export const districtRelations = relations(districts, ({ one, many }: any) => ({
   }),
   citizens: many(citizens),
   lawyers: many(lawyers),
-  cases: many(casesUser),
   courts: many(courts),
 }));
 

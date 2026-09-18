@@ -314,14 +314,11 @@ $rawjson${"caseDetails":{"caseNumber":"202400248072016","district":"New Delhi","
 )
 ON CONFLICT (cnr) DO NOTHING;
 
--- 5d. Cases User (Citizen Bookings & Submissions with state_id & district_id)
-INSERT INTO public.cases_user (id, citizen_id, lawyer_id, case_type, cnr, title, description, documents, practice_area, specialization, legal_services, case_status, lawyer_casestage_id, rejection_reason, city, state_id, district_id, is_emergency, timeline) VALUES
-('CUC-20260831154512', 'u_001', 'l_001', 'new', NULL, 'Sai Teja Reddy vs. ABC Developers Pvt Ltd', 'Delay in apartment handover and violation of RERA sanctioned plan in Kondapur project.', '[]'::jsonb, 'cat_1', 'spec_1_1', '["srv_1_1_1", "srv_1_1_2"]'::jsonb, 'filinginprogress', 'filinginprogress', NULL, 'Hyderabad', 'telangana', 'hyderabad', false, '[{"id":"tl_1","status":"submitted","at":"2026-08-31T15:45:12Z","note":"Case submitted by citizen"},{"id":"tl_2","status":"accepted","at":"2026-09-01T11:30:00Z","note":"Assigned to Adv. Swathi Reddy"},{"id":"tl_3","status":"filinginprogress","at":"2026-09-03T14:15:00Z","note":"Drafting petition"}]'::jsonb),
-('CUC-20260902112040', 'u_002', 'l_002', 'pending', 'DLND020047882015', 'Lakshmi Prasanna vs. State of AP & Ors', 'Anticipatory bail petition in connection with commercial dispute.', '[]'::jsonb, 'cat_6', 'spec_6_3', '["srv_6_3_2"]'::jsonb, 'accepted', 'accepted', NULL, 'Visakhapatnam', 'andhra_pradesh', 'visakhapatnam', true, '[{"id":"tl_4","status":"submitted","at":"2026-09-02T11:20:40Z","note":"Emergency case created"},{"id":"tl_5","status":"accepted","at":"2026-09-02T13:00:00Z","note":"Advocate accepted brief"}]'::jsonb)
-ON CONFLICT (id) DO UPDATE SET
-    city = EXCLUDED.city,
-    state_id = EXCLUDED.state_id,
-    district_id = EXCLUDED.district_id;
+-- 5d. Cases User (Citizen Bookings & Submissions)
+INSERT INTO public.cases_user (id, citizen_id, lawyer_id, case_type, cnr, title, description, documents, practice_area, specialization, legal_services, case_status, lawyer_casestage_id, rejection_reason, is_emergency, timeline) VALUES
+('CUC-20260831154512', 'u_001', 'l_001', 'new', NULL, 'Sai Teja Reddy vs. ABC Developers Pvt Ltd', 'Delay in apartment handover and violation of RERA sanctioned plan in Kondapur project.', '[]'::jsonb, 'cat_1', 'spec_1_1', '["srv_1_1_1", "srv_1_1_2"]'::jsonb, 'filinginprogress', 'filinginprogress', NULL, false, '[{"id":"tl_1","status":"submitted","at":"2026-08-31T15:45:12Z","note":"Case submitted by citizen"},{"id":"tl_2","status":"accepted","at":"2026-09-01T11:30:00Z","note":"Assigned to Adv. Swathi Reddy"},{"id":"tl_3","status":"filinginprogress","at":"2026-09-03T14:15:00Z","note":"Drafting petition"}]'::jsonb),
+('CUC-20260902112040', 'u_002', 'l_002', 'pending', 'DLND020047882015', 'Lakshmi Prasanna vs. State of AP & Ors', 'Anticipatory bail petition in connection with commercial dispute.', '[]'::jsonb, 'cat_6', 'spec_6_3', '["srv_6_3_2"]'::jsonb, 'accepted', 'accepted', NULL, true, '[{"id":"tl_4","status":"submitted","at":"2026-09-02T11:20:40Z","note":"Emergency case created"},{"id":"tl_5","status":"accepted","at":"2026-09-02T13:00:00Z","note":"Advocate accepted brief"}]'::jsonb)
+ON CONFLICT (id) DO NOTHING;
 
 -- 6. Subscriptions
 INSERT INTO public.subscriptions (id, citizen_id, plan_id, plan_label, amount, started_at, status, case_id) VALUES

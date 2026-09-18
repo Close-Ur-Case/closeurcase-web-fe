@@ -2,7 +2,6 @@ import { pgTable, varchar, timestamp, text, boolean, jsonb } from "drizzle-orm/p
 import { citizens, lawyers } from "./users.ts";
 import { casesImported } from "./casesImported.ts";
 import { lookups } from "./lookups.ts";
-import { states, districts } from "./masterData.ts";
 
 export { lookups };
 
@@ -38,9 +37,6 @@ export const casesUser = pgTable("cases_user", {
   caseStatus: varchar("case_status", { length: 64 }).default("submitted").notNull(),
   lawyerCasestageId: varchar("lawyer_casestage_id", { length: 64 }).default("submitted").notNull().references(() => lookups.id),
   rejectionReason: text("rejection_reason"),
-  city: varchar("city", { length: 128 }),
-  stateId: varchar("state_id", { length: 64 }).references(() => states.id, { onDelete: "set null" }),
-  districtId: varchar("district_id", { length: 64 }).references(() => districts.id, { onDelete: "set null" }),
   isEmergency: boolean("is_emergency").default(false),
   timeline: jsonb("timeline").$type<UserCaseTimelineEvent[]>().notNull().default([]),
   createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
