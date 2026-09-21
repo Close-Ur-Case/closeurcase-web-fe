@@ -40,6 +40,9 @@ import {
   generateCloseUrCaseId,
   subscribeToStore,
 } from "@/data/appStore";
+import { caseService } from "@/services/caseService";
+import { storageService } from "@/services/storageService";
+import { useAuth } from "@/context/useAuth";
 import { SUBSCRIPTION_PLANS } from "@/data/subscriptionPlans";
 import { useSpeechToText } from "@/features/citizen/useSpeechToText";
 import { distanceToCity } from "@/lib/geo";
@@ -114,6 +117,9 @@ function fmtSize(bytes: number) {
 
 export function FindLawyerWizard() {
   const navigate = useNavigate();
+  const { user } = useAuth();
+  const currentCitizenId = user?.citizenId || user?.id || CITIZEN_ID;
+  const currentCitizenName = user?.name || CITIZEN_NAME;
   const searchParams = Route.useSearch();
   const initialAreaParam = searchParams.area;
   const initialSpecParam = searchParams.specialization;
@@ -415,7 +421,22 @@ export function FindLawyerWizard() {
     setIsPaying(true);
 
     const readEntry = async (f: File, id: string, today: string): Promise<CaseDocument> => {
-      const fileDataUrl = f.size <= MAX_ATTACHMENT_BYTES ? await readFileAsDataUrl(f) : undefined;
+      let cloudUrl = "";
+      try {
+        const uploadRes = await storageService.uploadFile(f, {
+          bucket: "case-documents",
+          folder: `intake_${currentCitizenId}`,
+        });
+        if (uploadRes?.fileUrl) {
+          cloudUrl = uploadRes.fileUrl;
+        }
+      } catch (err) {
+        console.warn("[Case Filing] Cloud upload fallback to local:", err);
+      }
+
+      const fileDataUrl =
+        cloudUrl || (f.size <= MAX_ATTACHMENT_BYTES ? await readFileAsDataUrl(f) : undefined);
+
       return {
         id,
         name: f.name,
@@ -497,8 +518,8 @@ export function FindLawyerWizard() {
         title,
         description: caseDescription,
         category: predictedCategory ?? "Civil",
-        citizenId: CITIZEN_ID,
-        citizenName: clientName.trim() || CITIZEN_NAME,
+        citizenId: currentCitizenId,
+        citizenName: clientName.trim() || currentCitizenName,
         lawyerId: lawyer?.id,
         lawyerName: lawyer?.name,
         status,
@@ -544,10 +565,33 @@ export function FindLawyerWizard() {
         caseAiAnalysis: null,
       };
 
+      // Dispatch to backend API
+      caseService
+        .createUserCase({
+          citizenId: currentCitizenId,
+          lawyerId: lawyer?.id,
+          caseType: path === "existing" ? (isExistingClosed ? "closed" : "pending") : "new",
+          cnr: path === "existing" && cnr.trim() ? cnr.trim() : undefined,
+          title,
+          description: caseDescription,
+          practiceArea: predictedCategory ?? "Civil",
+          specialization: selectedSpecialization || predictedCategory || "Civil",
+          legalServices: selectedService ? [selectedService] : [],
+          city: CITIZEN_CITY,
+          documents: documentEntries.map((d) => ({
+            name: d.name,
+            fileUrl: d.url || "",
+            size: fmtSize(d.bytes),
+          })),
+        })
+        .catch((err: unknown) => {
+          console.warn("[Backend Case Sync] Notice:", err);
+        });
+
       addCase(newCase);
       if (assignMode === "admin" && selectedPlan) {
         addSubscription({
-          citizenId: CITIZEN_ID,
+          citizenId: currentCitizenId,
           planId: selectedPlan.id,
           planLabel: selectedPlan.label,
           amount: selectedPlan.price,

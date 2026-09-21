@@ -1,7 +1,13 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useState, useEffect, useMemo } from "react";
 import { PageHeader } from "@/components/app/PageHeader";
-import { getCases, getLawyers, getCitizens, subscribeToStore, getActiveCaseCategories } from "@/data/appStore";
+import {
+  getCases,
+  getLawyers,
+  getCitizens,
+  subscribeToStore,
+  getActiveCaseCategories,
+} from "@/data/appStore";
 import type { Citizen, Lawyer } from "@/types";
 import {
   Users,
@@ -15,8 +21,15 @@ import {
   Siren,
   Bell,
   ChevronRight,
+  IndianRupee,
+  TrendingUp,
+  Wallet,
+  Clock,
+  ArrowUpRight,
+  RotateCw,
 } from "lucide-react";
 import { Card } from "@/components/m3";
+import { useAdminDashboardStatsQuery } from "@/hooks/queries/useAdmin";
 
 export const Route = createFileRoute("/admin/")({
   head: () => ({ meta: [{ title: "Super Admin Dashboard — CloseUrCase" }] }),
@@ -232,7 +245,9 @@ function DailyRegistrationsChart({ data }: { data: DailyRegPoint[] }) {
               {activePoint.label} ({activePoint.citizens} Citizens, {activePoint.lawyers} Lawyers)
             </span>
           ) : (
-            <span className="text-muted-foreground">Hover over any data node to inspect daily metrics</span>
+            <span className="text-muted-foreground">
+              Hover over any data node to inspect daily metrics
+            </span>
           )}
         </div>
         <div className="flex items-center gap-2">
@@ -497,6 +512,12 @@ function DailyRegistrationsChart({ data }: { data: DailyRegPoint[] }) {
 }
 
 function AdminDashboard() {
+  const {
+    data: liveStats,
+    isFetching: isStatsFetching,
+    refetch: refetchStats,
+  } = useAdminDashboardStatsQuery();
+
   const [casesList, setCasesList] = useState(getCases);
   const [lawyersList, setLawyersList] = useState(getLawyers);
   const [citizensList, setCitizensList] = useState(getCitizens);
@@ -533,7 +554,13 @@ function AdminDashboard() {
       const count = casesList.filter((x) => x.category === cat.name).length;
       const lawyerCount = lawyersList.filter((x) => x.category === cat.name).length;
       const percentage = totalCases > 0 ? Math.round((count / totalCases) * 100) : 0;
-      return { category: cat.name, count, lawyerCount, percentage, color: PALETTE[i % PALETTE.length] };
+      return {
+        category: cat.name,
+        count,
+        lawyerCount,
+        percentage,
+        color: PALETTE[i % PALETTE.length],
+      };
     })
     .sort((a, b) => b.count - a.count);
 
@@ -581,68 +608,203 @@ function AdminDashboard() {
       <PageHeader
         title="Super Admin Control Panel"
         description="Full administrative control over knowledge base indexing, Lawyer verification, user management, and case assignments."
+        actions={
+          <div className="flex items-center gap-2">
+            <div className="flex items-center gap-1.5 rounded-full border border-emerald-500/30 bg-emerald-500/10 px-2.5 py-1 text-xs font-semibold text-emerald-600 dark:text-emerald-400 shadow-2xs">
+              <span className="relative flex h-2 w-2">
+                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75" />
+                <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-500" />
+              </span>
+              <span>Live DB Sync</span>
+            </div>
+            <button
+              type="button"
+              onClick={() => void refetchStats()}
+              title="Refresh live platform statistics"
+              className="inline-flex items-center justify-center h-8 w-8 rounded-lg border border-border bg-card text-muted-foreground hover:text-foreground hover:bg-muted transition-colors cursor-pointer shadow-2xs"
+            >
+              <RotateCw
+                className={`h-3.5 w-3.5 ${isStatsFetching ? "animate-spin text-primary" : ""}`}
+              />
+            </button>
+          </div>
+        }
       />
 
-      {/* Metrics Row */}
+      {/* Primary KPI Row */}
       <div className="grid grid-cols-2 gap-4 md:grid-cols-4">
-        <Card variant="outlined" className="p-5">
-          <div className="flex items-center justify-between">
-            <span className="text-xs font-bold uppercase tracking-wider text-muted-foreground">
-              Total Citizens
-            </span>
-            <Users className="h-4 w-4 text-primary" />
-          </div>
-          <div className="mt-2 text-2xl font-extrabold text-foreground">{citizensList.length}</div>
-        </Card>
-
-        <Card variant="outlined" className="p-5">
-          <div className="flex items-center justify-between">
-            <span className="text-xs font-bold uppercase tracking-wider text-muted-foreground">
-              Verified Lawyers
-            </span>
-            <UserCheck className="h-4 w-4 text-emerald-600" />
-          </div>
-          <div className="mt-2 text-2xl font-extrabold text-foreground">
-            {approvedLawyers.length}
-          </div>
-        </Card>
-
-        <Card variant="outlined" className="p-5">
-          <div className="flex items-center justify-between">
-            <span className="text-xs font-bold uppercase tracking-wider text-muted-foreground">
-              Pending Approval
-            </span>
-            <ShieldCheck
-              className="h-4 w-4"
-              style={{ color: "var(--md-extended-color-warning)" }}
-            />
-          </div>
-          <div className="mt-2 flex items-center justify-between">
-            <span className="text-2xl font-extrabold text-foreground">{pendingLawyers.length}</span>
-            {pendingLawyers.length > 0 && (
-              <span
-                className="rounded-full px-2 py-0.5 text-[10px] font-bold animate-pulse"
-                style={{
-                  backgroundColor:
-                    "color-mix(in srgb, var(--md-extended-color-warning) 15%, transparent)",
-                  color: "var(--md-extended-color-warning)",
-                }}
-              >
-                Action Req.
+        <Link to="/admin/users" className="block group">
+          <Card
+            variant="outlined"
+            className="p-5 transition-all group-hover:border-primary/50 group-hover:shadow-sm"
+          >
+            <div className="flex items-center justify-between">
+              <span className="text-xs font-bold uppercase tracking-wider text-muted-foreground group-hover:text-primary transition-colors">
+                Total Citizens
               </span>
-            )}
-          </div>
-        </Card>
+              <Users className="h-4 w-4 text-primary" />
+            </div>
+            <div className="mt-2 text-2xl font-extrabold text-foreground">
+              {liveStats ? liveStats.citizens.total : citizensList.length}
+            </div>
+          </Card>
+        </Link>
 
-        <Card variant="outlined" className="p-5">
-          <div className="flex items-center justify-between">
-            <span className="text-xs font-bold uppercase tracking-wider text-muted-foreground">
-              Open Cases
-            </span>
-            <Briefcase className="h-4 w-4 text-indigo-600" />
+        <Link to="/admin/lawyers" className="block group">
+          <Card
+            variant="outlined"
+            className="p-5 transition-all group-hover:border-emerald-500/50 group-hover:shadow-sm"
+          >
+            <div className="flex items-center justify-between">
+              <span className="text-xs font-bold uppercase tracking-wider text-muted-foreground group-hover:text-emerald-600 dark:group-hover:text-emerald-400 transition-colors">
+                Verified Lawyers
+              </span>
+              <UserCheck className="h-4 w-4 text-emerald-600" />
+            </div>
+            <div className="mt-2 text-2xl font-extrabold text-foreground">
+              {liveStats
+                ? Math.max(0, liveStats.lawyers.total - liveStats.lawyers.pendingApproval)
+                : approvedLawyers.length}
+            </div>
+          </Card>
+        </Link>
+
+        <Link to="/admin/lawyers" className="block group">
+          <Card
+            variant="outlined"
+            className="p-5 transition-all group-hover:border-amber-500/50 group-hover:shadow-sm"
+          >
+            <div className="flex items-center justify-between">
+              <span className="text-xs font-bold uppercase tracking-wider text-muted-foreground group-hover:text-amber-600 dark:group-hover:text-amber-400 transition-colors">
+                Pending Approval
+              </span>
+              <ShieldCheck
+                className="h-4 w-4"
+                style={{ color: "var(--md-extended-color-warning)" }}
+              />
+            </div>
+            <div className="mt-2 flex items-center justify-between">
+              <span className="text-2xl font-extrabold text-foreground">
+                {liveStats ? liveStats.lawyers.pendingApproval : pendingLawyers.length}
+              </span>
+              {(liveStats ? liveStats.lawyers.pendingApproval : pendingLawyers.length) > 0 && (
+                <span
+                  className="rounded-full px-2 py-0.5 text-[10px] font-bold animate-pulse"
+                  style={{
+                    backgroundColor:
+                      "color-mix(in srgb, var(--md-extended-color-warning) 15%, transparent)",
+                    color: "var(--md-extended-color-warning)",
+                  }}
+                >
+                  Action Req.
+                </span>
+              )}
+            </div>
+          </Card>
+        </Link>
+
+        <Link to="/admin/cases" className="block group">
+          <Card
+            variant="outlined"
+            className="p-5 transition-all group-hover:border-indigo-500/50 group-hover:shadow-sm"
+          >
+            <div className="flex items-center justify-between">
+              <span className="text-xs font-bold uppercase tracking-wider text-muted-foreground group-hover:text-indigo-600 dark:group-hover:text-indigo-400 transition-colors">
+                Active Cases
+              </span>
+              <Briefcase className="h-4 w-4 text-indigo-600" />
+            </div>
+            <div className="mt-2 text-2xl font-extrabold text-foreground">
+              {liveStats ? liveStats.cases.active : openCases.length}
+            </div>
+          </Card>
+        </Link>
+      </div>
+
+      {/* Financial & Settlement Health Strip */}
+      <div className="rounded-2xl border border-border bg-gradient-to-br from-surface via-card to-surface p-5 shadow-2xs space-y-4">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-border pb-3">
+          <div className="flex items-center gap-2.5">
+            <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-primary/10 text-primary shadow-2xs">
+              <IndianRupee className="h-4 w-4" />
+            </div>
+            <div>
+              <h3 className="text-sm font-bold text-foreground">
+                Platform Financial & Settlement Health
+              </h3>
+              <p className="text-[11px] text-muted-foreground">
+                Live platform-wide payment volume, retained commission margin, and advocate escrow
+                obligations.
+              </p>
+            </div>
           </div>
-          <div className="mt-2 text-2xl font-extrabold text-foreground">{openCases.length}</div>
-        </Card>
+          <div className="flex items-center gap-2">
+            <Link
+              to="/admin/revenue"
+              className="inline-flex items-center gap-1.5 rounded-lg border border-border bg-card px-3 py-1.5 text-xs font-bold text-foreground hover:bg-muted hover:border-primary/40 transition-colors shadow-2xs"
+            >
+              <span>Settlement Ledger</span>
+              <ArrowUpRight className="h-3.5 w-3.5 text-muted-foreground" />
+            </Link>
+          </div>
+        </div>
+
+        <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
+          {/* Gross Platform GMV */}
+          <div className="rounded-xl border border-border/70 bg-surface/80 p-4 transition-all hover:border-primary/40 shadow-2xs">
+            <div className="flex items-center justify-between">
+              <span className="text-xs font-semibold text-muted-foreground">
+                Gross Platform GMV
+              </span>
+              <TrendingUp className="h-4 w-4 text-primary" />
+            </div>
+            <div className="mt-2 text-2xl font-extrabold text-foreground">
+              ₹{(liveStats?.revenue.totalVolume ?? 0).toLocaleString("en-IN")}
+            </div>
+            <p className="mt-1 text-[11px] text-muted-foreground">
+              Total consultation fees & subscription volume transacted
+            </p>
+          </div>
+
+          {/* Platform Commission Cut */}
+          <div className="rounded-xl border border-border/70 bg-surface/80 p-4 transition-all hover:border-emerald-500/40 shadow-2xs">
+            <div className="flex items-center justify-between">
+              <span className="text-xs font-semibold text-muted-foreground">
+                Platform Commission
+              </span>
+              <Wallet className="h-4 w-4 text-emerald-600 dark:text-emerald-400" />
+            </div>
+            <div className="mt-2 text-2xl font-extrabold text-emerald-600 dark:text-emerald-400">
+              ₹{(liveStats?.revenue.platformCommission ?? 0).toLocaleString("en-IN")}
+            </div>
+            <p className="mt-1 text-[11px] text-muted-foreground">
+              Retained platform margins & marketplace take rate
+            </p>
+          </div>
+
+          {/* Pending Advocate Escrow */}
+          <div className="rounded-xl border border-border/70 bg-surface/80 p-4 transition-all hover:border-amber-500/40 shadow-2xs">
+            <div className="flex items-center justify-between">
+              <span className="text-xs font-semibold text-muted-foreground">
+                Pending Escrow Payouts
+              </span>
+              <Clock className="h-4 w-4 text-amber-500" />
+            </div>
+            <div className="mt-2 flex items-baseline justify-between">
+              <span className="text-2xl font-extrabold text-amber-600 dark:text-amber-400">
+                ₹{(liveStats?.withdrawals.pendingAmount ?? 0).toLocaleString("en-IN")}
+              </span>
+              {(liveStats?.withdrawals.pendingCount ?? 0) > 0 && (
+                <span className="rounded-full bg-amber-500/10 px-2 py-0.5 text-[10px] font-bold text-amber-600 dark:text-amber-400 border border-amber-500/20">
+                  {liveStats?.withdrawals.pendingCount} Pending
+                </span>
+              )}
+            </div>
+            <p className="mt-1 text-[11px] text-muted-foreground">
+              Advocate withdrawals awaiting admin clearance
+            </p>
+          </div>
+        </div>
       </div>
 
       {/* New Registrations */}

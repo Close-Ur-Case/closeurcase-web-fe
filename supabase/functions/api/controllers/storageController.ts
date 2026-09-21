@@ -36,17 +36,17 @@ export async function uploadFile(c: Context) {
       filePath: result.path,
       fileUrl: result.url,
     },
-    "File uploaded to Supabase Storage successfully"
+    "File uploaded to Supabase Storage successfully",
   );
 }
 
 export async function getSignedUrl(c: Context) {
-  const bucket = c.req.query("bucket");
-  const filePath = c.req.query("filePath");
+  const bucket = c.req.query("bucket") || env.STORAGE.CASE_DOCUMENTS;
+  const filePath = c.req.query("filePath") || c.req.query("path");
   const expiresIn = Number(c.req.query("expiresIn") || "3600");
 
-  if (!bucket || !filePath) {
-    throw ApiError.badRequest("bucket and filePath are required query parameters");
+  if (!filePath) {
+    throw ApiError.badRequest("filePath or path is a required query parameter");
   }
 
   const signedUrl = await StorageService.getSignedUrl({ bucket, filePath, expiresIn });

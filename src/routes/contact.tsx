@@ -18,6 +18,7 @@ import {
 } from "lucide-react";
 import { PublicLayout } from "@/layouts/PublicLayout";
 import { TextField, Select, Button } from "@/components/m3";
+import { supportService } from "@/services/supportService";
 
 export const Route = createFileRoute("/contact")({
   head: () => ({
@@ -35,6 +36,8 @@ export const Route = createFileRoute("/contact")({
 
 function ContactPage() {
   const [submitted, setSubmitted] = useState(false);
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [submitError, setSubmitError] = useState<string | null>(null);
   const [formData, setFormData] = useState({
     name: "",
     email: "",
@@ -43,9 +46,21 @@ function ContactPage() {
     message: "",
   });
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    setSubmitted(true);
+    setIsSubmitting(true);
+    setSubmitError(null);
+    try {
+      await supportService.submitInquiry(formData);
+      setSubmitted(true);
+    } catch (err: unknown) {
+      console.error("Failed to submit inquiry:", err);
+      setSubmitError(
+        err instanceof Error ? err.message : "Failed to submit inquiry. Please try again.",
+      );
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
   return (
@@ -294,6 +309,12 @@ function ContactPage() {
                     className="w-full"
                   />
 
+                  {submitError && (
+                    <div className="rounded-lg border border-destructive/30 bg-destructive/10 p-3 text-xs text-destructive font-medium">
+                      {submitError}
+                    </div>
+                  )}
+
                   <div className="pt-2 flex items-center justify-between">
                     <p className="text-[11px] text-muted-foreground">
                       We respect your privacy. Information is confidential.
@@ -301,10 +322,11 @@ function ContactPage() {
                     <Button
                       type="submit"
                       variant="filled"
-                      icon={<Send className="h-3.5 w-3.5" />}
-                      trailingIcon
+                      disabled={isSubmitting}
+                      icon={isSubmitting ? undefined : <Send className="h-3.5 w-3.5" />}
+                      trailingIcon={!isSubmitting}
                     >
-                      Send Message
+                      {isSubmitting ? "Sending..." : "Send Message"}
                     </Button>
                   </div>
                 </form>

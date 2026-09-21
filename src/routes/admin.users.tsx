@@ -6,6 +6,7 @@ import { ConfirmDialog } from "@/components/app/ConfirmDialog";
 import { UserAvatar } from "@/components/app/UserAvatar";
 import { FilterPanelButton, type FilterSection } from "@/components/app/FilterPanelButton";
 import { getCitizens, updateCitizenStatus, subscribeToStore } from "@/data/appStore";
+import { citizenService } from "@/services/citizenService";
 import type { Citizen } from "@/types";
 import { Search } from "lucide-react";
 import { TextField } from "@/components/m3";
@@ -47,6 +48,16 @@ function UsersPage() {
 
   useEffect(() => {
     const sync = () => setRows(getCitizens());
+    citizenService
+      .getCitizens()
+      .then((backendCitizens) => {
+        if (Array.isArray(backendCitizens) && backendCitizens.length > 0) {
+          console.info("[Admin Users] Live backend citizens count:", backendCitizens.length);
+        }
+      })
+      .catch((err: unknown) => {
+        console.warn("[Admin Users] Backend fetch notice:", err);
+      });
     return subscribeToStore(sync);
   }, []);
 
@@ -189,7 +200,14 @@ function UsersPage() {
         cancelLabel="Cancel"
         variant="warning"
         onConfirm={() => {
-          if (pendingToggle) updateCitizenStatus(pendingToggle.c.id, pendingToggle.next);
+          if (pendingToggle) {
+            updateCitizenStatus(pendingToggle.c.id, pendingToggle.next);
+            citizenService
+              .updateCitizen(pendingToggle.c.id, { status: pendingToggle.next })
+              .catch((err: unknown) => {
+                console.warn("[Admin Users] Status update server notice:", err);
+              });
+          }
           setPendingToggle(null);
         }}
         onCancel={() => setPendingToggle(null)}

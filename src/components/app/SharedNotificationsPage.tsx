@@ -8,6 +8,7 @@ import {
   deleteNotification,
   subscribeToStore,
 } from "@/data/appStore";
+import { notificationService } from "@/services/notificationService";
 import type { AppNotification } from "@/types";
 import {
   Bell,
@@ -58,6 +59,17 @@ export function SharedNotificationsPage({ role }: { role: Role }) {
   const [pendingDeleteId, setPendingDeleteId] = useState<string | null>(null);
 
   useEffect(() => {
+    notificationService
+      .getNotifications({ role })
+      .then((data) => {
+        if (Array.isArray(data) && data.length > 0) {
+          console.info(`[Notifications] Live backend alerts (${role}):`, data.length);
+        }
+      })
+      .catch((err: unknown) => {
+        console.warn("[Notifications] Backend fetch notice:", err);
+      });
+
     const sync = () => setItems(getNotifications(role));
     return subscribeToStore(sync);
   }, [role]);
@@ -77,10 +89,16 @@ export function SharedNotificationsPage({ role }: { role: Role }) {
 
   const handleMarkRead = (id: string) => {
     markNotificationRead(id);
+    notificationService
+      .markAsRead(id)
+      .catch((err: unknown) => console.warn("[Notification Mark Read] Server notice:", err));
   };
 
   const handleMarkAll = () => {
     markAllNotificationsRead();
+    notificationService
+      .markAllAsRead(role)
+      .catch((err: unknown) => console.warn("[Notification Mark All] Server notice:", err));
   };
 
   const pendingDeleteNotif = items.find((n) => n.id === pendingDeleteId) ?? null;

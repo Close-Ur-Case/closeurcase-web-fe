@@ -2,10 +2,11 @@ import { useEffect, useLayoutEffect, useRef, useState, type CSSProperties } from
 import { createPortal } from "react-dom";
 import { Video } from "lucide-react";
 import type { UserRole, VideoCall } from "@/types";
-import { getRecentVideoCalls, subscribeToStore } from "@/data/appStore";
+import { getRecentVideoCalls, addVideoCall, subscribeToStore } from "@/data/appStore";
 import { UserAvatar } from "@/components/app/UserAvatar";
 import { IconButton } from "@/components/m3";
 import { useVideoCall } from "@/features/video-call/VideoCallContext";
+import { videoCallService } from "@/services/videoCallService";
 
 function formatCallWhen(iso: string) {
   const then = new Date(iso).getTime();
@@ -46,7 +47,31 @@ export function VideoCallsMenu({ role }: { role: UserRole }) {
   useEffect(() => {
     const sync = () => setCalls(getRecentVideoCalls(role));
     sync();
-    return subscribeToStore(sync);
+    const unsub = subscribeToStore(sync);
+
+    videoCallService
+      .getCallHistory()
+      .then((history) => {
+        if (history && Array.isArray(history) && history.length > 0) {
+          const current = getRecentVideoCalls(role);
+          history.forEach((h) => {
+            if (!current.some((c) => c.id === h.id)) {
+              addVideoCall({
+                id: h.id,
+                caseId: h.caseId,
+                withName: h.withName,
+                role: (h.role as "citizen" | "lawyer") || role,
+                status: (h.status as VideoCall["status"]) || "completed",
+                durationSeconds: h.durationSeconds,
+                at: h.at,
+              });
+            }
+          });
+        }
+      })
+      .catch((err) => console.warn("Failed to sync video call history:", err));
+
+    return unsub;
   }, [role]);
 
   useLayoutEffect(() => {

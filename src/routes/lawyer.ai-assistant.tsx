@@ -15,6 +15,7 @@ import {
   ExternalLink,
 } from "lucide-react";
 import { Select, Button, TextField } from "@/components/m3";
+import { aiService } from "@/services/aiService";
 
 export const Route = createFileRoute("/lawyer/ai-assistant")({
   component: GenerateCounterAI,
@@ -198,23 +199,44 @@ export function GenerateCounterAI() {
     }
   }, [selectedCaseId, selectedCase]);
 
-  const handleGenerateCounters = () => {
+  const handleGenerateCounters = async () => {
     setIsGenerating(true);
-    setTimeout(() => {
-      setArgumentsList((prev) =>
-        prev.map((arg) => ({
-          ...arg,
-          counterText:
-            arg.counterText ||
-            `Under the applicable statutory framework, the opposing submissions are subject to preliminary objections regarding procedural compliance and jurisdictional competence. The allegations require corroboration through documentary evidence before this Hon'ble Court.`,
-          statusRef: "Counter Generated",
-          source:
-            arg.source ||
-            `Code of Civil Procedure, 1908 §§ 9, 151; Bharatiya Nyaya Sanhita, 2023; Relevant High Court precedents on the subject matter`,
-        })),
+    try {
+      const updated = await Promise.all(
+        argumentsList.map(async (arg) => {
+          if (arg.counterText) return arg;
+          try {
+            const res = await aiService.generateCounter({
+              caseId: selectedCase?.id,
+              argumentText: arg.fullArgument,
+              caseCategory: selectedCase?.category,
+            });
+            return {
+              ...arg,
+              counterText: res.counterText,
+              statusRef: "Counter Generated",
+              source: res.authorities.join("; "),
+            };
+          } catch {
+            return {
+              ...arg,
+              counterText:
+                arg.counterText ||
+                `Under the applicable statutory framework, the opposing submissions are subject to preliminary objections regarding procedural compliance and jurisdictional competence. The allegations require corroboration through documentary evidence before this Hon'ble Court.`,
+              statusRef: "Counter Generated",
+              source:
+                arg.source ||
+                `Code of Civil Procedure, 1908 §§ 9, 151; Bharatiya Nyaya Sanhita, 2023; Relevant High Court precedents on the subject matter`,
+            };
+          }
+        }),
       );
+      setArgumentsList(updated);
+    } catch (err) {
+      console.warn("AI Counter generation error:", err);
+    } finally {
       setIsGenerating(false);
-    }, 1200);
+    }
   };
 
   return (

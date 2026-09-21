@@ -8,6 +8,7 @@ import type { FormStep } from "@/components/app/FormStepper";
 import { PermissionsGate } from "@/components/app/PermissionsGate";
 import { usePermissionsGate } from "@/features/permissions/usePermissionsGate";
 import { getCitizenSession, setCitizenSession } from "@/features/citizen/session";
+import { useAuth } from "@/context/useAuth";
 import { CitizenLanguageButtons } from "@/features/citizen/CitizenLanguageButtons";
 import { useCitizenLanguage } from "@/features/citizen/i18n/CitizenLanguageContext";
 import { getCitizens, updateCitizenProfile } from "@/data/appStore";
@@ -49,6 +50,7 @@ const LOGIN_STEPS: FormStep[] = [
 
 export function CitizenLogin() {
   const navigate = useNavigate();
+  const { loginCitizen } = useAuth();
   const { area, specialization, service } = Route.useSearch();
   const { translate } = useCitizenLanguage();
   const [permissionsAcknowledged, acknowledgePermissions] = usePermissionsGate();
@@ -116,9 +118,7 @@ export function CitizenLogin() {
     setOtpError("");
 
     const payload =
-      loginMethod === "phone"
-        ? { phone: phoneDigits }
-        : { email: email.trim().toLowerCase() };
+      loginMethod === "phone" ? { phone: phoneDigits } : { email: email.trim().toLowerCase() };
 
     const res = await sendCitizenOtpApi(payload);
     setIsSubmitting(false);
@@ -140,9 +140,7 @@ export function CitizenLogin() {
     setOtpError("");
 
     const payload =
-      loginMethod === "phone"
-        ? { phone: phoneDigits }
-        : { email: email.trim().toLowerCase() };
+      loginMethod === "phone" ? { phone: phoneDigits } : { email: email.trim().toLowerCase() };
 
     const res = await sendCitizenOtpApi(payload);
     setIsSubmitting(false);
@@ -189,6 +187,15 @@ export function CitizenLogin() {
       fullName: nameToSave,
       authenticated: true,
       casePath: "new",
+    });
+
+    // Synchronize with unified AuthContext
+    loginCitizen(res.data?.session?.access_token || res.data?.token, {
+      id: res.data?.user?.id || `u_${Date.now()}`,
+      role: "citizen",
+      name: nameToSave || "Citizen",
+      phone: loginMethod === "phone" ? phoneDigits : "",
+      email: loginMethod === "email" ? email.trim().toLowerCase() : "",
     });
 
     // Link profile directly to appStore for reactive sync across views
@@ -311,9 +318,7 @@ export function CitizenLogin() {
             {/* Login Method Segmented Switch */}
             <div className="space-y-2">
               <div className="flex items-center justify-between">
-                <label className="text-xs font-medium text-muted-foreground">
-                  Sign in with
-                </label>
+                <label className="text-xs font-medium text-muted-foreground">Sign in with</label>
               </div>
               <div className="grid grid-cols-2 gap-1 rounded-lg border border-border/80 bg-muted/40 p-1">
                 <button
@@ -449,9 +454,7 @@ export function CitizenLogin() {
             <div className="flex items-center justify-between text-xs text-muted-foreground px-1">
               <span>Didn't receive the code?</span>
               {resendCountdown > 0 ? (
-                <span className="font-medium text-foreground">
-                  Resend in {resendCountdown}s
-                </span>
+                <span className="font-medium text-foreground">Resend in {resendCountdown}s</span>
               ) : (
                 <button
                   type="button"

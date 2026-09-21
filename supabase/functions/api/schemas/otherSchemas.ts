@@ -11,15 +11,21 @@ export const GenerateAgoraTokenSchema = z
 export const LogCallSessionSchema = z
   .object({
     caseId: z.string().openapi({ example: "c_102" }),
-    durationSeconds: z.number().openapi({ example: 900 }),
+    durationSeconds: z.number().optional().default(0).openapi({ example: 900 }),
     callerId: z.string().optional().openapi({ example: "u_001" }),
     receiverId: z.string().optional().openapi({ example: "l_001" }),
+    withName: z.string().optional().openapi({ example: "Adv. Rajesh Kumar" }),
+    channelName: z.string().optional().openapi({ example: "consult_case_102" }),
+    role: z.string().optional().openapi({ example: "citizen" }),
+    status: z.string().optional().openapi({ example: "completed" }),
   })
   .openapi("LogCallSessionRequest");
 
 export const GenerateCounterSchema = z
   .object({
-    argument: z.string().openapi({ example: "Petitioner claims adverse possession of property since 2010 without payment of municipal tax." }),
+    argument: z.string().optional().openapi({ example: "Petitioner claims adverse possession of property since 2010 without payment of municipal tax." }),
+    argumentText: z.string().optional().openapi({ example: "Petitioner claims adverse possession of property since 2010 without payment of municipal tax." }),
+    caseId: z.string().optional().openapi({ example: "c_102" }),
     caseCategory: z.string().optional().openapi({ example: "Property Law" }),
     jurisdiction: z.string().optional().openapi({ example: "Telangana High Court" }),
   })
@@ -34,7 +40,8 @@ export const CaseQASchema = z
 
 export const SummarizeDocSchema = z
   .object({
-    documentText: z.string().openapi({ example: "THIS LEASE DEED made this 12th day of January 2024..." }),
+    documentText: z.string().optional().openapi({ example: "THIS LEASE DEED made this 12th day of January 2024..." }),
+    documentTitle: z.string().optional().openapi({ example: "Commercial Lease Deed" }),
     focusArea: z.string().optional().openapi({ example: "Termination & Penalty Clauses" }),
   })
   .openapi("SummarizeDocRequest");
@@ -44,10 +51,17 @@ export const ContactInquirySchema = z
     name: z.string().openapi({ example: "Ramesh Gupta" }),
     email: z.string().email().openapi({ example: "ramesh@example.com" }),
     phone: z.string().optional().openapi({ example: "+919876543210" }),
+    category: z.string().optional().openapi({ example: "general" }),
     subject: z.string().optional().openapi({ example: "Platform consultation query" }),
     message: z.string().openapi({ example: "Need support uploading case docket evidence." }),
   })
   .openapi("ContactInquiryRequest");
+
+export const UpdateInquiryStatusSchema = z
+  .object({
+    status: z.enum(["New", "In Review", "Resolved", "Archived"]).openapi({ example: "In Review" }),
+  })
+  .openapi("UpdateInquiryStatusRequest");
 
 export const RegisterFcmTokenSchema = z
   .object({

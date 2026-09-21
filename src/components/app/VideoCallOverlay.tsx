@@ -3,6 +3,7 @@ import { Mic, MicOff, PhoneOff, Video, VideoOff } from "lucide-react";
 import type { ActiveVideoCall } from "@/features/video-call/VideoCallContext";
 import { addVideoCall } from "@/data/appStore";
 import { UserAvatar } from "@/components/app/UserAvatar";
+import { videoCallService } from "@/services/videoCallService";
 
 function formatElapsed(seconds: number) {
   const m = Math.floor(seconds / 60);
@@ -40,6 +41,14 @@ export function VideoCallOverlay({ call, onEnd }: { call: ActiveVideoCall; onEnd
         }
         streamRef.current = stream;
         if (videoRef.current) videoRef.current.srcObject = stream;
+
+        // Fetch Agora RTC room token from backend
+        videoCallService
+          .generateToken({
+            channelName: `case_${call.caseId}`,
+            role: "publisher",
+          })
+          .catch((err) => console.warn("Could not generate Agora token:", err));
       } catch {
         if (!cancelled) {
           setErrorMessage(
@@ -63,7 +72,7 @@ export function VideoCallOverlay({ call, onEnd }: { call: ActiveVideoCall; onEnd
       streamRef.current?.getTracks().forEach((t) => t.stop());
       streamRef.current = null;
     };
-  }, []);
+  }, [call.caseId]);
 
   useEffect(() => {
     if (phase !== "connected") return;
@@ -91,6 +100,19 @@ export function VideoCallOverlay({ call, onEnd }: { call: ActiveVideoCall; onEnd
       status: connectedAt ? "completed" : "cancelled",
       durationSeconds,
     });
+
+    // Asynchronously log consultation call to Supabase backend API
+    videoCallService
+      .logCall({
+        caseId: call.caseId,
+        withName: call.withName,
+        role: call.role,
+        status: connectedAt ? "completed" : "cancelled",
+        durationSeconds: durationSeconds || 0,
+        channelName: `case_${call.caseId}`,
+      })
+      .catch((err) => console.warn("Remote video call logging error:", err));
+
     onEnd();
   }, [call.caseId, call.role, call.withName, onEnd]);
 

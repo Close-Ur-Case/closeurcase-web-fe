@@ -9,6 +9,7 @@ import { DocumentPreviewBody } from "@/components/app/DocumentPreview";
 import { openDocumentInNewTab } from "@/lib/files";
 import { FilterPanelButton, type FilterSection } from "@/components/app/FilterPanelButton";
 import { getLawyers, updateLawyerStatus, subscribeToStore } from "@/data/appStore";
+import { lawyerService } from "@/services/lawyerService";
 import { lawyerStatusColor } from "@/lib/statusColors";
 import type { Lawyer } from "@/types";
 import {
@@ -90,6 +91,16 @@ export function LawyersPage() {
 
   useEffect(() => {
     const sync = () => setRows(getLawyers());
+    lawyerService
+      .getLawyers()
+      .then((backendLawyers) => {
+        if (Array.isArray(backendLawyers) && backendLawyers.length > 0) {
+          console.info("[Admin Lawyers] Live backend advocates count:", backendLawyers.length);
+        }
+      })
+      .catch((err: unknown) => {
+        console.warn("[Admin Lawyers] Backend fetch notice:", err);
+      });
     return subscribeToStore(sync);
   }, []);
 
@@ -141,6 +152,14 @@ export function LawyersPage() {
 
   const handleUpdateStatus = (id: string, status: Lawyer["status"]) => {
     updateLawyerStatus(id, status);
+    lawyerService
+      .moderateLawyer(id, {
+        status,
+        moderationNotes: `Verification status updated to ${status} by Platform Administrator`,
+      })
+      .catch((err: unknown) => {
+        console.warn("[Lawyer Moderation] Server update notice:", err);
+      });
   };
 
   function openProfile(r: Lawyer) {

@@ -32,13 +32,8 @@ import {
   subscribeToStore,
   resetDataManagementToDefaults,
 } from "@/data/appStore";
-import type {
-  CaseCategoryItem,
-  LanguageItem,
-  CourtItem,
-  StateItem,
-  CourtLevelItem,
-} from "@/types";
+import { masterDataService } from "@/services/masterDataService";
+import type { CaseCategoryItem, LanguageItem, CourtItem, StateItem, CourtLevelItem } from "@/types";
 import { Plus, Pencil, Trash2, Search, X, Check } from "lucide-react";
 import { CardPagination } from "@/components/app/CardPagination";
 
@@ -48,6 +43,14 @@ export const Route = createFileRoute("/admin/data-management")({
 });
 
 type TabType = "categories" | "languages" | "states" | "courts" | "courtLevels";
+
+const tabToBackendType: Record<TabType, string> = {
+  categories: "categories",
+  languages: "languages",
+  states: "states",
+  courts: "courts",
+  courtLevels: "court-levels",
+};
 
 /* ────────────────────────────────────────────────────────────────────────────
  * A row of master data is edited in place, not in a modal. Each entity type
@@ -82,8 +85,16 @@ const subCats = (v: unknown): SubCat[] =>
             : e && typeof e === "object"
               ? {
                   name: String((e as SubCat).name ?? ""),
-                  services: Array.isArray((e as any).services)
-                    ? (e as any).services.map((s: any) => typeof s === "string" ? s : String(s?.name || s?.id || ""))
+                  services: Array.isArray((e as Record<string, unknown>).services)
+                    ? ((e as Record<string, unknown>).services as unknown[]).map((s) =>
+                        typeof s === "string"
+                          ? s
+                          : String(
+                              (s as Record<string, unknown>)?.name ||
+                                (s as Record<string, unknown>)?.id ||
+                                "",
+                            ),
+                      )
                     : [],
                 }
               : { name: "", services: [] },
@@ -255,8 +266,7 @@ const CONFIG: Record<TabType, EntityConfig> = {
     ],
     empty: { name: "", level: "", state: "", district: "" },
     primary: (i) => s(i.name),
-    secondary: (i) =>
-      [s(i.level), s(i.district || i.city), s(i.state)].filter(Boolean).join(" · "),
+    secondary: (i) => [s(i.level), s(i.district || i.city), s(i.state)].filter(Boolean).join(" · "),
     haystack: (i) =>
       [s(i.name), s(i.level), s(i.state), s(i.district || i.city)].join(" ").toLowerCase(),
   },
@@ -616,10 +626,7 @@ function RowEditor({
             return (
               <div key={f.key} className="sm:col-span-2 space-y-1.5">
                 <label className="text-xs font-semibold text-foreground">{f.label}</label>
-                <DistrictListEditor
-                  value={distList}
-                  onChange={(next) => onChange(f.key, next)}
-                />
+                <DistrictListEditor value={distList} onChange={(next) => onChange(f.key, next)} />
               </div>
             );
           }
@@ -697,9 +704,7 @@ function RowEditor({
                 value={String(values[f.key] ?? "")}
                 onChange={(v) => onChange(f.key, v)}
                 options={
-                  opts.length > 0
-                    ? opts
-                    : [{ value: "", label: `Select ${f.label.toLowerCase()}` }]
+                  opts.length > 0 ? opts : [{ value: "", label: `Select ${f.label.toLowerCase()}` }]
                 }
               />
             );
@@ -741,17 +746,42 @@ export function AdminDataManagementPage() {
   const [courts, setCourts] = useState<CourtItem[]>(getCourts);
   const [courtLevels, setCourtLevels] = useState<CourtLevelItem[]>(getCourtLevels);
 
-  useEffect(
-    () =>
-      subscribeToStore(() => {
-        setCategories(getCaseCategories());
-        setLanguages(getLanguages());
-        setStates(getStates());
-        setCourts(getCourts());
-        setCourtLevels(getCourtLevels());
-      }),
-    [],
-  );
+  useEffect(() => {
+    const unsub = subscribeToStore(() => {
+      setCategories(getCaseCategories());
+      setLanguages(getLanguages());
+      setStates(getStates());
+      setCourts(getCourts());
+      setCourtLevels(getCourtLevels());
+    });
+
+    // Hydrate master categories from remote backend
+    masterDataService
+      .getCategories()
+      .then((remoteCats) => {
+        if (remoteCats && Array.isArray(remoteCats) && remoteCats.length > 0) {
+          const localCats = getCaseCategories();
+          remoteCats.forEach((rc) => {
+            if (!localCats.some((lc) => lc.id === rc.id || lc.name === rc.name)) {
+              saveCaseCategory({
+                id: rc.id,
+                name: rc.name,
+                code: rc.code,
+                description: rc.description || "",
+                active: rc.active ?? true,
+                subCategories: (rc.subCategories || []).map((sc) => ({
+                  name: sc.name,
+                  services: (sc.services || []).map((s) => (typeof s === "string" ? s : s.name)),
+                })),
+              });
+            }
+          });
+        }
+      })
+      .catch((err) => console.warn("Could not sync remote categories:", err));
+
+    return unsub;
+  }, []);
 
   // Which row is open for editing (id, or NEW_ROW_ID for the add form).
   const [editingId, setEditingId] = useState<string | null>(null);
@@ -770,18 +800,14 @@ export function AdminDataManagementPage() {
   }, [tab]);
 
   const baseCfg = CONFIG[tab];
-  const rows = { categories, languages, states, courts, courtLevels }[
-    tab
-  ] as unknown as Row[];
+  const rows = { categories, languages, states, courts, courtLevels }[tab] as unknown as Row[];
 
   // Courts pull State and Level choices dynamically from the active States / Levels lists
   const cfg = useMemo<EntityConfig>(() => {
     if (tab !== "courts") return baseCfg;
     const stateOpts = [
       { value: "All India", label: "All India (National)" },
-      ...states
-        .filter((st) => st.active)
-        .map((st) => ({ value: st.name, label: st.name })),
+      ...states.filter((st) => st.active).map((st) => ({ value: st.name, label: st.name })),
     ];
     const levelOpts = courtLevels
       .filter((lv) => lv.active)
@@ -883,8 +909,27 @@ export function AdminDataManagementPage() {
         payload[f.key] = v;
       }
     });
-    cfg.save(payload as Record<string, unknown> & { active: boolean });
+    const isNew = !payload.id || payload.id === NEW_ROW_ID;
+    const finalPayload = {
+      ...payload,
+      id: isNew ? undefined : payload.id,
+    };
+    cfg.save(finalPayload as Record<string, unknown> & { active: boolean });
     setEditingId(null);
+
+    // Asynchronously synchronize with backend taxonomy endpoint
+    const backendType = tabToBackendType[tab];
+    if (backendType) {
+      if (isNew) {
+        masterDataService
+          .createTaxonomyItem(backendType, payload)
+          .catch((err) => console.warn(`Remote taxonomy create error for ${backendType}:`, err));
+      } else {
+        masterDataService
+          .updateTaxonomyItem(backendType, String(payload.id), payload)
+          .catch((err) => console.warn(`Remote taxonomy update error for ${backendType}:`, err));
+      }
+    }
   };
 
   const setActive = (id: string, next: boolean) => {
@@ -896,6 +941,15 @@ export function AdminDataManagementPage() {
         row[f.key] ?? (f.kind === "chips" || f.kind === "districts" || f.kind === "tree" ? [] : "");
     });
     cfg.save(payload as Record<string, unknown> & { active: boolean });
+
+    const backendType = tabToBackendType[tab];
+    if (backendType) {
+      masterDataService
+        .updateTaxonomyItem(backendType, id, payload)
+        .catch((err) =>
+          console.warn(`Remote taxonomy status update error for ${backendType}:`, err),
+        );
+    }
   };
 
   const handleToggle = (row: Row) => {
@@ -1088,7 +1142,17 @@ export function AdminDataManagementPage() {
         confirmLabel="Delete"
         variant="danger"
         onConfirm={() => {
-          if (deleteTarget) cfg.remove(deleteTarget.id);
+          if (deleteTarget) {
+            cfg.remove(deleteTarget.id);
+            const backendType = tabToBackendType[tab];
+            if (backendType) {
+              masterDataService
+                .deleteTaxonomyItem(backendType, deleteTarget.id)
+                .catch((err) =>
+                  console.warn(`Remote taxonomy delete error for ${backendType}:`, err),
+                );
+            }
+          }
           setDeleteTarget(null);
         }}
         onCancel={() => setDeleteTarget(null)}

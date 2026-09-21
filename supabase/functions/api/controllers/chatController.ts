@@ -21,7 +21,9 @@ export async function sendCaseMessage(c: Context) {
   const body = await c.req.json();
   const {
     text,
+    message,
     sender,
+    senderRole,
     senderName,
     attachmentType,
     attachmentName,
@@ -30,9 +32,10 @@ export async function sendCaseMessage(c: Context) {
     audioDuration,
   } = body;
 
-  if (!sender || !senderName) {
-    throw ApiError.badRequest("Sender role and senderName are required");
-  }
+  const actualSender = sender || senderRole || "citizen";
+  const actualSenderName =
+    senderName || (actualSender === "lawyer" ? "Advocate" : "Client");
+  const actualText = text || message || null;
 
   const messageId = `msg_${Date.now()}`;
   const nowIso = new Date().toISOString();
@@ -42,9 +45,9 @@ export async function sendCaseMessage(c: Context) {
     .values({
       id: messageId,
       caseId,
-      sender,
-      senderName,
-      text: text || null,
+      sender: actualSender,
+      senderName: actualSenderName,
+      text: actualText,
       attachmentType: attachmentType || null,
       attachmentName: attachmentName || null,
       attachmentUrl: attachmentUrl || null,

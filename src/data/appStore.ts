@@ -121,6 +121,51 @@ export function saveCases(cases: LegalCase[]) {
   save(CASES_KEY, cases);
 }
 
+export function mergeRemoteCases(remoteCases: LegalCase[]): void {
+  if (!Array.isArray(remoteCases) || remoteCases.length === 0) return;
+  const current = getCases();
+  const currentMap = new Map(current.map((c) => [c.id, c]));
+  let hasChanges = false;
+
+  remoteCases.forEach((remote) => {
+    const existing = currentMap.get(remote.id);
+    if (existing) {
+      const updatedStatus = remote.status || existing.status;
+      const updatedTimeline =
+        remote.timeline && remote.timeline.length > 0 ? remote.timeline : existing.timeline;
+      const updatedFiles =
+        remote.files && remote.files.files && remote.files.files.length > 0
+          ? remote.files
+          : existing.files;
+
+      if (
+        existing.status !== updatedStatus ||
+        existing.timeline.length !== updatedTimeline.length ||
+        (existing.files?.files?.length ?? 0) !== (updatedFiles?.files?.length ?? 0)
+      ) {
+        hasChanges = true;
+      }
+
+      currentMap.set(remote.id, {
+        ...existing,
+        ...remote,
+        status: updatedStatus,
+        timeline: updatedTimeline,
+        files: updatedFiles,
+        citizenName: existing.citizenName || remote.citizenName,
+        lawyerName: existing.lawyerName || remote.lawyerName,
+      });
+    } else {
+      currentMap.set(remote.id, remote);
+      hasChanges = true;
+    }
+  });
+
+  if (hasChanges) {
+    saveCases(Array.from(currentMap.values()));
+  }
+}
+
 export function addCase(c: LegalCase) {
   const current = getCases();
   const updated = [c, ...current];
@@ -735,6 +780,7 @@ export function planTierForCitizen(idOrName: string): "gold" | "silver" | "bronz
   const active = subs.find((s) => s.status === "Active");
   if (active?.planId === "yearly") return "gold";
   if (active?.planId === "monthly") return "silver";
+  if (active?.planId === "daily") return "copper";
   return "bronze";
 }
 
@@ -763,6 +809,26 @@ export function addSubscription(
   });
 
   return newSub;
+}
+
+export function cancelSubscription(id: string): Subscription | null {
+  const current = load<Subscription[]>(SUBSCRIPTIONS_KEY, seedSubscriptions);
+  let target: Subscription | null = null;
+  const updated = current.map((s) => {
+    if (s.id === id) {
+      target = { ...s, status: "Cancelled" as const };
+      return target;
+    }
+    return s;
+  });
+  save(SUBSCRIPTIONS_KEY, updated);
+  if (target) {
+    addNotification({
+      title: "Subscription Cancelled",
+      body: `Your ${(target as Subscription).planLabel} plan has been cancelled.`,
+    });
+  }
+  return target;
 }
 
 /* ── PAYMENTS STORE (Revenue tabs) ───────────────────────────────────────── */
@@ -2375,7 +2441,17 @@ function normalizeSubCategories(raw: unknown): CaseSubCategoryItem[] {
         if (!name) return null;
         const svc = (entry as { services?: unknown }).services;
         const services: string[] = Array.isArray(svc)
-          ? svc.map((x: any) => (typeof x === "string" ? x.trim() : String(x?.name || x?.id || "").trim())).filter(Boolean)
+          ? svc
+              .map((x: unknown) =>
+                typeof x === "string"
+                  ? x.trim()
+                  : String(
+                      (x as { name?: unknown; id?: unknown })?.name ||
+                        (x as { name?: unknown; id?: unknown })?.id ||
+                        "",
+                    ).trim(),
+              )
+              .filter(Boolean)
           : [];
         const id = (entry as { id?: string }).id;
         return { ...(id ? { id } : {}), name, services };

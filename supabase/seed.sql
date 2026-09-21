@@ -442,6 +442,7 @@ ON CONFLICT (id) DO NOTHING;
 
 -- 12. Subscription Plans Catalog (Matches citizen.subscriptions.tsx & subscriptionPlans.ts)
 INSERT INTO public.subscription_plans (id, label, price, cadence, badge, audience, description, features, active) VALUES
+('daily', 'Daily Pass', 1, '/day', '₹1 / Day', 'For instant legal advice', 'Affordable daily legal access — just ₹1 per day for priority assistance and case updates.', '["Active 24-hour priority dispatch","Access to verified advocates","Standard case docket tracking","Pay-as-you-go micro plan"]'::jsonb, 'true'),
 ('free', 'Free', 0, '', NULL, 'For getting started', 'Browse verified advocates and file cases manually, at your own pace.', '["Manual advocate search & selection","File up to 2 active cases","Standard case tracking","Community support"]'::jsonb, 'true'),
 ('monthly', 'Monthly', 499, '/month', 'Popular', 'For active matters', 'Priority admin-assigned advocate support, billed every month.', '["Auto-dispatch to top verified specialists","Priority admin allocation & case tracking","Unlimited active cases","Priority support"]'::jsonb, 'true'),
 ('yearly', 'Yearly', 4999, '/year', 'Save 17%', 'For long-term needs', 'Priority admin-assigned advocate support, billed once a year.', '["Everything in Monthly","2 months free vs monthly billing","Dedicated case manager","Early access to new features"]'::jsonb, 'true')

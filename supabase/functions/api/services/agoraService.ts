@@ -49,7 +49,7 @@ export class AgoraService {
         id,
         caseId,
         channelName: channelName || `case_${caseId}`,
-        withName,
+        withName: withName || "Consultation Participant",
         callerId: callerId || null,
         receiverId: receiverId || null,
         role,

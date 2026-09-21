@@ -20,6 +20,7 @@ import {
   Upload,
   User,
   X,
+  Loader2,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { AuthLayout } from "@/layouts/AuthLayout";
@@ -48,6 +49,8 @@ import {
   getActiveCourts,
 } from "@/data/appStore";
 import type { LegalCategory, LawyerAward } from "@/types";
+import { useLawyerRegister } from "@/hooks/queries/useAuth";
+import { useCategoriesQuery, useCourtsQuery, useCitiesQuery } from "@/hooks/queries/useMasterData";
 import {
   Button,
   IconButton,
@@ -281,7 +284,13 @@ function VerifyField({
 
 function LawyerRegister() {
   const navigate = useNavigate();
+  const registerMutation = useLawyerRegister();
+  const categoriesQuery = useCategoriesQuery();
+  const courtsQuery = useCourtsQuery();
+  const citiesQuery = useCitiesQuery();
+
   const [submitted, setSubmitted] = useState(false);
+  const [isSubmitting, setIsSubmitting] = useState(false);
   const [permissionsAcknowledged, acknowledgePermissions] = usePermissionsGate();
 
   const [step, setStep] = useState(1);
@@ -423,6 +432,33 @@ function LawyerRegister() {
     });
   }, []);
 
+  const effectivePracticeAreaTree = useMemo(() => {
+    if (categoriesQuery.data && categoriesQuery.data.length > 0) {
+      return categoriesQuery.data.map((cat) => ({
+        category: cat.name,
+        case_types: (cat.subCategories || []).map((sub) => ({
+          case_type: sub.name,
+          legal_services: (sub.services || []).map((srv) => srv.name),
+        })),
+      }));
+    }
+    return practiceAreaTree;
+  }, [categoriesQuery.data, practiceAreaTree]);
+
+  const effectiveCities = useMemo(() => {
+    if (citiesQuery.data && citiesQuery.data.length > 0) {
+      return citiesQuery.data.map((c) => c.name);
+    }
+    return managedCities.length > 0 ? managedCities : INDIAN_CITIES;
+  }, [citiesQuery.data, managedCities]);
+
+  const effectiveCourts = useMemo(() => {
+    if (courtsQuery.data && courtsQuery.data.length > 0) {
+      return courtsQuery.data.map((c) => c.name);
+    }
+    return managedCourts.length > 0 ? managedCourts : INDIAN_COURTS;
+  }, [courtsQuery.data, managedCourts]);
+
   const [selectedPracticeArea, setSelectedPracticeArea] = useState<string>("");
   const [selectedSpecialization, setSelectedSpecialization] = useState<string>("");
   const [selectedServicesMulti, setSelectedServicesMulti] = useState<string[]>([]);
@@ -433,9 +469,9 @@ function LawyerRegister() {
 
   const availableSpecializations = useMemo(() => {
     if (!selectedPracticeArea) return [];
-    const pa = practiceAreaTree.find((p) => p.category === selectedPracticeArea);
+    const pa = effectivePracticeAreaTree.find((p) => p.category === selectedPracticeArea);
     return pa ? pa.case_types : [];
-  }, [selectedPracticeArea, practiceAreaTree]);
+  }, [selectedPracticeArea, effectivePracticeAreaTree]);
 
   const availableLegalServices = useMemo(() => {
     if (!selectedSpecialization) return [];
@@ -625,7 +661,8 @@ function LawyerRegister() {
     }
     if (s === 2) {
       if (!password) return "Please enter a password.";
-      if (!passwordRes.isValid) return passwordRes.error || "Password must be at least 6 characters.";
+      if (!passwordRes.isValid)
+        return passwordRes.error || "Password must be at least 6 characters.";
       if (!confirmPassword) return "Please confirm your password.";
       if (password !== confirmPassword) return "Passwords do not match.";
       return null;
@@ -668,7 +705,7 @@ function LawyerRegister() {
     });
   };
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setEmailTouched(true);
     setPhoneTouched(true);
@@ -723,31 +760,72 @@ function LawyerRegister() {
     const photoUrl = photoPreview || undefined;
     const idProofUrl = idProofFile ? URL.createObjectURL(idProofFile) : undefined;
 
-    addLawyer({
-      name: name.trim() || (isFirm ? "Law Firm" : "Lawyer"),
-      roleTitle: isFirm ? "Law Firm / Organisation" : "Advocate",
-      email: email.trim() || "lawyer@CloseUrCase.app",
-      phone: phone.trim() || "+91 98100 12345",
-      password: password || undefined,
-      barId: barId.trim() || "BAR/2026/001",
-      city: cities[0] || "Hyderabad",
-      cities: cities.length ? cities : undefined,
-      category,
-      experienceYears,
-      status: "Pending",
-      photoUrl,
-      officeAddress: address.trim() || undefined,
-      bio: bio.trim() || undefined,
-      languages: languages.length ? languages : undefined,
-      specializations: specializations.length ? specializations : undefined,
-      legalServices: legalServices.length ? legalServices : undefined,
-      courts: courts.length ? courts : undefined,
-      practiceAreas: practiceAreas.length ? practiceAreas : undefined,
-      awards: awards.length ? awards : undefined,
-      idProofUrl,
-      idProofFileName: idProofFile?.name,
-    });
-    setSubmitted(true);
+    setIsSubmitting(true);
+    setStepError("");
+
+    try {
+      await registerMutation.mutateAsync({
+        name: name.trim() || (isFirm ? "Law Firm" : "Lawyer"),
+        roleTitle: isFirm ? "Law Firm / Organisation" : "Advocate",
+        email: email.trim() || "lawyer@CloseUrCase.app",
+        phone: phone.trim() || "+91 98100 12345",
+        password: password || undefined,
+        confirmPassword: confirmPassword || undefined,
+        registrationType: isFirm ? "firm" : "lawyer",
+        barId: barId.trim() || "BAR/2026/001",
+        city: cities[0] || "Hyderabad",
+        cities: cities.length ? cities : undefined,
+        category,
+        experienceYears,
+        photoUrl,
+        officeAddress: address.trim() || undefined,
+        bio: bio.trim() || undefined,
+        languages: languages.length ? languages : undefined,
+        specializations: specializations.length ? specializations : undefined,
+        legalServices: legalServices.length ? legalServices : undefined,
+        courts: courts.length ? courts : undefined,
+        practiceAreas: practiceAreas.length ? practiceAreas : undefined,
+        awards: awards.length ? awards : undefined,
+        idProofUrl,
+        idProofFileName: idProofFile?.name,
+        declarationAccepted,
+      });
+
+      addLawyer({
+        name: name.trim() || (isFirm ? "Law Firm" : "Lawyer"),
+        roleTitle: isFirm ? "Law Firm / Organisation" : "Advocate",
+        email: email.trim() || "lawyer@CloseUrCase.app",
+        phone: phone.trim() || "+91 98100 12345",
+        password: password || undefined,
+        barId: barId.trim() || "BAR/2026/001",
+        city: cities[0] || "Hyderabad",
+        cities: cities.length ? cities : undefined,
+        category,
+        experienceYears,
+        status: "Pending",
+        photoUrl,
+        officeAddress: address.trim() || undefined,
+        bio: bio.trim() || undefined,
+        languages: languages.length ? languages : undefined,
+        specializations: specializations.length ? specializations : undefined,
+        legalServices: legalServices.length ? legalServices : undefined,
+        courts: courts.length ? courts : undefined,
+        practiceAreas: practiceAreas.length ? practiceAreas : undefined,
+        awards: awards.length ? awards : undefined,
+        idProofUrl,
+        idProofFileName: idProofFile?.name,
+      });
+
+      setSubmitted(true);
+    } catch (err: unknown) {
+      const msg =
+        err instanceof Error
+          ? err.message
+          : "Failed to submit lawyer registration. Please verify details.";
+      setStepError(msg);
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
   if (!permissionsAcknowledged) {
@@ -954,7 +1032,9 @@ function LawyerRegister() {
                 <div className="min-w-0 flex-1">
                   <h3 className="text-sm font-semibold text-foreground">Create account password</h3>
                   <p className="mt-0.5 text-xs text-muted-foreground leading-relaxed">
-                    Set up your login password. You will use your verified email (<span className="font-medium text-foreground">{email || "your email"}</span>) and this password to sign in to your Lawyer Workspace.
+                    Set up your login password. You will use your verified email (
+                    <span className="font-medium text-foreground">{email || "your email"}</span>)
+                    and this password to sign in to your Lawyer Workspace.
                   </p>
                 </div>
               </div>
@@ -977,7 +1057,11 @@ function LawyerRegister() {
                         ariaLabel={showPassword ? "Hide password" : "Show password"}
                         onClick={() => setShowPassword((v) => !v)}
                       >
-                        {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                        {showPassword ? (
+                          <EyeOff className="h-4 w-4" />
+                        ) : (
+                          <Eye className="h-4 w-4" />
+                        )}
                       </IconButton>
                     }
                     error={passwordTouched && !passwordRes.isValid}
@@ -1002,17 +1086,25 @@ function LawyerRegister() {
                     leadingIcon={<Lock className="h-4 w-4" />}
                     trailingIcon={
                       <IconButton
-                        ariaLabel={showConfirmPassword ? "Hide confirm password" : "Show confirm password"}
+                        ariaLabel={
+                          showConfirmPassword ? "Hide confirm password" : "Show confirm password"
+                        }
                         onClick={() => setShowConfirmPassword((v) => !v)}
                       >
-                        {showConfirmPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                        {showConfirmPassword ? (
+                          <EyeOff className="h-4 w-4" />
+                        ) : (
+                          <Eye className="h-4 w-4" />
+                        )}
                       </IconButton>
                     }
                     error={confirmPasswordTouched && confirmPassword.length > 0 && !passwordsMatch}
                     className="w-full"
                   />
                   {confirmPasswordTouched && confirmPassword.length > 0 && !passwordsMatch && (
-                    <p className="text-[11px] font-medium text-destructive">Passwords do not match.</p>
+                    <p className="text-[11px] font-medium text-destructive">
+                      Passwords do not match.
+                    </p>
                   )}
                   {passwordsMatch && (
                     <div className="flex items-center gap-1.5 pt-0.5 text-xs font-medium text-emerald-600">
@@ -1144,7 +1236,7 @@ function LawyerRegister() {
               <TagDropdownField
                 label="Service Districts"
                 placeholder="-- Select District to Add --"
-                options={managedCities.length > 0 ? managedCities : INDIAN_CITIES}
+                options={effectiveCities}
                 values={cities}
                 onAdd={(val) => {
                   if (val && !cities.includes(val)) {
@@ -1168,7 +1260,7 @@ function LawyerRegister() {
                   onChange={handlePracticeAreaChange}
                   options={[
                     { value: "", label: "-- Select Practice Area --" },
-                    ...practiceAreaTree.map((pa) => ({
+                    ...effectivePracticeAreaTree.map((pa) => ({
                       value: pa.category,
                       label: pa.category,
                     })),
@@ -1317,7 +1409,7 @@ function LawyerRegister() {
                 <TagDropdownField
                   label="Courts Practiced In"
                   placeholder="-- Select Court to Add --"
-                  options={managedCourts.length > 0 ? managedCourts : INDIAN_COURTS}
+                  options={effectiveCourts}
                   values={courts}
                   onAdd={(val) => {
                     if (val && !courts.includes(val)) setCourts((prev) => [...prev, val]);
@@ -1486,8 +1578,20 @@ function LawyerRegister() {
               Continue
             </Button>
           ) : (
-            <Button type="submit" variant="filled" className="min-w-41 shadow-md">
-              Submit application
+            <Button
+              type="submit"
+              variant="filled"
+              disabled={isSubmitting}
+              className="min-w-41 shadow-md"
+            >
+              {isSubmitting ? (
+                <span className="flex items-center gap-2">
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                  Submitting…
+                </span>
+              ) : (
+                "Submit application"
+              )}
             </Button>
           )}
         </div>

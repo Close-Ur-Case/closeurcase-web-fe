@@ -4,7 +4,7 @@ import {
   logCallSession,
   getCallHistory,
 } from "../controllers/videoCallController.ts";
-import { authenticateUser } from "../middlewares/auth.ts";
+import { optionalAuth } from "../middlewares/auth.ts";
 import {
   GenerateAgoraTokenSchema,
   LogCallSessionSchema,
@@ -12,7 +12,7 @@ import {
 } from "../schemas/index.ts";
 
 const videoCall = new OpenAPIHono();
-videoCall.use(authenticateUser);
+videoCall.use(optionalAuth);
 
 const generateTokenRoute = createRoute({
   method: "post",

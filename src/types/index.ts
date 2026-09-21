@@ -93,7 +93,7 @@ export interface Lawyer {
   password?: string;
 }
 
-export type SubscriptionPlanId = "free" | "monthly" | "yearly";
+export type SubscriptionPlanId = "free" | "daily" | "monthly" | "yearly";
 
 /** A citizen's Auto-Assign subscription — created when they pay for a plan
  * on the "Find a Lawyer" wizard's admin-assign step. */

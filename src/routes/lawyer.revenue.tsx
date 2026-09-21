@@ -20,6 +20,8 @@ import {
   addWithdrawalRequest,
   subscribeToStore,
 } from "@/data/appStore";
+import { withdrawalService } from "@/services/withdrawalService";
+import { useAuth } from "@/context/useAuth";
 import type { Payment, WithdrawalRequest } from "@/types";
 import {
   IndianRupee,
@@ -61,7 +63,11 @@ const formatInrCompact = (n: number) => {
 };
 
 export function LawyerRevenuePage() {
-  const lawyerId = useMemo(() => getLawyers().find((l) => l.id === "l_001")?.id ?? "l_001", []);
+  const { user } = useAuth();
+  const lawyerId = useMemo(() => {
+    if (user?.id) return user.id;
+    return getLawyers().find((l) => l.id === "l_001")?.id ?? "l_001";
+  }, [user]);
 
   const [payments, setPayments] = useState<Payment[]>(() => getPayments(lawyerId));
   const [withdrawals, setWithdrawals] = useState<WithdrawalRequest[]>(() =>
@@ -69,6 +75,17 @@ export function LawyerRevenuePage() {
   );
 
   useEffect(() => {
+    withdrawalService
+      .listWithdrawals(lawyerId)
+      .then((data) => {
+        if (Array.isArray(data) && data.length > 0) {
+          console.info("[Lawyer Revenue] Live backend withdrawals count:", data.length);
+        }
+      })
+      .catch((err: unknown) => {
+        console.warn("[Lawyer Revenue] Backend fetch notice:", err);
+      });
+
     return subscribeToStore(() => {
       setPayments(getPayments(lawyerId));
       setWithdrawals(getWithdrawalRequests(lawyerId));
@@ -118,9 +135,7 @@ export function LawyerRevenuePage() {
 
   useEffect(() => {
     if (withdrawModalOpen) {
-      setWithdrawAmount(
-        revenueLeftToWithdraw > 0 ? revenueLeftToWithdraw.toString() : "12240",
-      );
+      setWithdrawAmount(revenueLeftToWithdraw > 0 ? revenueLeftToWithdraw.toString() : "12240");
       setWithdrawSuccess(false);
       setIsSubmittingWithdraw(false);
     }
@@ -129,21 +144,42 @@ export function LawyerRevenuePage() {
   const handleConfirmWithdraw = (e: React.FormEvent) => {
     e.preventDefault();
     setIsSubmittingWithdraw(true);
-    const amt = Number(withdrawAmount) || (revenueLeftToWithdraw > 0 ? revenueLeftToWithdraw : 12240);
+    const amt =
+      Number(withdrawAmount) || (revenueLeftToWithdraw > 0 ? revenueLeftToWithdraw : 12240);
 
     setTimeout(() => {
+      const lawyer = getLawyers().find((l) => l.id === lawyerId);
+      const bName = lawyer?.bankName || "HDFC Bank Ltd";
+      const accNum = lawyer?.accountNumber || "•••• 4829";
+      const ifsc = lawyer?.ifscCode || "HDFC0001234";
+
       addWithdrawalRequest({
         lawyerId,
-        lawyerName: getLawyers().find((l) => l.id === lawyerId)?.name || "Sai Teja Reddy",
+        lawyerName: lawyer?.name || "Advocate",
         amount: amt,
-        bankName: "HDFC Bank Ltd",
-        accountNumber: "•••• 4829",
-        ifscCode: "HDFC0001234",
+        bankName: bName,
+        accountNumber: accNum,
+        ifscCode: ifsc,
       });
+
+      withdrawalService
+        .requestWithdrawal({
+          lawyerId,
+          lawyerName: lawyer?.name || "Advocate",
+          amount: amt,
+          bankName: bName,
+          accountNumber: accNum,
+          ifscCode: ifsc,
+          notes: "Consultation earnings settlement",
+        })
+        .catch((err: unknown) => {
+          console.warn("[Lawyer Revenue] Server payout notice:", err);
+        });
+
       setIsSubmittingWithdraw(false);
       setWithdrawSuccess(true);
       setActiveTab("withdrawals");
-    }, 1000);
+    }, 800);
   };
 
   const filteredPayments = payments.filter((p) => p.date >= from && p.date <= to);
@@ -415,7 +451,9 @@ export function LawyerRevenuePage() {
               >
                 {chartData.map((d, i) => {
                   const heightPct =
-                    d.amount > 0 && maxNice > 0 ? Math.max(Math.round((d.amount / maxNice) * 100), 4) : 0;
+                    d.amount > 0 && maxNice > 0
+                      ? Math.max(Math.round((d.amount / maxNice) * 100), 4)
+                      : 0;
                   const showLabel = i % labelStep === 0 || i === chartData.length - 1;
                   return (
                     <div
@@ -588,21 +626,23 @@ export function LawyerRevenuePage() {
                         ) : (
                           <AlertCircle className="h-3 w-3" />
                         )}
-                        <span>
-                          {w.status === "Pending" ? "Pending Admin Approval" : w.status}
-                        </span>
+                        <span>{w.status === "Pending" ? "Pending Admin Approval" : w.status}</span>
                       </span>
                     </div>
 
                     <div className="rounded-lg border border-border/50 bg-surface p-2 text-[11px] space-y-0.5">
                       <div className="flex justify-between">
                         <span className="text-muted-foreground">Account:</span>
-                        <span className="font-medium text-foreground">{w.bankName} ({w.accountNumber})</span>
+                        <span className="font-medium text-foreground">
+                          {w.bankName} ({w.accountNumber})
+                        </span>
                       </div>
                       {w.referenceId && (
                         <div className="flex justify-between">
                           <span className="text-muted-foreground">Ref ID:</span>
-                          <span className="font-mono font-bold text-emerald-600">{w.referenceId}</span>
+                          <span className="font-mono font-bold text-emerald-600">
+                            {w.referenceId}
+                          </span>
                         </div>
                       )}
                       {w.rejectionReason && (
@@ -633,11 +673,7 @@ export function LawyerRevenuePage() {
         )}
       </div>
 
-      <Dialog
-        open={withdrawModalOpen}
-        onOpenChange={setWithdrawModalOpen}
-        maxWidth="480px"
-      >
+      <Dialog open={withdrawModalOpen} onOpenChange={setWithdrawModalOpen} maxWidth="480px">
         <DialogHeader>
           <div className="flex items-center justify-between">
             <DialogTitle className="text-base font-bold text-foreground flex items-center gap-2">
@@ -677,7 +713,8 @@ export function LawyerRevenuePage() {
                   className="w-full font-mono"
                 />
                 <p className="text-[11px] text-muted-foreground">
-                  Min limit: ₹500 • Max limit: {formatInr(revenueLeftToWithdraw > 0 ? revenueLeftToWithdraw : 12240)}
+                  Min limit: ₹500 • Max limit:{" "}
+                  {formatInr(revenueLeftToWithdraw > 0 ? revenueLeftToWithdraw : 12240)}
                 </p>
               </div>
 
@@ -689,7 +726,9 @@ export function LawyerRevenuePage() {
                 <div className="flex items-center justify-between text-xs pt-1 border-t border-border/50">
                   <div className="space-y-0.5">
                     <p className="font-semibold text-foreground">HDFC Bank Ltd</p>
-                    <p className="font-mono text-muted-foreground text-[11px]">A/C: •••• •••• 4829</p>
+                    <p className="font-mono text-muted-foreground text-[11px]">
+                      A/C: •••• •••• 4829
+                    </p>
                   </div>
                   <span className="rounded-full bg-emerald-500/10 px-2 py-0.5 text-[10px] font-bold text-emerald-600">
                     Verified

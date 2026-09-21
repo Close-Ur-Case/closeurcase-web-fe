@@ -15,6 +15,7 @@ import {
   subscribeToStore,
   getActiveCaseCategories,
 } from "@/data/appStore";
+import { caseService } from "@/services/caseService";
 import type { CaseStatus, LegalCase, LegalCategory } from "@/types";
 import { Search, UserCheck, X, Siren, AlertTriangle, Eye, Hash, MapPin } from "lucide-react";
 import {
@@ -303,10 +304,11 @@ function CasesPage() {
               <DialogTitle className="flex w-full items-center justify-between gap-3">
                 <span className="flex min-w-0 flex-1 items-center gap-2">
                   <span
-                    className={`inline-block shrink-0 rounded-md px-2 py-0.5 text-[11px] font-bold ${selectedCase.isEmergency
-                      ? "bg-red-600 text-white"
-                      : "bg-primary/10 text-primary"
-                      }`}
+                    className={`inline-block shrink-0 rounded-md px-2 py-0.5 text-[11px] font-bold ${
+                      selectedCase.isEmergency
+                        ? "bg-red-600 text-white"
+                        : "bg-primary/10 text-primary"
+                    }`}
                   >
                     {selectedCase.id}
                   </span>
@@ -370,10 +372,11 @@ function CasesPage() {
               <button
                 key={p}
                 onClick={() => setPage(p)}
-                className={`h-7 min-w-[28px] cursor-pointer rounded-lg border px-2 text-xs font-semibold transition-all ${safePage === p
-                  ? "border-primary bg-primary text-primary-foreground"
-                  : "border-border bg-background text-muted-foreground hover:bg-muted"
-                  }`}
+                className={`h-7 min-w-[28px] cursor-pointer rounded-lg border px-2 text-xs font-semibold transition-all ${
+                  safePage === p
+                    ? "border-primary bg-primary text-primary-foreground"
+                    : "border-border bg-background text-muted-foreground hover:bg-muted"
+                }`}
               >
                 {p}
               </button>
@@ -441,7 +444,7 @@ function CaseManageControls({ c }: { c: LegalCase }) {
   const isUnassigned = !c.lawyerId;
 
   const [approvedLawyers, setApprovedLawyers] = useState(() =>
-    getLawyers().filter((l) => l.status === "Approved")
+    getLawyers().filter((l) => l.status === "Approved"),
   );
   const [managedCategories, setManagedCategories] = useState(() => getActiveCaseCategories());
 
@@ -473,6 +476,9 @@ function CaseManageControls({ c }: { c: LegalCase }) {
       updateCaseFields(c.id, { category });
     }
     assignLawyerToCase(c.id, lawyer.id, lawyer.name);
+    caseService
+      .assignLawyer(c.id, lawyer.id)
+      .catch((err: unknown) => console.warn("[Assign Lawyer] Server notice:", err));
   }
 
   return (

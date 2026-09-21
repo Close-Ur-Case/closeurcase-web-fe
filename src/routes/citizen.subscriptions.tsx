@@ -11,18 +11,27 @@ import {
   Crown,
   Calendar,
   Star,
+  XCircle,
+  AlertTriangle,
 } from "lucide-react";
 import { PageHeader } from "@/components/app/PageHeader";
 import { SegmentedControl } from "@/components/app/SegmentedControl";
-import { Button, Card, CircularProgress } from "@/components/m3";
 import {
-  addSubscription,
-  getPayments,
-  getSubscriptions,
-  subscribeToStore,
-} from "@/data/appStore";
+  Button,
+  Card,
+  CircularProgress,
+  Dialog,
+  DialogHeader,
+  DialogTitle,
+  DialogContent,
+  DialogFooter,
+} from "@/components/m3";
+import { addSubscription, getPayments, getSubscriptions, subscribeToStore } from "@/data/appStore";
 import { FREE_PLAN, SUBSCRIPTION_PLANS } from "@/data/subscriptionPlans";
+import { useAuth } from "@/context/useAuth";
+import { subscriptionService } from "@/services/subscriptionService";
 import type { Payment, Subscription, SubscriptionPlanId } from "@/types";
+import type { SubscriptionPlanItem } from "@/types/api";
 
 interface TierConfig {
   tierName: string;
@@ -52,14 +61,37 @@ const TIER_THEMES: Record<string, TierConfig> = {
     featureCheckClasses: "text-[#8B5E3C] dark:text-[#D4A373]",
     dividerClasses: "border-border text-foreground font-bold",
     buttonVariant: "outlined",
-    buttonClass: "border-2 border-[#8B5E3C] dark:border-[#A06830] text-[#7A4B1B] dark:text-[#D4A373] font-extrabold hover:bg-[#7A4B1B] hover:text-white transition-all",
+    buttonClass:
+      "border-2 border-[#8B5E3C] dark:border-[#A06830] text-[#7A4B1B] dark:text-[#D4A373] font-extrabold hover:bg-[#7A4B1B] hover:text-white transition-all",
+  },
+  daily: {
+    tierName: "Copper Tier",
+    badgeText: "₹1/DAY • MICRO PASS",
+    cardClasses:
+      "border-2 border-teal-500/60 dark:border-teal-400/60 bg-gradient-to-b from-teal-500/15 via-teal-500/5 to-card dark:from-teal-950/40 dark:via-card dark:to-card p-6 rounded-3xl shadow-sm hover:border-teal-500 hover:shadow-md transition-all",
+    badgeClasses: "bg-teal-600 dark:bg-teal-500 text-white font-extrabold shadow-xs",
+    iconBgClasses: "bg-teal-600 dark:bg-teal-500 text-white shadow-md shadow-teal-500/20",
+    iconColorClasses: "text-white fill-white",
+    titleColorClasses: "text-teal-700 dark:text-teal-300 font-extrabold text-2xl",
+    featureCheckClasses: "text-teal-600 dark:text-teal-400",
+    dividerClasses: "border-border text-foreground font-bold",
+    buttonVariant: "filled",
+    buttonStyle: {
+      "--md-filled-button-container-color": "#0d9488",
+      "--md-filled-button-label-text-color": "#ffffff",
+      "--md-filled-button-hover-label-text-color": "#ffffff",
+      "--md-filled-button-pressed-label-text-color": "#ffffff",
+      "--md-filled-button-focus-label-text-color": "#ffffff",
+    } as CSSProperties,
+    buttonClass: "bg-teal-600 text-white font-extrabold hover:bg-teal-700 shadow-sm",
   },
   monthly: {
     tierName: "Silver Tier",
     badgeText: "SILVER • POPULAR",
     cardClasses:
       "border-2 border-slate-400 dark:border-slate-500 bg-gradient-to-b from-slate-200/50 via-slate-100/20 to-card dark:from-slate-900/60 dark:via-card dark:to-card p-6 rounded-3xl shadow-md hover:border-slate-500 hover:shadow-lg transition-all",
-    badgeClasses: "bg-slate-800 dark:bg-slate-200 text-white dark:text-slate-950 font-extrabold shadow-xs",
+    badgeClasses:
+      "bg-slate-800 dark:bg-slate-200 text-white dark:text-slate-950 font-extrabold shadow-xs",
     iconBgClasses: "bg-slate-800 dark:bg-slate-200 text-white dark:text-slate-950 shadow-md",
     iconColorClasses: "text-white dark:text-slate-950 fill-current",
     titleColorClasses: "text-slate-900 dark:text-slate-100 font-extrabold text-2xl",
@@ -94,7 +126,8 @@ const TIER_THEMES: Record<string, TierConfig> = {
       "--md-filled-button-pressed-label-text-color": "#0f172a",
       "--md-filled-button-focus-label-text-color": "#0f172a",
     } as CSSProperties,
-    buttonClass: "bg-gradient-to-r from-amber-400 via-yellow-400 to-amber-500 text-slate-950 font-black hover:brightness-110 shadow-md",
+    buttonClass:
+      "bg-gradient-to-r from-amber-400 via-yellow-400 to-amber-500 text-slate-950 font-black hover:brightness-110 shadow-md",
   },
 };
 
@@ -108,8 +141,7 @@ export const Route = createFileRoute("/citizen/subscriptions")({
 });
 
 const STATUS_STYLE: Record<Subscription["status"], string> = {
-  Active:
-    "bg-emerald-500/15 text-emerald-600 dark:text-emerald-400 border border-emerald-500/25",
+  Active: "bg-emerald-500/15 text-emerald-600 dark:text-emerald-400 border border-emerald-500/25",
   Expired: "bg-muted text-muted-foreground border border-border",
   Cancelled: "bg-destructive/15 text-destructive border border-destructive/25",
 };
@@ -147,33 +179,84 @@ const CONSULTATION_STATUS_STYLE: Record<Payment["status"], string> = {
 };
 
 export function MySubscriptions() {
+  const { user } = useAuth();
+  const citizenId = user?.id || "u_001";
+
   const [subscriptions, setSubscriptions] = useState<Subscription[]>(() =>
-    getSubscriptions(CITIZEN_ID),
+    getSubscriptions(citizenId),
   );
   const [payments, setPayments] = useState<Payment[]>(() =>
-    getPayments().filter((p) => p.citizenId === CITIZEN_ID && p.source === "commission"),
+    getPayments().filter((p) => p.citizenId === citizenId && p.source === "commission"),
   );
+  const [plans, setPlans] = useState<SubscriptionPlanItem[]>(() => [
+    FREE_PLAN,
+    ...SUBSCRIPTION_PLANS,
+  ]);
   const [subscribingPlan, setSubscribingPlan] = useState<SubscriptionPlanId | null>(null);
   const [historyTab, setHistoryTab] = useState<HistoryTab>("Subscription");
+  const [showManageModal, setShowManageModal] = useState(false);
+  const [isCancelling, setIsCancelling] = useState(false);
 
-  useEffect(() => subscribeToStore(() => setSubscriptions(getSubscriptions(CITIZEN_ID))), []);
+  useEffect(() => {
+    subscriptionService.getPlans().then((items) => {
+      if (Array.isArray(items) && items.length > 0) {
+        setPlans(items);
+      }
+    });
+    subscriptionService.listSubscriptions(citizenId).then((items) => {
+      if (Array.isArray(items) && items.length > 0) {
+        setSubscriptions(items as unknown as Subscription[]);
+      }
+    });
+  }, [citizenId]);
+
+  useEffect(
+    () => subscribeToStore(() => setSubscriptions(getSubscriptions(citizenId))),
+    [citizenId],
+  );
   useEffect(
     () =>
       subscribeToStore(() =>
-        setPayments(getPayments().filter((p) => p.citizenId === CITIZEN_ID && p.source === "commission")),
+        setPayments(
+          getPayments().filter((p) => p.citizenId === citizenId && p.source === "commission"),
+        ),
       ),
-    [],
+    [citizenId],
   );
 
   const activeSub = subscriptions.find((s) => s.status === "Active");
   const activePlanId = activeSub?.planId;
 
-  function handleSubscribe(planId: SubscriptionPlanId, label: string, amount: number) {
+  async function handleSubscribe(planId: SubscriptionPlanId, label: string, amount: number) {
     setSubscribingPlan(planId);
-    setTimeout(() => {
-      addSubscription({ citizenId: CITIZEN_ID, planId, planLabel: label, amount });
+    try {
+      await subscriptionService.createSubscription({
+        citizenId,
+        planId,
+        planLabel: label,
+        amount,
+      });
+      const updated = await subscriptionService.listSubscriptions(citizenId);
+      setSubscriptions(updated as unknown as Subscription[]);
+    } catch (err) {
+      console.error("Failed to activate subscription:", err);
+    } finally {
       setSubscribingPlan(null);
-    }, 900);
+    }
+  }
+
+  async function handleCancelSubscription(id: string) {
+    setIsCancelling(true);
+    try {
+      await subscriptionService.cancelSubscription(id);
+      const updated = await subscriptionService.listSubscriptions(citizenId);
+      setSubscriptions(updated as unknown as Subscription[]);
+      setShowManageModal(false);
+    } catch (err) {
+      console.error("Failed to cancel subscription:", err);
+    } finally {
+      setIsCancelling(false);
+    }
   }
 
   const totalSubscriptionSpent = subscriptions.reduce((sum, s) => sum + s.amount, 0);
@@ -207,7 +290,8 @@ export function MySubscriptions() {
                   {activeSub.planLabel} Priority Pass
                 </h2>
                 <p className="mt-1 text-xs sm:text-sm text-indigo-200/80 leading-relaxed max-w-xl">
-                  Your active membership routes all your legal cases straight to senior legal admins for instant specialist advocate allocation.
+                  Your active membership routes all your legal cases straight to senior legal admins
+                  for instant specialist advocate allocation.
                 </p>
               </div>
 
@@ -240,6 +324,7 @@ export function MySubscriptions() {
                 variant="outlined"
                 className="mt-2 text-xs font-bold h-9 px-4 rounded-xl"
                 style={vipManageButtonStyle}
+                onClick={() => setShowManageModal(true)}
               >
                 Manage Subscription
               </Button>
@@ -257,7 +342,8 @@ export function MySubscriptions() {
                 Get Instant Advocate Assignment with VIP Subscriptions
               </h2>
               <p className="text-xs sm:text-sm text-muted-foreground leading-relaxed">
-                Choose a plan to automatically route your legal cases directly to our admin team. No manual searching needed.
+                Choose a plan to automatically route your legal cases directly to our admin team. No
+                manual searching needed.
               </p>
             </div>
             <div className="shrink-0">
@@ -281,8 +367,8 @@ export function MySubscriptions() {
           </p>
         </div>
 
-        <div className="grid grid-cols-1 gap-5 sm:grid-cols-2 lg:grid-cols-3">
-          {[FREE_PLAN, ...SUBSCRIPTION_PLANS].map((plan) => {
+        <div className="grid grid-cols-1 gap-5 sm:grid-cols-2 lg:grid-cols-4">
+          {plans.map((plan) => {
             const isFree = plan.id === "free";
             const isCurrent = isFree ? !activePlanId : activePlanId === plan.id;
             const isSubscribing = subscribingPlan === plan.id;
@@ -296,10 +382,14 @@ export function MySubscriptions() {
               >
                 {/* Circle Star Icon & Tier Badge */}
                 <div className="flex items-center justify-between gap-2 mb-3">
-                  <div className={`flex h-10 w-10 items-center justify-center rounded-full ${theme.iconBgClasses}`}>
+                  <div
+                    className={`flex h-10 w-10 items-center justify-center rounded-full ${theme.iconBgClasses}`}
+                  >
                     <Star className={`h-5 w-5 ${theme.iconColorClasses}`} />
                   </div>
-                  <span className={`rounded-full px-3 py-1 text-[10px] tracking-wider ${theme.badgeClasses}`}>
+                  <span
+                    className={`rounded-full px-3 py-1 text-[10px] tracking-wider ${theme.badgeClasses}`}
+                  >
                     {theme.badgeText}
                   </span>
                 </div>
@@ -330,14 +420,18 @@ export function MySubscriptions() {
                   )}
                 </div>
 
-                <div className={`mt-5 mb-3 border-t pt-4 text-xs font-bold ${theme.dividerClasses}`}>
+                <div
+                  className={`mt-5 mb-3 border-t pt-4 text-xs font-bold ${theme.dividerClasses}`}
+                >
                   What's included
                 </div>
 
                 <ul className="space-y-2.5">
                   {plan.features.map((feature) => (
                     <li key={feature} className="flex items-start gap-2.5 text-xs">
-                      <CheckCircle2 className={`mt-px h-4 w-4 shrink-0 ${theme.featureCheckClasses}`} />
+                      <CheckCircle2
+                        className={`mt-px h-4 w-4 shrink-0 ${theme.featureCheckClasses}`}
+                      />
                       <span className="text-foreground font-medium">{feature}</span>
                     </li>
                   ))}
@@ -355,7 +449,9 @@ export function MySubscriptions() {
                         : undefined
                     }
                     disabled={isCurrent || isFree || isSubscribing}
-                    onClick={() => handleSubscribe(plan.id, plan.label, plan.price)}
+                    onClick={() =>
+                      handleSubscribe(plan.id as SubscriptionPlanId, plan.label, plan.price)
+                    }
                   >
                     {isSubscribing ? (
                       <span className="flex items-center justify-center gap-2">
@@ -371,7 +467,7 @@ export function MySubscriptions() {
                     ) : isFree ? (
                       "Included"
                     ) : (
-                      "Get started"
+                      `Get started (₹${plan.price})`
                     )}
                   </Button>
                 </div>
@@ -382,7 +478,10 @@ export function MySubscriptions() {
       </div>
 
       {/* ── BILLING & TRANSACTION HISTORY ──────────────────────────── */}
-      <Card variant="elevated" className="space-y-4 p-5 sm:p-7 rounded-3xl border border-border/80 shadow-sm">
+      <Card
+        variant="elevated"
+        className="space-y-4 p-5 sm:p-7 rounded-3xl border border-border/80 shadow-sm"
+      >
         <div className="flex flex-wrap items-center justify-between gap-3 border-b border-border/60 pb-3">
           <div className="flex items-center gap-2.5">
             <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-primary/10 text-primary">
@@ -433,7 +532,8 @@ export function MySubscriptions() {
               <CreditCard className="h-8 w-8 mx-auto text-muted-foreground/50" />
               <p className="text-xs font-semibold text-foreground">No subscription history yet</p>
               <p className="text-[11px] text-muted-foreground max-w-sm mx-auto">
-                Subscribe to an Auto-Assign plan above to start routing cases directly to expert advocates.
+                Subscribe to an Auto-Assign plan above to start routing cases directly to expert
+                advocates.
               </p>
             </div>
           ) : (
@@ -546,7 +646,67 @@ export function MySubscriptions() {
           </div>
         )}
       </Card>
+
+      {/* ── MANAGE SUBSCRIPTION DIALOG ──────────────────────────── */}
+      {showManageModal && activeSub && (
+        <Dialog open={showManageModal} onOpenChange={setShowManageModal}>
+          <DialogContent className="max-w-md">
+            <DialogHeader>
+              <div className="flex items-center gap-2">
+                <Crown className="h-5 w-5 text-amber-500" />
+                <DialogTitle>Manage VIP Subscription</DialogTitle>
+              </div>
+            </DialogHeader>
+
+            <div className="space-y-4 py-3 text-xs">
+              <div className="rounded-2xl border border-border bg-muted/20 p-4 space-y-2">
+                <div className="flex items-center justify-between">
+                  <span className="text-muted-foreground font-medium">Plan</span>
+                  <span className="font-bold text-foreground text-sm">
+                    {activeSub.planLabel} Priority Pass
+                  </span>
+                </div>
+                <div className="flex items-center justify-between">
+                  <span className="text-muted-foreground font-medium">Status</span>
+                  <span className="inline-flex items-center gap-1 rounded-full bg-emerald-500/15 px-2 py-0.5 text-[11px] font-bold text-emerald-600 border border-emerald-500/25">
+                    Active
+                  </span>
+                </div>
+                <div className="flex items-center justify-between">
+                  <span className="text-muted-foreground font-medium">Billing Amount</span>
+                  <span className="font-bold text-foreground text-sm">₹{activeSub.amount}</span>
+                </div>
+                <div className="flex items-center justify-between">
+                  <span className="text-muted-foreground font-medium">Subscribed Date</span>
+                  <span className="font-medium text-foreground">{activeSub.startedAt}</span>
+                </div>
+              </div>
+
+              <div className="rounded-xl border border-amber-500/20 bg-amber-500/5 p-3 flex items-start gap-2.5">
+                <AlertTriangle className="h-4 w-4 text-amber-600 shrink-0 mt-0.5" />
+                <p className="text-[11px] text-amber-800 dark:text-amber-300 leading-relaxed">
+                  Cancelling your subscription will discontinue auto-dispatch privileges on future
+                  cases. Existing assigned cases will remain active with their allocated advocates.
+                </p>
+              </div>
+            </div>
+
+            <DialogFooter>
+              <Button variant="tonal" onClick={() => setShowManageModal(false)}>
+                Keep Plan
+              </Button>
+              <Button
+                variant="outlined"
+                disabled={isCancelling}
+                className="text-destructive border-destructive/40 hover:bg-destructive/10"
+                onClick={() => handleCancelSubscription(activeSub.id)}
+              >
+                {isCancelling ? "Cancelling..." : "Cancel Subscription"}
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+      )}
     </div>
   );
 }
-

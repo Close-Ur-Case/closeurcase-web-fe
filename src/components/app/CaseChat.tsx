@@ -20,6 +20,7 @@ import { Link } from "@tanstack/react-router";
 import type { LegalCase } from "@/types";
 import { UserAvatar } from "@/components/app/UserAvatar";
 import { useVideoCall } from "@/features/video-call/VideoCallContext";
+import { chatService } from "@/services/chatService";
 
 /* ══════════════════════════════════════════════════════════
    TYPES
@@ -503,8 +504,52 @@ export function CaseChat({ caseItem, role, onClose }: CaseChatProps) {
   useEffect(() => {
     refresh();
     window.addEventListener("cuc_chat_updated", refresh);
+
+    // Sync messages from Supabase Edge Function API
+    chatService
+      .getMessages(caseItem.id)
+      .then((remoteMessages) => {
+        if (remoteMessages && Array.isArray(remoteMessages) && remoteMessages.length > 0) {
+          const current = loadMessages();
+          let changed = false;
+          const merged = [...current];
+
+          remoteMessages.forEach((rm) => {
+            const exists = merged.some((m) => m.id === rm.id);
+            if (!exists) {
+              changed = true;
+              merged.push({
+                id: rm.id,
+                caseId: rm.caseId,
+                text: rm.text || rm.message || undefined,
+                sender: rm.sender,
+                senderName: rm.senderName,
+                at: rm.at,
+                read: rm.read,
+                attachmentType: rm.attachmentType || undefined,
+                attachmentName: rm.attachmentName || undefined,
+                attachmentUrl: rm.attachmentUrl || undefined,
+                attachmentSize: rm.attachmentSize || undefined,
+                audioDuration: rm.audioDuration || undefined,
+              });
+            }
+          });
+
+          if (changed) {
+            saveMessages(merged);
+            setMessages(merged.filter((m) => m.caseId === caseItem.id));
+          }
+        }
+      })
+      .catch((err) => console.warn("Remote chat messages sync error:", err));
+
+    // Mark remote messages read
+    chatService
+      .markRead(caseItem.id)
+      .catch((err) => console.warn("Remote chat mark read error:", err));
+
     return () => window.removeEventListener("cuc_chat_updated", refresh);
-  }, [refresh]);
+  }, [refresh, caseItem.id]);
 
   /* -- hide any global floating widget (e.g. a support/webbot bubble) while a chat is open --
      Toggle a class on <body> and pair it with a CSS rule in your global stylesheet, e.g.:
@@ -574,6 +619,16 @@ export function CaseChat({ caseItem, role, onClose }: CaseChatProps) {
     saveMessages([...loadMessages(), msg]);
     setMessages((p) => [...p, msg]);
     setInput("");
+
+    // Asynchronously dispatch to Supabase backend API
+    chatService
+      .sendMessage(caseItem.id, {
+        text,
+        message: text,
+        sender: role,
+        senderName: myName,
+      })
+      .catch((err) => console.warn("Remote chat send message error:", err));
   }, [input, role, caseItem, myName]);
 
   /* -- send attachment -- */
@@ -600,6 +655,19 @@ export function CaseChat({ caseItem, role, onClose }: CaseChatProps) {
       };
       saveMessages([...loadMessages(), msg]);
       setMessages((p) => [...p, msg]);
+
+      // Asynchronously dispatch to Supabase backend API
+      chatService
+        .sendMessage(caseItem.id, {
+          attachmentType,
+          attachmentUrl,
+          attachmentName,
+          attachmentSize,
+          audioDuration,
+          sender: role,
+          senderName: myName,
+        })
+        .catch((err) => console.warn("Remote chat attachment send error:", err));
     },
     [role, caseItem, myName],
   );

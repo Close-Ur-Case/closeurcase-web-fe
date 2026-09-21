@@ -1,4 +1,4 @@
-import { pgTable, text, timestamp, varchar, integer } from "drizzle-orm/pg-core";
+import { pgTable, text, timestamp, varchar, integer, jsonb } from "drizzle-orm/pg-core";
 import { citizens } from "./users.ts";
 import { casesUser } from "./casesUser.ts";
 
@@ -10,7 +10,7 @@ export const subscriptionPlans = pgTable("subscription_plans", {
   badge: varchar("badge", { length: 64 }),
   audience: varchar("audience", { length: 255 }).notNull(),
   description: text("description").notNull(),
-  features: text("features").array(),
+  features: jsonb("features"),
   active: varchar("active", { length: 16 }).default("true"),
   createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
 });

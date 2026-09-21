@@ -5,6 +5,7 @@ import { getCases, subscribeToStore } from "@/data/appStore";
 import type { LegalCase } from "@/types";
 import { Folder, Send, MessageCircleQuestion } from "lucide-react";
 import { Select, IconButton } from "@/components/m3";
+import { aiService } from "@/services/aiService";
 
 export const Route = createFileRoute("/lawyer/qa-assistant")({
   component: CaseQA,
@@ -100,21 +101,35 @@ export function CaseQA() {
     bottomRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages, typing]);
 
-  const sendMessage = (text: string) => {
+  const sendMessage = async (text: string) => {
     if (!text.trim() || !selectedCase) return;
     const userMsg: QAMessage = { id: `u_${Date.now()}`, role: "user", text: text.trim() };
     setMessages((prev) => [...prev, userMsg]);
     setInput("");
     setTyping(true);
-    setTimeout(() => {
+
+    try {
+      const res = await aiService.caseQA({
+        caseId: selectedCase.id,
+        question: text.trim(),
+      });
+      const botMsg: QAMessage = {
+        id: `b_${Date.now()}`,
+        role: "bot",
+        text: res?.answer || answerFromCase(text, selectedCase),
+      };
+      setMessages((prev) => [...prev, botMsg]);
+    } catch {
+      // Graceful fallback to client analysis if offline or backend error
       const botMsg: QAMessage = {
         id: `b_${Date.now()}`,
         role: "bot",
         text: answerFromCase(text, selectedCase),
       };
       setMessages((prev) => [...prev, botMsg]);
+    } finally {
       setTyping(false);
-    }, 500);
+    }
   };
 
   if (!selectedCase) {

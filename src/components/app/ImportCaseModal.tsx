@@ -32,6 +32,7 @@ import {
   type ImportableCourtCase,
 } from "@/data/courtCasesFixture";
 import { addCase, getActiveCourts, subscribeToStore } from "@/data/appStore";
+import { caseService } from "@/services/caseService";
 
 type Step = "court" | "method" | "search" | "results";
 const STEP_ORDER: Step[] = ["court", "method", "search", "results"];
@@ -76,7 +77,7 @@ export function ImportCaseModal({
       level: c.level as CourtOption["level"],
       city: c.city,
       state: c.state,
-    }))
+    })),
   );
 
   useEffect(() => {
@@ -88,7 +89,7 @@ export function ImportCaseModal({
           level: c.level as CourtOption["level"],
           city: c.city,
           state: c.state,
-        }))
+        })),
       );
     });
   }, []);
@@ -158,6 +159,19 @@ export function ImportCaseModal({
       ? [respondent]
       : legalCase.caseDetails.respondents;
     legalCase.citizenName = plaintiff || legalCase.citizenName;
+
+    // Sync with backend API
+    if (match.cnr) {
+      caseService
+        .importCase({
+          cnr: match.cnr,
+          rawData: match,
+        })
+        .catch((err: unknown) => {
+          console.warn("[ImportCaseModal] Backend sync notice:", err);
+        });
+    }
+
     addCase(legalCase);
     setImportedFixtureIds((prev) => new Set(prev).add(match.id));
     setLastImportedCaseId(legalCase.id);
@@ -240,8 +254,13 @@ export function ImportCaseModal({
               <Select
                 label="Court"
                 value={selectedCourt?.id ?? ""}
-                onChange={(id) => setSelectedCourt(managedCourts.find((court) => court.id === id) ?? null)}
-                options={managedCourts.map((c) => ({ value: c.id, label: `${c.name} (${c.level})` }))}
+                onChange={(id) =>
+                  setSelectedCourt(managedCourts.find((court) => court.id === id) ?? null)
+                }
+                options={managedCourts.map((c) => ({
+                  value: c.id,
+                  label: `${c.name} (${c.level})`,
+                }))}
                 className="w-full"
               />
             </div>

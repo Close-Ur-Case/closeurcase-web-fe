@@ -6,7 +6,36 @@ import { ApiResponse } from "../utils/apiResponse.ts";
 import { ApiError } from "../utils/apiError.ts";
 
 export async function getSubscriptionPlans(c: Context) {
-  const plans = await db.select().from(subscriptionPlans);
+  let plans = await db.select().from(subscriptionPlans);
+  const hasDaily = plans.some((p) => p.id === "daily");
+  if (!hasDaily) {
+    try {
+      const [newDaily] = await db
+        .insert(subscriptionPlans)
+        .values({
+          id: "daily",
+          label: "Daily Pass",
+          price: 1,
+          cadence: "/day",
+          badge: "₹1 / Day",
+          audience: "For instant legal advice",
+          description: "Affordable daily legal access — just ₹1 per day for priority assistance and case updates.",
+          features: [
+            "Active 24-hour priority dispatch",
+            "Access to verified advocates",
+            "Standard case docket tracking",
+            "Pay-as-you-go micro plan",
+          ],
+          active: "true",
+        })
+        .returning();
+      if (newDaily) {
+        plans = [newDaily, ...plans];
+      }
+    } catch (e) {
+      console.warn("Could not insert daily plan:", e);
+    }
+  }
   return ApiResponse.success(c, plans, "Subscription plans retrieved successfully");
 }
 
@@ -23,7 +52,7 @@ export async function listSubscriptions(c: Context) {
 export async function createSubscription(c: Context) {
   const { citizenId, planId, planLabel, amount, caseId, expiresAt } = await c.req.json();
 
-  if (!citizenId || !planId || !amount) {
+  if (!citizenId || !planId || amount === undefined || amount === null) {
     throw ApiError.badRequest("citizenId, planId, and amount are required");
   }
 

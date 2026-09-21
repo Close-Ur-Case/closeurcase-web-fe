@@ -8,10 +8,12 @@ import { ApiResponse } from "../utils/apiResponse.ts";
 import { ApiError } from "../utils/apiError.ts";
 
 export async function generateCounterArgument(c: Context) {
-  const { caseId, argumentText } = await c.req.json();
+  const body = await c.req.json();
+  const caseId = body.caseId;
+  const argumentText = body.argumentText || body.argument;
 
   if (!argumentText) {
-    throw ApiError.badRequest("argumentText is required");
+    throw ApiError.badRequest("argumentText or argument is required");
   }
 
   // Precedent-backed legal rebuttal analysis
@@ -93,7 +95,9 @@ export async function caseQA(c: Context) {
 }
 
 export async function summarizeDocument(c: Context) {
-  const { documentTitle, documentText } = await c.req.json();
+  const body = await c.req.json();
+  const documentTitle = body.documentTitle || body.title;
+  const documentText = body.documentText || body.text;
 
   if (!documentTitle && !documentText) {
     throw ApiError.badRequest("documentTitle or documentText is required");
@@ -116,6 +120,6 @@ export async function summarizeDocument(c: Context) {
       pageCount: 3,
       classifiedType: "Commercial Agreement",
     },
-    "Document analyzed and summarized"
+    "Document analyzed and summarized",
   );
 }

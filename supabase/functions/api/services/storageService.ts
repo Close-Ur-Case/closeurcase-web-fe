@@ -3,7 +3,12 @@ import { env } from "../config/env.ts";
 import { ApiError } from "../utils/apiError.ts";
 
 export class StorageService {
-  static async uploadFile({ bucket, filePath, fileBuffer, mimeType }: {
+  static async uploadFile({
+    bucket,
+    filePath,
+    fileBuffer,
+    mimeType,
+  }: {
     bucket: string;
     filePath: string;
     fileBuffer: Uint8Array | ArrayBuffer;
@@ -13,17 +18,31 @@ export class StorageService {
       throw ApiError.badRequest("bucket, filePath, and fileBuffer are required");
     }
 
-    const { data, error } = await supabaseAdmin.storage
-      .from(bucket)
-      .upload(filePath, fileBuffer, {
+    let uploadRes = await supabaseAdmin.storage.from(bucket).upload(filePath, fileBuffer, {
+      contentType: mimeType || "application/octet-stream",
+      upsert: true,
+    });
+
+    if (
+      uploadRes.error &&
+      (uploadRes.error.message.toLowerCase().includes("not found") ||
+        (uploadRes.error as { statusCode?: number }).statusCode === 404)
+    ) {
+      const isPublic = bucket === env.STORAGE.AVATARS || bucket === env.STORAGE.KNOWLEDGE_BASE;
+      await supabaseAdmin.storage.createBucket(bucket, {
+        public: isPublic,
+      });
+      uploadRes = await supabaseAdmin.storage.from(bucket).upload(filePath, fileBuffer, {
         contentType: mimeType || "application/octet-stream",
         upsert: true,
       });
-
-    if (error) {
-      throw ApiError.badRequest(`Supabase Storage upload error: ${error.message}`);
     }
 
+    if (uploadRes.error) {
+      throw ApiError.badRequest(`Supabase Storage upload error: ${uploadRes.error.message}`);
+    }
+
+    const data = uploadRes.data;
     const isPublic = bucket === env.STORAGE.AVATARS || bucket === env.STORAGE.KNOWLEDGE_BASE;
     if (isPublic) {
       const { data: publicData } = supabaseAdmin.storage.from(bucket).getPublicUrl(filePath);
@@ -36,7 +55,7 @@ export class StorageService {
 
     return {
       path: data.path,
-      url: signedError ? data.path : signedData.signedUrl,
+      url: signedError || !signedData?.signedUrl ? data.path : signedData.signedUrl,
     };
   }
 

@@ -23,6 +23,7 @@ import {
 } from "lucide-react";
 import { useState, useEffect, useLayoutEffect, useRef } from "react";
 import { getNotifications, getProfilePhoto, subscribeToStore } from "@/data/appStore";
+import { notificationService } from "@/services/notificationService";
 import { LexBot } from "@/components/app/LexBot";
 import { WhatsAppFloatingButton } from "@/components/app/WhatsAppButton";
 import { UserAvatar } from "@/components/app/UserAvatar";
@@ -31,6 +32,7 @@ import { VideoCallsMenu } from "@/components/app/VideoCallsMenu";
 import { CitizenLanguageButtons } from "@/features/citizen/CitizenLanguageButtons";
 import { VideoCallProvider } from "@/features/video-call/VideoCallContext";
 import { clearCitizenSession } from "@/features/citizen/session";
+import { useAuth } from "@/context/useAuth";
 import { IconButton, Badge } from "@/components/m3";
 
 export interface NavItem {
@@ -239,6 +241,7 @@ export function DashboardLayout({
   const router = useRouter();
   const pathname = useRouterState({ select: (s) => s.location.pathname });
   const mainRef = useRef<HTMLElement>(null);
+  const { logout } = useAuth();
 
   const resetScroll = () => {
     if (mainRef.current) {
@@ -291,6 +294,18 @@ export function DashboardLayout({
   const [showLocationToast, setShowLocationToast] = useState(false);
 
   useEffect(() => {
+    notificationService
+      .getNotifications({ role })
+      .then((backendAlerts) => {
+        if (Array.isArray(backendAlerts)) {
+          const unread = backendAlerts.filter((n) => !n.read).length;
+          if (unread > 0) setUnreadCount(unread);
+        }
+      })
+      .catch((err: unknown) => {
+        console.warn("[Dashboard Layout] Notification count notice:", err);
+      });
+
     const sync = () => {
       setUnreadCount(getNotifications(role).filter((n) => !n.read).length);
       setPhotoUrl(getProfilePhoto(role) ?? defaultPhotoUrl);
@@ -479,7 +494,7 @@ export function DashboardLayout({
                         <button
                           onClick={() => {
                             setProfileOpen(false);
-                            if (role === "citizen") clearCitizenSession();
+                            logout();
                             navigate({ to: role === "citizen" ? "/citizen-login" : "/login" });
                           }}
                           className="flex w-full cursor-pointer items-center gap-2 rounded-[var(--md-sys-shape-corner-small)] px-3 py-2 text-sm text-[var(--md-sys-color-error)] transition-colors hover:bg-[var(--md-sys-color-error)]/8"

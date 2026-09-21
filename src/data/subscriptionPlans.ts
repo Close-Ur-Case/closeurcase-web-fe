@@ -36,6 +36,22 @@ export const FREE_PLAN: SubscriptionPlan = {
  * stay in sync on price/copy. */
 export const SUBSCRIPTION_PLANS: SubscriptionPlan[] = [
   {
+    id: "daily",
+    label: "Daily Pass",
+    price: 1,
+    cadence: "/day",
+    badge: "₹1 / Day",
+    audience: "For instant legal advice",
+    description:
+      "Affordable daily legal access — just ₹1 per day for priority assistance and case updates.",
+    features: [
+      "Active 24-hour priority dispatch",
+      "Access to verified advocates",
+      "Standard case docket tracking",
+      "Pay-as-you-go micro plan",
+    ],
+  },
+  {
     id: "monthly",
     label: "Monthly",
     price: 499,

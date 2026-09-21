@@ -15,6 +15,7 @@ import {
   FileText,
 } from "lucide-react";
 import { Select, Button } from "@/components/m3";
+import { aiService } from "@/services/aiService";
 
 export const Route = createFileRoute("/lawyer/summarizer")({
   component: CaseSummarizer,
@@ -206,14 +207,32 @@ export function CaseSummarizer() {
 
   const [isGenerating, setIsGenerating] = useState(false);
   const [summaryFor, setSummaryFor] = useState<string | null>(null);
+  const [serverSummary, setServerSummary] = useState<{
+    summary: string;
+    keyPoints: string[];
+  } | null>(null);
 
-  const handleGenerate = () => {
+  const handleGenerate = async () => {
     if (!selectedCase) return;
     setIsGenerating(true);
-    setTimeout(() => {
+    setServerSummary(null);
+    try {
+      const res = await aiService.summarizeDocument({
+        documentTitle: selectedCase.title,
+        documentText: selectedCase.description,
+      });
+      if (res?.summary) {
+        setServerSummary({
+          summary: res.summary,
+          keyPoints: res.keyPoints || [],
+        });
+      }
+    } catch (err) {
+      console.warn("AI Document summarization error:", err);
+    } finally {
       setSummaryFor(selectedCase.id);
       setIsGenerating(false);
-    }, 700);
+    }
   };
 
   if (!selectedCase) {
@@ -294,6 +313,29 @@ export function CaseSummarizer() {
             <FileSearch className="h-4 w-4 text-primary" />
             <h3 className="text-sm font-bold text-foreground">AI Case Summary</h3>
           </div>
+
+          {serverSummary && (
+            <div className="rounded-xl border border-primary/20 bg-primary/5 p-4 space-y-2">
+              <div className="flex items-center gap-1.5 text-primary">
+                <Sparkles className="h-4 w-4" />
+                <span className="text-xs font-bold uppercase tracking-wide">
+                  Executive Brief & Risk Analysis
+                </span>
+              </div>
+              <p className="text-xs leading-relaxed text-foreground font-medium">
+                {serverSummary.summary}
+              </p>
+              {serverSummary.keyPoints.length > 0 && (
+                <ul className="space-y-1 pt-1 border-t border-primary/15">
+                  {serverSummary.keyPoints.map((kp, idx) => (
+                    <li key={idx} className="text-xs text-muted-foreground">
+                      • {kp}
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </div>
+          )}
 
           <div className="space-y-2">
             <h4 className="text-sm font-bold text-foreground">Summary</h4>

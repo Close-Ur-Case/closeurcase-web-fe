@@ -34,6 +34,7 @@ import { DocumentPreviewBody } from "@/components/app/DocumentPreview";
 import { openDocumentInNewTab } from "@/lib/files";
 import { PageHeader } from "@/components/app/PageHeader";
 import { getCases, subscribeToStore, updateCaseStatus } from "@/data/appStore";
+import { caseService } from "@/services/caseService";
 import type { LegalCase, CaseDocument } from "@/types";
 import { CasesTable, caseTypeOf } from "@/components/app/CasesTable";
 import {
@@ -193,11 +194,17 @@ export function CaseDocketRegister({
 
   function handleApprove(c: LegalCase) {
     updateCaseStatus(c.id, "Assigned", "Lawyer approved and accepted the case");
+    caseService
+      .updateCaseStage(c.id, { stage: "accepted", notes: "Lawyer approved and accepted the case" })
+      .catch((err: unknown) => console.warn("[Case Approve] Server notice:", err));
   }
 
   function handleReject(c: LegalCase) {
     if (confirm(`Reject case ${c.id} (${c.title})? The citizen will be notified.`)) {
       updateCaseStatus(c.id, "Rejected", "Lawyer declined to take up the case");
+      caseService
+        .updateCaseStage(c.id, { stage: "rejected", notes: "Lawyer declined to take up the case" })
+        .catch((err: unknown) => console.warn("[Case Reject] Server notice:", err));
     }
   }
 
@@ -546,7 +553,7 @@ function PendingRequestsInbox({
               </div>
             </div>
           </div>,
-          document.body
+          document.body,
         )}
 
       {/* ATTACHMENTS VIEWER */}
@@ -705,7 +712,7 @@ function PendingRequestsInbox({
               </div>
             </div>
           </div>,
-          document.body
+          document.body,
         )}
     </div>
   );

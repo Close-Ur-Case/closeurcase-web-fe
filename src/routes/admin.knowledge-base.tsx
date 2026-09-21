@@ -23,6 +23,7 @@ import {
   subscribeToStore,
   getActiveCaseCategories,
 } from "@/data/appStore";
+import { knowledgeService } from "@/services/knowledgeService";
 import type { KnowledgeItem, LegalCategory } from "@/types";
 import {
   MAX_ATTACHMENT_BYTES,
@@ -72,7 +73,9 @@ export function KnowledgeBasePage() {
   // Upload modal form states
   const [managedCategories, setManagedCategories] = useState(() => getActiveCaseCategories());
   const [type, setType] = useState<KnowledgeItem["type"]>("Act");
-  const [cat, setCat] = useState<LegalCategory>(() => (getActiveCaseCategories()[0]?.name as LegalCategory) ?? "Criminal");
+  const [cat, setCat] = useState<LegalCategory>(
+    () => (getActiveCaseCategories()[0]?.name as LegalCategory) ?? "Criminal",
+  );
   const [fileSelected, setFileSelected] = useState<File | null>(null);
   const [isUploading, setIsUploading] = useState(false);
   const [successMsg, setSuccessMsg] = useState("");
@@ -83,7 +86,36 @@ export function KnowledgeBasePage() {
       setRows(getKnowledgeBase());
       setManagedCategories(getActiveCaseCategories());
     };
-    return subscribeToStore(sync);
+    const unsub = subscribeToStore(sync);
+
+    // Hydrate remote legal documents from Supabase Edge Function
+    knowledgeService
+      .getKnowledgeItems()
+      .then((remoteItems) => {
+        if (remoteItems && Array.isArray(remoteItems) && remoteItems.length > 0) {
+          const existingKb = getKnowledgeBase();
+          remoteItems.forEach((r) => {
+            if (!existingKb.some((k) => k.id === r.id || k.title === r.title)) {
+              addKnowledgeItem({
+                id: r.id,
+                title: r.title,
+                type: (r.type as KnowledgeItem["type"]) || "Act",
+                category: (r.category as LegalCategory) || "Criminal",
+                size: r.size || "1.2 MB",
+                fileName: r.fileName || r.title,
+                fileMimeType: r.fileMimeType || "application/pdf",
+                fileUrl: r.fileUrl,
+                uploadedAt: r.uploadedAt
+                  ? r.uploadedAt.split("T")[0]
+                  : new Date().toISOString().split("T")[0],
+              });
+            }
+          });
+        }
+      })
+      .catch((err) => console.warn("Failed to fetch remote knowledge items:", err));
+
+    return unsub;
   }, []);
 
   const filtered = useMemo(() => {
@@ -118,6 +150,18 @@ export function KnowledgeBasePage() {
         fileName: fileSelected.name,
         fileMimeType: fileSelected.type,
       });
+
+      // Asynchronously persist to Supabase backend API
+      knowledgeService
+        .addKnowledgeItem({
+          title,
+          type,
+          category: cat,
+          size: formatFileSize(fileSelected.size),
+          fileName: fileSelected.name,
+          fileMimeType: fileSelected.type,
+        })
+        .catch((err) => console.warn("Remote knowledge indexing error:", err));
 
       setSuccessMsg(`"${title}" successfully indexed into Knowledge Base!`);
       setFileSelected(null);
@@ -275,7 +319,9 @@ export function KnowledgeBasePage() {
           <span className="text-xs font-bold text-foreground">
             Indexed Reference Documents ({filtered.length})
           </span>
-          <span className="hidden sm:inline text-xs text-muted-foreground">Acts, Amendments & Judgements</span>
+          <span className="hidden sm:inline text-xs text-muted-foreground">
+            Acts, Amendments & Judgements
+          </span>
         </div>
         <DataTable
           columns={cols}
@@ -396,7 +442,12 @@ export function KnowledgeBasePage() {
         cancelLabel="Cancel"
         variant="danger"
         onConfirm={() => {
-          if (pendingDeleteId) deleteKnowledgeItem(pendingDeleteId);
+          if (pendingDeleteId) {
+            deleteKnowledgeItem(pendingDeleteId);
+            knowledgeService
+              .deleteKnowledgeItem(pendingDeleteId)
+              .catch((err) => console.warn("Remote knowledge deletion error:", err));
+          }
           setPendingDeleteId(null);
         }}
         onCancel={() => setPendingDeleteId(null)}
@@ -411,11 +462,7 @@ interface PdfModalBodyProps {
   onClose: () => void;
 }
 
-function PdfModalBody({
-  item,
-  hasRealFile,
-  onClose,
-}: PdfModalBodyProps) {
+function PdfModalBody({ item, hasRealFile, onClose }: PdfModalBodyProps) {
   return (
     <>
       <DialogHeader>

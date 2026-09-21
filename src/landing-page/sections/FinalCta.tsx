@@ -3,6 +3,7 @@ import type { FormEvent } from "react";
 import { ArrowUpRight, CheckCircle2, MessageSquareText, Mail } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { MailLink } from "@/components/app/MailLink";
+import { supportService } from "@/services/supportService";
 
 const FEEDBACK_TYPES = [
   "General Feedback",
@@ -29,10 +30,31 @@ export function FinalCta() {
   const [satisfaction, setSatisfaction] = useState("loved");
   const [feedbackDetails, setFeedbackDetails] = useState("");
   const [submitted, setSubmitted] = useState(false);
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [submitError, setSubmitError] = useState<string | null>(null);
 
-  function handleSubmit(e: FormEvent) {
+  async function handleSubmit(e: FormEvent) {
     e.preventDefault();
-    setSubmitted(true);
+    setIsSubmitting(true);
+    setSubmitError(null);
+    try {
+      await supportService.submitInquiry({
+        name: fullName,
+        email,
+        phone,
+        category: "feedback",
+        subject: `App Feedback: ${feedbackCategory} (${satisfaction}) - ${userRole || "Visitor"}`,
+        message: `${feedbackDetails}\n\nRole: ${userRole || "Not specified"}\nSatisfaction: ${satisfaction}`,
+      });
+      setSubmitted(true);
+    } catch (err: unknown) {
+      console.error("Failed to submit feedback:", err);
+      setSubmitError(
+        err instanceof Error ? err.message : "Failed to submit feedback. Please try again.",
+      );
+    } finally {
+      setIsSubmitting(false);
+    }
   }
 
   function handleReset() {
@@ -51,19 +73,17 @@ export function FinalCta() {
       {/* Same width as other landing page sections: max-w-7xl 2xl:max-w-[1440px] */}
       <div className="mx-auto max-w-7xl 2xl:max-w-[1440px] px-4 sm:px-6 lg:px-8">
         <div className="relative overflow-hidden rounded-3xl border border-[#d4af37]/25 bg-white p-6 sm:p-8 lg:p-10 shadow-lg shadow-slate-900/5">
-
           <div className="grid grid-cols-1 gap-8 lg:grid-cols-12 lg:gap-10 xl:gap-14 items-center">
             {/* LEFT COLUMN: Editorial Heading, Direct Email Badge & Improved Vector Illustration */}
             <div className="lg:col-span-5 flex flex-col justify-between h-full space-y-6">
               <div className="space-y-3">
-
-
                 <h2 className="font-serif font-semibold text-2xl sm:text-3xl lg:text-[36px] tracking-tight text-slate-900 leading-tight">
                   Help Us Shape <br />
                   CloseUrCase.
                 </h2>
                 <p className="max-w-sm text-xs sm:text-sm leading-relaxed text-slate-600 font-normal">
-                  Tell us what you love, what feels clunky, or what we should build next. Your feedback directly shapes our roadmap for citizens and advocates.
+                  Tell us what you love, what feels clunky, or what we should build next. Your
+                  feedback directly shapes our roadmap for citizens and advocates.
                 </p>
 
                 {/* Single direct email on the card so user can mail directly if preferred */}
@@ -75,7 +95,12 @@ export function FinalCta() {
                     <span className="flex h-6 w-6 items-center justify-center rounded-full bg-[#d4af37]/12 text-[#a9853f] group-hover:bg-[#d4af37]/20 transition-colors">
                       <Mail className="h-3.5 w-3.5" />
                     </span>
-                    <span>Prefer email? Write directly to <strong className="font-semibold text-slate-800 group-hover:text-[#a9853f]">feedback@closeurcase.com</strong></span>
+                    <span>
+                      Prefer email? Write directly to{" "}
+                      <strong className="font-semibold text-slate-800 group-hover:text-[#a9853f]">
+                        feedback@closeurcase.com
+                      </strong>
+                    </span>
                   </MailLink>
                 </div>
               </div>
@@ -103,7 +128,8 @@ export function FinalCta() {
                       Thank you for your feedback!
                     </h3>
                     <p className="mt-1.5 max-w-sm text-xs text-slate-600 leading-relaxed">
-                      Your response has been logged directly into our product system. We review every single note to make CloseUrCase better.
+                      Your response has been logged directly into our product system. We review
+                      every single note to make CloseUrCase better.
                     </p>
                     <button
                       type="button"
@@ -262,14 +288,21 @@ export function FinalCta() {
                       />
                     </div>
 
+                    {submitError && (
+                      <p className="text-xs text-red-600 font-medium">{submitError}</p>
+                    )}
+
                     {/* Row 6: Submit Button with CloseUrCase Metallic Gold Styling */}
                     <div className="pt-1">
                       <button
                         type="submit"
-                        className="inline-flex items-center gap-1.5 rounded-full bg-gradient-to-br from-[#e8d5a3] via-[#d4af37] to-[#b8942a] px-5 py-2 text-xs font-bold text-slate-950 shadow-md shadow-[#d4af37]/25 transition-all hover:from-[#f0e0b0] hover:to-[#c9a84c] active:scale-[0.98] cursor-pointer"
+                        disabled={isSubmitting}
+                        className="inline-flex items-center gap-1.5 rounded-full bg-gradient-to-br from-[#e8d5a3] via-[#d4af37] to-[#b8942a] px-5 py-2 text-xs font-bold text-slate-950 shadow-md shadow-[#d4af37]/25 transition-all hover:from-[#f0e0b0] hover:to-[#c9a84c] active:scale-[0.98] cursor-pointer disabled:opacity-60 disabled:cursor-not-allowed"
                       >
-                        <span>Send App Feedback</span>
-                        <ArrowUpRight className="h-3.5 w-3.5" strokeWidth={2.4} />
+                        <span>{isSubmitting ? "Sending..." : "Send App Feedback"}</span>
+                        {!isSubmitting && (
+                          <ArrowUpRight className="h-3.5 w-3.5" strokeWidth={2.4} />
+                        )}
                       </button>
                     </div>
                   </form>
@@ -277,12 +310,8 @@ export function FinalCta() {
               </div>
             </div>
           </div>
-
         </div>
       </div>
     </section>
   );
 }
-
-
-

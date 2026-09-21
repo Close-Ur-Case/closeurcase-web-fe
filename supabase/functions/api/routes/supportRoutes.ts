@@ -1,7 +1,7 @@
-import { OpenAPIHono, createRoute } from "@hono/zod-openapi";
-import { submitContactInquiry, listContactInquiries } from "../controllers/supportController.ts";
+import { OpenAPIHono, createRoute, z } from "@hono/zod-openapi";
+import { submitContactInquiry, listContactInquiries, updateInquiryStatus } from "../controllers/supportController.ts";
 import { optionalAuth } from "../middlewares/auth.ts";
-import { ContactInquirySchema, SuccessResponseSchema } from "../schemas/index.ts";
+import { ContactInquirySchema, UpdateInquiryStatusSchema, SuccessResponseSchema } from "../schemas/index.ts";
 
 const support = new OpenAPIHono();
 
@@ -40,8 +40,35 @@ const listInquiriesRoute = createRoute({
   },
 });
 
+const updateInquiryRoute = createRoute({
+  method: "patch",
+  path: "/inquiries/{id}",
+  tags: ["Support"],
+  summary: "Update customer inquiry status (Admin)",
+  request: {
+    params: z.object({
+      id: z.string().openapi({ example: "inq_1789980000000" }),
+    }),
+    body: {
+      content: {
+        "application/json": {
+          schema: UpdateInquiryStatusSchema,
+        },
+      },
+    },
+  },
+  responses: {
+    200: {
+      description: "Inquiry status updated",
+      content: { "application/json": { schema: SuccessResponseSchema } },
+    },
+  },
+});
+
 support.use("/inquiries", optionalAuth);
+support.use("/inquiries/*", optionalAuth);
 support.openapi(submitContactRoute, submitContactInquiry as any);
 support.openapi(listInquiriesRoute, listContactInquiries as any);
+support.openapi(updateInquiryRoute, updateInquiryStatus as any);
 
 export default support;

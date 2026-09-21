@@ -62,11 +62,13 @@ export const SendChatMessageSchema = z
     senderId: z.string().optional().openapi({ example: "u_001" }),
     senderRole: z.enum(["citizen", "lawyer"]).optional().openapi({ example: "citizen" }),
     senderName: z.string().optional().openapi({ example: "Sai Teja Reddy" }),
-    message: z.string().openapi({ example: "Advocate sir, I have uploaded the signed documents." }),
+    message: z.string().optional().openapi({ example: "Advocate sir, I have uploaded the signed documents." }),
+    text: z.string().optional().openapi({ example: "Advocate sir, I have uploaded the signed documents." }),
     attachmentUrl: z.string().optional().openapi({ example: "https://closeurcase.app/docs/doc_1.pdf" }),
     attachmentType: z.string().optional().openapi({ example: "application/pdf" }),
     attachmentName: z.string().optional().openapi({ example: "vakalatnama.pdf" }),
     attachmentSize: z.string().optional().openapi({ example: "500 KB" }),
+    audioDuration: z.number().optional().openapi({ example: 45 }),
   })
   .openapi("SendChatMessageRequest");
 

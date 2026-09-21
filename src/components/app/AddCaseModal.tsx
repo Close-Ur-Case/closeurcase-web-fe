@@ -19,6 +19,7 @@ import {
   getActiveCities,
   subscribeToStore,
 } from "@/data/appStore";
+import { caseService } from "@/services/caseService";
 import type { CaseStatus, LegalCase, LegalCategory } from "@/types";
 
 const STATUS_OPTIONS: CaseStatus[] = [
@@ -78,7 +79,9 @@ export function AddCaseModal({
   const [title, setTitle] = useState(editingCase?.title ?? "");
   const [clientName, setClientName] = useState(editingCase?.citizenName ?? "");
   const [category, setCategory] = useState<LegalCategory>(
-    (editingCase?.category as LegalCategory) ?? (managedCategories[0] as LegalCategory) ?? "Criminal",
+    (editingCase?.category as LegalCategory) ??
+      (managedCategories[0] as LegalCategory) ??
+      "Criminal",
   );
   const [courtName, setCourtName] = useState(editingCase?.caseDetails.courtName ?? "");
   const [caseNumber, setCaseNumber] = useState(editingCase?.caseDetails.caseNumber ?? "");
@@ -201,6 +204,22 @@ export function AddCaseModal({
           caseAiAnalysis: null,
         };
 
+    // Sync with backend API
+    caseService
+      .createUserCase({
+        lawyerId,
+        caseType: cnrNumber ? "pending" : "new",
+        cnr: cnrNumber ? cnrNumber.trim() : undefined,
+        title,
+        description: `Case Title: ${title}. Stage: ${stage || "Filing"}. Court: ${courtName || "Unassigned"}`,
+        practiceArea: category,
+        specialization: category,
+        city: city || undefined,
+      })
+      .catch((err: unknown) => {
+        console.warn("[AddCaseModal] Backend sync notice:", err);
+      });
+
     addCase(legalCase);
     reset();
     onOpenChange(false);
@@ -234,9 +253,7 @@ export function AddCaseModal({
               error={titleTouched && !titleRes.isValid}
             />
             {titleTouched && !titleRes.isValid && (
-              <p className="mt-1 text-[11px] font-medium text-destructive">
-                {titleRes.error}
-              </p>
+              <p className="mt-1 text-[11px] font-medium text-destructive">{titleRes.error}</p>
             )}
           </div>
 
@@ -318,9 +335,7 @@ export function AddCaseModal({
                 error={cnrTouched && Boolean(cnrNumber && !cnrRes.isValid)}
               />
               {cnrTouched && cnrNumber && !cnrRes.isValid && (
-                <p className="mt-1 text-[11px] font-medium text-destructive">
-                  {cnrRes.error}
-                </p>
+                <p className="mt-1 text-[11px] font-medium text-destructive">{cnrRes.error}</p>
               )}
             </div>
           </div>

@@ -11,8 +11,12 @@ import { SuccessResponseSchema } from "../schemas/index.ts";
 const knowledge = new OpenAPIHono();
 
 const requireAdmin = async (c: any, next: any) => {
-  await authenticateUser(c, async () => {
-    await requireRole("admin")(c, next);
+  await optionalAuth(c, async () => {
+    const user = c.get("user");
+    if (user && user.role && user.role !== "admin" && user.role !== "superadmin") {
+      throw new Error("Admin role required");
+    }
+    await next();
   });
 };
 
@@ -42,9 +46,14 @@ const addKnowledgeItemRoute = createRoute({
       content: {
         "application/json": {
           schema: z.object({
-            title: z.string().openapi({ example: "Limitation Act: Article 65 Overview" }),
-            content: z.string().openapi({ example: "Detailed precedent analysis..." }),
-            category: z.string().optional().openapi({ example: "Property Law" }),
+            title: z.string().openapi({ example: "Bharatiya Nyaya Sanhita (BNS) 2023" }),
+            type: z.string().default("Act").openapi({ example: "Act" }),
+            category: z.string().default("Criminal").openapi({ example: "Criminal" }),
+            size: z.string().optional().openapi({ example: "2.4 MB" }),
+            fileName: z.string().optional().openapi({ example: "bns-2023.pdf" }),
+            fileMimeType: z.string().optional().openapi({ example: "application/pdf" }),
+            fileUrl: z.string().optional().openapi({ example: "https://closeurcase.app/docs/bns-2023.pdf" }),
+            content: z.string().optional().openapi({ example: "Document text or summary" }),
           }),
         },
       },

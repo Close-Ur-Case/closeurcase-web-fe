@@ -11,6 +11,8 @@ import {
   getActiveLanguages,
   getActiveCourts,
 } from "@/data/appStore";
+import { lawyerService } from "@/services/lawyerService";
+import { useAuth } from "@/context/useAuth";
 import {
   ShieldCheck,
   MapPin,
@@ -69,6 +71,7 @@ function mapPracticeAreaToCategory(areaName: string): LegalCategory {
 }
 
 function LawyerProfilePage() {
+  const { user } = useAuth();
   const [lawyers, setLawyers] = useState(getLawyers);
 
   useEffect(() => {
@@ -76,7 +79,13 @@ function LawyerProfilePage() {
     return subscribeToStore(sync);
   }, []);
 
-  const lawyer = lawyers[0];
+  const lawyer = useMemo(() => {
+    if (user?.id) {
+      const found = lawyers.find((l) => l.id === user.id || l.email === user.email);
+      if (found) return found;
+    }
+    return lawyers[0];
+  }, [lawyers, user]);
 
   if (!lawyer) return null;
 
@@ -372,6 +381,44 @@ function LawyerProfileForm({ lawyer }: { lawyer: NonNullable<ReturnType<typeof g
             ifscCode: ifscCode.trim().toUpperCase(),
           }),
     });
+
+    // Backend sync: Update profile
+    lawyerService
+      .updateProfile(lawyer.id, {
+        name,
+        bio,
+        consultationFee: Number(consultationFee) || 1500,
+        experienceYears: Number(experienceYears) || 0,
+        cities: cities.length ? cities : [city],
+        practiceAreas,
+        specializations,
+        legalServices,
+        languages,
+      })
+      .catch((err: unknown) => {
+        console.warn("[Lawyer Profile] Server profile update notice:", err);
+      });
+
+    // Backend sync: Update availability (if not suspended)
+    if (!suspended) {
+      lawyerService.toggleAvailability(lawyer.id, availabilityStatus).catch((err: unknown) => {
+        console.warn("[Lawyer Profile] Server availability update notice:", err);
+      });
+    }
+
+    // Backend sync: Update bank details if provided and unlocked
+    if (!bankDetailsLocked && bankName.trim() && accountNumber.trim() && ifscCode.trim()) {
+      lawyerService
+        .updateBankDetails(lawyer.id, {
+          bankName: bankName.trim(),
+          accountNumber: accountNumber.trim(),
+          ifscCode: ifscCode.trim().toUpperCase(),
+          accountHolderName: name.trim(),
+        })
+        .catch((err: unknown) => {
+          console.warn("[Lawyer Profile] Server bank details update notice:", err);
+        });
+    }
 
     setSaved(true);
     setTimeout(() => setSaved(false), 2500);
@@ -1086,6 +1133,10 @@ function LawyerProfileForm({ lawyer }: { lawyer: NonNullable<ReturnType<typeof g
           onConfirm={() => {
             if (pendingStatus) {
               setAvailabilityStatus(pendingStatus);
+              updateLawyerProfile(lawyer.id, { availabilityStatus: pendingStatus });
+              lawyerService.toggleAvailability(lawyer.id, pendingStatus).catch((err: unknown) => {
+                console.warn("[Lawyer Profile] Availability toggle server notice:", err);
+              });
               setPendingStatus(null);
             }
           }}

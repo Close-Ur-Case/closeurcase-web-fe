@@ -2,6 +2,7 @@ import { Outlet, createFileRoute, redirect, useRouterState } from "@tanstack/rea
 import { DashboardLayout } from "@/layouts/DashboardLayout";
 import { useCitizenNav } from "@/features/citizen/nav";
 import { getCitizenSession } from "@/features/citizen/session";
+import { useAuth } from "@/context/useAuth";
 import { getCitizens } from "@/data/appStore";
 
 export const Route = createFileRoute("/citizen")({
@@ -17,9 +18,10 @@ export const Route = createFileRoute("/citizen")({
 });
 
 function CitizenLayout() {
+  const { user } = useAuth();
   const session = getCitizenSession();
   const firstCitizen = getCitizens()[0];
-  const userName = session.fullName || firstCitizen?.name || "Sai Teja Reddy";
+  const userName = user?.name || session.fullName || firstCitizen?.name || "Sai Teja Reddy";
   const pathname = useRouterState({ select: (s) => s.location.pathname });
   const isChatRoute = /^\/citizen\/chat\//.test(pathname);
   // The Find a Lawyer wizard manages its own fixed header/footer + internal

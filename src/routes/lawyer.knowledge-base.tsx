@@ -7,13 +7,15 @@ import { DocumentPreviewBody } from "@/components/app/DocumentPreview";
 import { SegmentedControl } from "@/components/app/SegmentedControl";
 import {
   getKnowledgeBase,
+  addKnowledgeItem,
   getLawyers,
   getLawyerDocuments,
   addLawyerDocument,
   deleteLawyerDocument,
   subscribeToStore,
 } from "@/data/appStore";
-import type { KnowledgeItem, LawyerDocument } from "@/types";
+import { knowledgeService } from "@/services/knowledgeService";
+import type { KnowledgeItem, LawyerDocument, LegalCategory } from "@/types";
 import {
   MAX_ATTACHMENT_BYTES,
   formatFileSize,
@@ -103,7 +105,35 @@ function GlobalDocsTab() {
 
   useEffect(() => {
     const sync = () => setItems(getKnowledgeBase());
-    return subscribeToStore(sync);
+    const unsub = subscribeToStore(sync);
+
+    knowledgeService
+      .getKnowledgeItems()
+      .then((remoteItems) => {
+        if (remoteItems && Array.isArray(remoteItems) && remoteItems.length > 0) {
+          const existingKb = getKnowledgeBase();
+          remoteItems.forEach((r) => {
+            if (!existingKb.some((k) => k.id === r.id || k.title === r.title)) {
+              addKnowledgeItem({
+                id: r.id,
+                title: r.title,
+                type: (r.type as KnowledgeItem["type"]) || "Act",
+                category: (r.category as LegalCategory) || "Criminal",
+                size: r.size || "1.2 MB",
+                fileName: r.fileName || r.title,
+                fileMimeType: r.fileMimeType || "application/pdf",
+                fileUrl: r.fileUrl,
+                uploadedAt: r.uploadedAt
+                  ? r.uploadedAt.split("T")[0]
+                  : new Date().toISOString().split("T")[0],
+              });
+            }
+          });
+        }
+      })
+      .catch((err) => console.warn("Failed to fetch remote knowledge items for lawyer:", err));
+
+    return unsub;
   }, []);
 
   const availableTypes = useMemo(() => {
@@ -125,8 +155,7 @@ function GlobalDocsTab() {
         k.category.toLowerCase().includes(q.toLowerCase()) ||
         k.type.toLowerCase().includes(q.toLowerCase());
 
-      const matchesType =
-        typeFilter === "All" || k.type.toLowerCase() === typeFilter.toLowerCase();
+      const matchesType = typeFilter === "All" || k.type.toLowerCase() === typeFilter.toLowerCase();
       const matchesDomain =
         domainFilter === "All" || k.category.toLowerCase() === domainFilter.toLowerCase();
 
@@ -327,7 +356,9 @@ function GlobalDocsTab() {
           <span className="text-xs font-bold text-foreground">
             Reference Documents ({rows.length})
           </span>
-          <span className="hidden sm:inline text-xs text-muted-foreground">Showing verified legal publications</span>
+          <span className="hidden sm:inline text-xs text-muted-foreground">
+            Showing verified legal publications
+          </span>
         </div>
         <DataTable
           columns={cols}
@@ -637,7 +668,9 @@ function MyDocsTab({ state }: { state: { lawyerId: string; docs: LawyerDocument[
           <span className="text-xs font-bold text-foreground">
             Your Documents ({filtered.length})
           </span>
-          <span className="hidden sm:inline text-xs text-muted-foreground">Only visible to you</span>
+          <span className="hidden sm:inline text-xs text-muted-foreground">
+            Only visible to you
+          </span>
         </div>
         <DataTable
           columns={cols}

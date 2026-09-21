@@ -12,6 +12,7 @@ import {
   rejectWithdrawalRequest,
   subscribeToStore,
 } from "@/data/appStore";
+import { withdrawalService } from "@/services/withdrawalService";
 import type { Payment, PaymentSource, WithdrawalRequest } from "@/types";
 import {
   IndianRupee,
@@ -60,6 +61,17 @@ export function AdminRevenuePage() {
   );
 
   useEffect(() => {
+    withdrawalService
+      .listWithdrawals()
+      .then((data) => {
+        if (Array.isArray(data) && data.length > 0) {
+          console.info("[Admin Revenue] Live backend withdrawals count:", data.length);
+        }
+      })
+      .catch((err: unknown) => {
+        console.warn("[Admin Revenue] Backend fetch notice:", err);
+      });
+
     return subscribeToStore(() => {
       setPayments(getPayments());
       setWithdrawals(getWithdrawalRequests());
@@ -119,10 +131,7 @@ export function AdminRevenuePage() {
   const safePage = Math.min(page, totalPages);
 
   const pagePayments = filteredPayments.slice((safePage - 1) * pageSize, safePage * pageSize);
-  const pagePendingRequests = pendingRequests.slice(
-    (safePage - 1) * pageSize,
-    safePage * pageSize,
-  );
+  const pagePendingRequests = pendingRequests.slice((safePage - 1) * pageSize, safePage * pageSize);
   const pageHistoryWithdrawals = historyWithdrawals.slice(
     (safePage - 1) * pageSize,
     safePage * pageSize,
@@ -375,7 +384,9 @@ export function AdminRevenuePage() {
               >
                 {chartData.map((d, i) => {
                   const heightPct =
-                    d.amount > 0 && maxNice > 0 ? Math.max(Math.round((d.amount / maxNice) * 100), 4) : 0;
+                    d.amount > 0 && maxNice > 0
+                      ? Math.max(Math.round((d.amount / maxNice) * 100), 4)
+                      : 0;
                   const showLabel = i % labelStep === 0 || i === chartData.length - 1;
                   return (
                     <div
@@ -688,9 +699,7 @@ export function AdminRevenuePage() {
                       {w.processedAt && (
                         <div className="flex justify-between text-[10.5px]">
                           <span className="text-muted-foreground">Processed At:</span>
-                          <span className="font-mono text-muted-foreground">
-                            {w.processedAt}
-                          </span>
+                          <span className="font-mono text-muted-foreground">{w.processedAt}</span>
                         </div>
                       )}
                       {w.rejectionReason && (
@@ -740,8 +749,18 @@ export function AdminRevenuePage() {
           if (confirmAction) {
             if (confirmAction.type === "approve") {
               approveWithdrawalRequest(confirmAction.withdrawal.id);
+              withdrawalService
+                .approveWithdrawal(confirmAction.withdrawal.id)
+                .catch((err: unknown) => {
+                  console.warn("[Admin Revenue] Payout approve server notice:", err);
+                });
             } else {
               rejectWithdrawalRequest(confirmAction.withdrawal.id, "Declined by Admin");
+              withdrawalService
+                .rejectWithdrawal(confirmAction.withdrawal.id, "Declined by Admin")
+                .catch((err: unknown) => {
+                  console.warn("[Admin Revenue] Payout reject server notice:", err);
+                });
             }
             setConfirmAction(null);
           }

@@ -5,11 +5,11 @@ import {
   markAsRead,
   markAllAsRead,
 } from "../controllers/notificationController.ts";
-import { authenticateUser } from "../middlewares/auth.ts";
+import { optionalAuth } from "../middlewares/auth.ts";
 import { RegisterFcmTokenSchema, SuccessResponseSchema } from "../schemas/index.ts";
 
 const notification = new OpenAPIHono();
-notification.use(authenticateUser);
+notification.use(optionalAuth);
 
 const registerTokenRoute = createRoute({
   method: "post",

@@ -3,8 +3,9 @@ import { useState } from "react";
 import { AuthLayout } from "@/layouts/AuthLayout";
 import { PermissionsGate } from "@/components/app/PermissionsGate";
 import { usePermissionsGate } from "@/features/permissions/usePermissionsGate";
-import { Eye, EyeOff, Lock, Mail } from "lucide-react";
+import { Eye, EyeOff, Lock, Mail, AlertCircle, Loader2 } from "lucide-react";
 import { TextField, IconButton, Button } from "@/components/m3";
+import { useLawyerLogin, useAdminLogin } from "@/hooks/queries/useAuth";
 
 import { validateEmail } from "@/lib/validations";
 
@@ -15,11 +16,16 @@ export const Route = createFileRoute("/login")({
 
 export function Login() {
   const navigate = useNavigate();
+  const lawyerLogin = useLawyerLogin();
+  const adminLogin = useAdminLogin();
   const [email, setEmail] = useState("lawyer@CloseUrCase.app");
   const [emailTouched, setEmailTouched] = useState(false);
   const [password, setPassword] = useState("••••••••");
   const [showPassword, setShowPassword] = useState(false);
+  const [loginError, setLoginError] = useState<string | null>(null);
   const [permissionsAcknowledged, acknowledgePermissions] = usePermissionsGate();
+
+  const isPending = lawyerLogin.isPending || adminLogin.isPending;
 
   const emailRes = validateEmail(email);
   const getRole = (e: string) => (e.includes("admin") ? "admin" : "lawyer");
@@ -61,14 +67,36 @@ export function Login() {
       <form
         className="space-y-5"
         onKeyDown={handleFormEnterKey}
-        onSubmit={(e) => {
+        onSubmit={async (e) => {
           e.preventDefault();
           setEmailTouched(true);
+          setLoginError(null);
           if (!emailRes.isValid) return;
           const role = getRole(email);
-          navigate({ to: role === "lawyer" ? "/lawyer" : "/admin" });
+          try {
+            if (role === "lawyer") {
+              await lawyerLogin.mutateAsync({ email, password });
+              navigate({ to: "/lawyer" });
+            } else {
+              await adminLogin.mutateAsync({ email, password });
+              navigate({ to: "/admin" });
+            }
+          } catch (err: unknown) {
+            const message =
+              err instanceof Error
+                ? err.message
+                : "Authentication failed. Please verify credentials.";
+            setLoginError(message);
+          }
         }}
       >
+        {loginError && (
+          <div className="flex items-start gap-2.5 rounded-lg border border-destructive/30 bg-destructive/10 p-3 text-xs text-destructive">
+            <AlertCircle className="mt-0.5 h-4 w-4 shrink-0" />
+            <span>{loginError}</span>
+          </div>
+        )}
+
         <div className="space-y-1">
           <TextField
             label="Email address"
@@ -115,8 +143,15 @@ export function Login() {
           </div>
         </div>
 
-        <Button type="submit" variant="filled" className="-mt-3 w-full">
-          Sign in
+        <Button type="submit" variant="filled" disabled={isPending} className="-mt-3 w-full">
+          {isPending ? (
+            <span className="flex items-center gap-2">
+              <Loader2 className="h-4 w-4 animate-spin" />
+              Signing in…
+            </span>
+          ) : (
+            "Sign in"
+          )}
         </Button>
       </form>
     </AuthLayout>

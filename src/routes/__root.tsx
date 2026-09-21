@@ -1,7 +1,14 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { Outlet, Link, createRootRouteWithContext, useRouter, useRouterState } from "@tanstack/react-router";
+import {
+  Outlet,
+  Link,
+  createRootRouteWithContext,
+  useRouter,
+  useRouterState,
+} from "@tanstack/react-router";
 import { useEffect } from "react";
 import { CitizenLanguageProvider } from "@/features/citizen/i18n/CitizenLanguageContext";
+import { AuthProvider } from "@/context/AuthContext";
 import { Button, FILLED_LINK_BUTTON_CLASS, OUTLINED_LINK_BUTTON_CLASS } from "@/components/m3";
 
 function NotFoundComponent() {
@@ -137,10 +144,12 @@ function RootComponent() {
 
   return (
     <QueryClientProvider client={queryClient}>
-      <CitizenLanguageProvider>
-        <ScrollToTop />
-        <Outlet />
-      </CitizenLanguageProvider>
+      <AuthProvider>
+        <CitizenLanguageProvider>
+          <ScrollToTop />
+          <Outlet />
+        </CitizenLanguageProvider>
+      </AuthProvider>
     </QueryClientProvider>
   );
 }
