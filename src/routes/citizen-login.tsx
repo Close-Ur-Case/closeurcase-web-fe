@@ -8,7 +8,6 @@ import type { FormStep } from "@/components/app/FormStepper";
 import { PermissionsGate } from "@/components/app/PermissionsGate";
 import { usePermissionsGate } from "@/features/permissions/usePermissionsGate";
 import { getCitizenSession, setCitizenSession } from "@/features/citizen/session";
-import { useAuth } from "@/context/useAuth";
 import { CitizenLanguageButtons } from "@/features/citizen/CitizenLanguageButtons";
 import { useCitizenLanguage } from "@/features/citizen/i18n/CitizenLanguageContext";
 import { getCitizens, updateCitizenProfile } from "@/data/appStore";
@@ -19,7 +18,7 @@ import {
   validatePhone,
   validateEmail,
 } from "@/lib/validations";
-import { sendCitizenOtpApi, verifyCitizenOtpApi } from "@/features/citizen/authApi";
+import { useSendCitizenOtp, useVerifyCitizenOtp } from "@/hooks/queries/useAuth";
 
 interface SearchParams {
   area?: string;
@@ -50,7 +49,10 @@ const LOGIN_STEPS: FormStep[] = [
 
 export function CitizenLogin() {
   const navigate = useNavigate();
-  const { loginCitizen } = useAuth();
+  // `useVerifyCitizenOtp` applies the session to AuthContext on success, so this
+  // route no longer calls `loginCitizen` itself.
+  const sendOtpMutation = useSendCitizenOtp();
+  const verifyOtpMutation = useVerifyCitizenOtp();
   const { area, specialization, service } = Route.useSearch();
   const { translate } = useCitizenLanguage();
   const [permissionsAcknowledged, acknowledgePermissions] = usePermissionsGate();
@@ -120,13 +122,14 @@ export function CitizenLogin() {
     const payload =
       loginMethod === "phone" ? { phone: phoneDigits } : { email: email.trim().toLowerCase() };
 
-    const res = await sendCitizenOtpApi(payload);
-    setIsSubmitting(false);
-
-    if (!res.success && res.error) {
-      setOtpError(res.error);
+    try {
+      await sendOtpMutation.mutateAsync(payload);
+    } catch (err: unknown) {
+      setIsSubmitting(false);
+      setOtpError(err instanceof Error ? err.message : "Could not send OTP. Please try again.");
       return;
     }
+    setIsSubmitting(false);
 
     setStep("otp");
     setOtp("");
@@ -142,13 +145,14 @@ export function CitizenLogin() {
     const payload =
       loginMethod === "phone" ? { phone: phoneDigits } : { email: email.trim().toLowerCase() };
 
-    const res = await sendCitizenOtpApi(payload);
-    setIsSubmitting(false);
-
-    if (!res.success && res.error) {
-      setOtpError(res.error);
+    try {
+      await sendOtpMutation.mutateAsync(payload);
+    } catch (err: unknown) {
+      setIsSubmitting(false);
+      setOtpError(err instanceof Error ? err.message : "Could not resend OTP. Please try again.");
       return;
     }
+    setIsSubmitting(false);
 
     setResendCountdown(30);
     setOtp("");
@@ -172,30 +176,25 @@ export function CitizenLogin() {
       ...(loginMethod === "phone" ? { phone: phoneDigits } : { email: email.trim().toLowerCase() }),
     };
 
-    const res = await verifyCitizenOtpApi(payload);
-    setIsSubmitting(false);
-
-    if (!res.success) {
-      setOtpError(res.error || "Invalid OTP code. Please try again.");
+    try {
+      // On success this applies the token + AuthUser (including the citizen
+      // record id that case scoping depends on) to AuthContext for us.
+      await verifyOtpMutation.mutateAsync(payload);
+    } catch (err: unknown) {
+      setIsSubmitting(false);
+      setOtpError(err instanceof Error ? err.message : "Invalid OTP code. Please try again.");
       return;
     }
+    setIsSubmitting(false);
 
-    // Link credentials to citizen session in sessionStorage
+    // AuthContext seeds the rest of the citizen session; `casePath` is specific
+    // to this wizard, so it's set here and resets on every fresh sign-in.
     setCitizenSession({
       phone: loginMethod === "phone" ? phoneDigits : "",
       email: loginMethod === "email" ? email.trim().toLowerCase() : "",
       fullName: nameToSave,
       authenticated: true,
       casePath: "new",
-    });
-
-    // Synchronize with unified AuthContext
-    loginCitizen(res.data?.session?.access_token || res.data?.token, {
-      id: res.data?.user?.id || `u_${Date.now()}`,
-      role: "citizen",
-      name: nameToSave || "Citizen",
-      phone: loginMethod === "phone" ? phoneDigits : "",
-      email: loginMethod === "email" ? email.trim().toLowerCase() : "",
     });
 
     // Link profile directly to appStore for reactive sync across views

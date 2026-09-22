@@ -194,8 +194,10 @@ export function CaseDocketRegister({
 
   function handleApprove(c: LegalCase) {
     updateCaseStatus(c.id, "Assigned", "Lawyer approved and accepted the case");
+    // The API has no `notes` field — it composes the timeline entry itself from
+    // the stage, and only reads `rejectionReason` (see handleReject below).
     caseService
-      .updateCaseStage(c.id, { stage: "accepted", notes: "Lawyer approved and accepted the case" })
+      .updateCaseStage(c.id, { stage: "accepted" })
       .catch((err: unknown) => console.warn("[Case Approve] Server notice:", err));
   }
 
@@ -203,7 +205,10 @@ export function CaseDocketRegister({
     if (confirm(`Reject case ${c.id} (${c.title})? The citizen will be notified.`)) {
       updateCaseStatus(c.id, "Rejected", "Lawyer declined to take up the case");
       caseService
-        .updateCaseStage(c.id, { stage: "rejected", notes: "Lawyer declined to take up the case" })
+        .updateCaseStage(c.id, {
+          stage: "rejected",
+          rejectionReason: "Lawyer declined to take up the case",
+        })
         .catch((err: unknown) => console.warn("[Case Reject] Server notice:", err));
     }
   }

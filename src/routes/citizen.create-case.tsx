@@ -22,6 +22,7 @@ import {
   MapPin,
   FileText,
   Lock,
+  AlertCircle,
 } from "lucide-react";
 import { PageHeader } from "@/components/app/PageHeader";
 import { UserAvatar } from "@/components/app/UserAvatar";
@@ -42,6 +43,7 @@ import {
 } from "@/data/appStore";
 import { caseService } from "@/services/caseService";
 import { storageService } from "@/services/storageService";
+import { useRazorpayCheckout } from "@/hooks/useRazorpayCheckout";
 import { useAuth } from "@/context/useAuth";
 import { SUBSCRIPTION_PLANS } from "@/data/subscriptionPlans";
 import { useSpeechToText } from "@/features/citizen/useSpeechToText";
@@ -230,6 +232,8 @@ export function FindLawyerWizard() {
   const [subscriptionPlan, setSubscriptionPlan] = useState<SubscriptionPlanId | null>(null);
 
   const [isPaying, setIsPaying] = useState(false);
+  const [payError, setPayError] = useState<string | null>(null);
+  const { startCheckout } = useRazorpayCheckout();
   const [createdCaseId, setCreatedCaseId] = useState("");
   const [assignedLawyerName, setAssignedLawyerName] = useState("");
   const [adminAssignRequested, setAdminAssignRequested] = useState(false);
@@ -419,6 +423,52 @@ export function FindLawyerWizard() {
 
   async function handlePay() {
     setIsPaying(true);
+    setPayError(null);
+
+    // Take the money first — nothing is filed unless payment clears. An
+    // Auto-Assign plan is a subscription (platform keeps it in full); a
+    // consultation with a chosen advocate is commission-split server-side.
+    const isPlanPurchase = assignMode === "admin" && Boolean(selectedPlan);
+    let paymentResult: Awaited<ReturnType<typeof startCheckout>> = null;
+
+    if (totalFee > 0) {
+      try {
+        paymentResult = await startCheckout({
+          amount: totalFee,
+          description: isPlanPurchase
+            ? `${selectedPlan!.label} Auto-Assign plan`
+            : "Legal consultation fee",
+          prefill: { name: clientName.trim() || currentCitizenName },
+          verification: isPlanPurchase
+            ? {
+                source: "subscription",
+                grossAmount: totalFee,
+                citizenId: currentCitizenId,
+                citizenName: clientName.trim() || currentCitizenName,
+                planId: selectedPlan!.id,
+                planLabel: selectedPlan!.label,
+              }
+            : {
+                source: "commission",
+                grossAmount: totalFee,
+                citizenId: currentCitizenId,
+                citizenName: clientName.trim() || currentCitizenName,
+                lawyerId: selectedLawyer?.id,
+                lawyerName: selectedLawyer?.name,
+              },
+        });
+      } catch (err: unknown) {
+        setIsPaying(false);
+        setPayError(err instanceof Error ? err.message : "Payment failed. Please try again.");
+        return;
+      }
+
+      // `null` means the citizen dismissed checkout — don't file the case.
+      if (!paymentResult) {
+        setIsPaying(false);
+        return;
+      }
+    }
 
     const readEntry = async (f: File, id: string, today: string): Promise<CaseDocument> => {
       let cloudUrl = "";
@@ -576,12 +626,14 @@ export function FindLawyerWizard() {
           description: caseDescription,
           practiceArea: predictedCategory ?? "Civil",
           specialization: selectedSpecialization || predictedCategory || "Civil",
-          legalServices: selectedService ? [selectedService] : [],
+          legalServices: selectedLegalServices,
           city: CITIZEN_CITY,
           documents: documentEntries.map((d) => ({
             name: d.name,
-            fileUrl: d.url || "",
-            size: fmtSize(d.bytes),
+            // `readEntry` already resolved this to the uploaded cloud URL when the
+            // upload succeeded, falling back to a data URL, and formatted the size.
+            fileUrl: d.fileDataUrl || "",
+            size: d.size,
           })),
         })
         .catch((err: unknown) => {
@@ -589,7 +641,9 @@ export function FindLawyerWizard() {
         });
 
       addCase(newCase);
-      if (assignMode === "admin" && selectedPlan) {
+      // A successful plan purchase is already recorded server-side by
+      // verify-payment, so only mirror it locally when that didn't happen.
+      if (assignMode === "admin" && selectedPlan && !paymentResult?.subscription) {
         addSubscription({
           citizenId: currentCitizenId,
           planId: selectedPlan.id,
@@ -1765,6 +1819,13 @@ export function FindLawyerWizard() {
                   </div>
                 </div>
               </div>
+
+              {payError && (
+                <div className="flex items-start gap-2.5 rounded-lg border border-destructive/30 bg-destructive/10 p-3 text-xs text-destructive">
+                  <AlertCircle className="mt-0.5 h-4 w-4 shrink-0" />
+                  <span>{payError}</span>
+                </div>
+              )}
 
               {/* Action Buttons */}
               <div className="flex items-center justify-between gap-3 pt-1">

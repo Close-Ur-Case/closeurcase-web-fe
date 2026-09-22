@@ -3,6 +3,7 @@ import { DashboardLayout } from "@/layouts/DashboardLayout";
 import { useCitizenNav } from "@/features/citizen/nav";
 import { getCitizenSession } from "@/features/citizen/session";
 import { useAuth } from "@/context/useAuth";
+import { useCaseSync } from "@/hooks/useCaseSync";
 import { getCitizens } from "@/data/appStore";
 
 export const Route = createFileRoute("/citizen")({
@@ -19,6 +20,8 @@ export const Route = createFileRoute("/citizen")({
 
 function CitizenLayout() {
   const { user } = useAuth();
+  // Pulls this citizen's cases from the API into the store for every screen below.
+  useCaseSync();
   const session = getCitizenSession();
   const firstCitizen = getCitizens()[0];
   const userName = user?.name || session.fullName || firstCitizen?.name || "Sai Teja Reddy";

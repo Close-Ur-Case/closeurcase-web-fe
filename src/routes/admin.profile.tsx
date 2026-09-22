@@ -1,8 +1,9 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { useMemo } from "react";
+import { useEffect, useState } from "react";
 import { PageHeader } from "@/components/app/PageHeader";
 import { ProfileForm, type ProfileFormFields } from "@/components/app/ProfileForm";
-import { getAdminProfile, updateAdminProfile } from "@/data/appStore";
+import { getAdminProfile, updateAdminProfile, subscribeToStore } from "@/data/appStore";
+import { adminService } from "@/services/adminService";
 import { ShieldCheck } from "lucide-react";
 
 export const Route = createFileRoute("/admin/profile")({
@@ -10,10 +11,50 @@ export const Route = createFileRoute("/admin/profile")({
 });
 
 function AdminProfilePage() {
-  const profile = useMemo(() => getAdminProfile(), []);
+  const [profile, setProfile] = useState(getAdminProfile);
+
+  useEffect(() => {
+    const sync = () => setProfile(getAdminProfile());
+
+    adminService
+      .getMe()
+      .then((me) => {
+        // A brand-new admin with no saved profile gets the same
+        // `{name: "Platform Ops", ...}` shape back from the server as the
+        // local default, so this merge is safe even on first load.
+        if (me && me.name) {
+          // Merging notifies store subscribers, so `sync` above picks this up.
+          updateAdminProfile({
+            name: me.name,
+            email: me.email,
+            phone: me.phone || undefined,
+            city: me.city || undefined,
+            currentLocation: me.currentLocation || undefined,
+          });
+        }
+      })
+      .catch((err: unknown) => {
+        // Non-fatal: the form keeps rendering whatever the store already holds.
+        console.warn("[Admin Profile] Server fetch notice:", err);
+      });
+
+    return subscribeToStore(sync);
+  }, []);
 
   function handleSave(fields: ProfileFormFields) {
     updateAdminProfile(fields);
+
+    adminService
+      .updateMe({
+        name: fields.name,
+        email: fields.email,
+        phone: fields.phone,
+        city: fields.city,
+        currentLocation: fields.currentLocation,
+      })
+      .catch((err: unknown) => {
+        console.warn("[Admin Profile] Server update notice:", err);
+      });
   }
 
   return (
@@ -47,7 +88,8 @@ function AdminProfilePage() {
             <div className="space-y-2">
               <p className="text-sm font-bold text-foreground">Super Administrator Access</p>
               <p className="text-xs text-muted-foreground leading-relaxed">
-                Full platform access — Lawyer verification, user management, case oversight, and knowledge base control.
+                Full platform access — Lawyer verification, user management, case oversight, and
+                knowledge base control.
               </p>
             </div>
           </div>

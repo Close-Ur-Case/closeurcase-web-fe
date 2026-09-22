@@ -11,8 +11,8 @@ export const withdrawalService = {
   /**
    * List lawyer payout settlement requests (all for admin, or filtered by lawyerId)
    */
-  async listWithdrawals(lawyerId?: string): Promise<WithdrawalRecord[]> {
-    return apiClient.get<WithdrawalRecord[]>("/withdrawals", {
+  async listWithdrawals<T = WithdrawalRecord>(lawyerId?: string): Promise<T[]> {
+    return apiClient.get<T[]>("/withdrawals", {
       params: lawyerId ? { lawyerId } : undefined,
     });
   },

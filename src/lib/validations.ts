@@ -34,7 +34,10 @@ export function sanitizePhone(val: string): string {
  * Sanitizes CNR input in real-time — upper-case alphanumeric only, max 16 chars.
  */
 export function sanitizeCNR(val: string): string {
-  return val.toUpperCase().replace(/[^A-Z0-9]/g, "").slice(0, 16);
+  return val
+    .toUpperCase()
+    .replace(/[^A-Z0-9]/g, "")
+    .slice(0, 16);
 }
 
 /** Validate Name */
@@ -44,7 +47,11 @@ export function validateName(name: string): { isValid: boolean; error?: string }
     return { isValid: false, error: "Name is required." };
   }
   if (!NAME_REGEX.test(trimmed)) {
-    return { isValid: false, error: "Name can only contain alphabetic letters and spaces (no numbers or special characters)." };
+    return {
+      isValid: false,
+      error:
+        "Name can only contain alphabetic letters and spaces (no numbers or special characters).",
+    };
   }
   if (trimmed.length < 2) {
     return { isValid: false, error: "Name must be at least 2 characters long." };
@@ -62,7 +69,10 @@ export function validatePhone(phone: string): { isValid: boolean; error?: string
     return { isValid: false, error: "Phone number must be exactly 10 digits." };
   }
   if (!PHONE_REGEX.test(digits)) {
-    return { isValid: false, error: "Please enter a valid 10-digit mobile number starting with 6, 7, 8, or 9." };
+    return {
+      isValid: false,
+      error: "Please enter a valid 10-digit mobile number starting with 6, 7, 8, or 9.",
+    };
   }
   return { isValid: true };
 }
@@ -122,7 +132,10 @@ export function validateCNR(cnr: string): { isValid: boolean; error?: string } {
     return { isValid: false, error: "CNR number is required." };
   }
   if (sanitized.length !== 16) {
-    return { isValid: false, error: "CNR number must be exactly 16 alphanumeric characters (e.g. TSHC010011342025)." };
+    return {
+      isValid: false,
+      error: "CNR number must be exactly 16 alphanumeric characters (e.g. TSHC010011342025).",
+    };
   }
   return { isValid: true };
 }
@@ -137,4 +150,3 @@ export function validatePassword(password: string): { isValid: boolean; error?: 
   }
   return { isValid: true };
 }
-

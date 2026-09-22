@@ -97,17 +97,20 @@ export function Testimonials() {
           </div>
 
           <div className="order-2 lg:order-1 lg:col-span-6 xl:col-span-7 space-y-5 max-w-xl">
-
             <h2 className="font-serif font-semibold text-3xl sm:text-4xl lg:text-[42px] tracking-tight text-white leading-tight">
               Your success is our priority
             </h2>
 
             <p className="text-xs sm:text-sm lg:text-[14.5px] leading-relaxed text-slate-300 font-normal">
-              &ldquo;We started CloseUrCase because we saw citizens and entrepreneurs being held back by overwhelming legal complexity. Our mission is to be the partner you can always count on.
+              &ldquo;We started CloseUrCase because we saw citizens and entrepreneurs being held
+              back by overwhelming legal complexity. Our mission is to be the partner you can always
+              count on.
             </p>
 
             <p className="text-xs sm:text-sm lg:text-[14.5px] leading-relaxed text-slate-300 font-normal">
-              We combine technology with a network of verified advocates across India to handle these complexities for you. Your success is our priority, because when you thrive, India thrives&rdquo;
+              We combine technology with a network of verified advocates across India to handle
+              these complexities for you. Your success is our priority, because when you thrive,
+              India thrives&rdquo;
             </p>
 
             <div className="pt-2 border-t border-white/10">
@@ -124,4 +127,3 @@ export function Testimonials() {
     </section>
   );
 }
-

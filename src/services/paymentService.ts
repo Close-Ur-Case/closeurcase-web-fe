@@ -6,6 +6,14 @@
 
 import { apiClient } from "./apiClient";
 import type { CreatePaymentOrderPayload, VerifyPaymentPayload, PaymentRecord } from "@/types/api";
+import type { Subscription } from "@/types";
+
+/** `/payments/verify-payment` returns the receipt and, for a subscription
+ * purchase, the plan it activated — not a bare payment record. */
+export interface VerifyPaymentResult {
+  payment: PaymentRecord;
+  subscription: Subscription | null;
+}
 
 export interface RazorpayOrderResult {
   id: string;
@@ -27,8 +35,8 @@ export const paymentService = {
   /**
    * Verify Razorpay payment signature and record invoice
    */
-  async verifyPayment(payload: VerifyPaymentPayload): Promise<PaymentRecord> {
-    return apiClient.post<PaymentRecord>("/payments/verify-payment", payload);
+  async verifyPayment(payload: VerifyPaymentPayload): Promise<VerifyPaymentResult> {
+    return apiClient.post<VerifyPaymentResult>("/payments/verify-payment", payload);
   },
 
   /**

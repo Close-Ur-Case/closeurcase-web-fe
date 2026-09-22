@@ -8,7 +8,12 @@ import { LawyerProfileCard } from "@/components/app/LawyerProfileCard";
 import { DocumentPreviewBody } from "@/components/app/DocumentPreview";
 import { openDocumentInNewTab } from "@/lib/files";
 import { FilterPanelButton, type FilterSection } from "@/components/app/FilterPanelButton";
-import { getLawyers, updateLawyerStatus, subscribeToStore } from "@/data/appStore";
+import {
+  getLawyers,
+  mergeRemoteLawyers,
+  updateLawyerStatus,
+  subscribeToStore,
+} from "@/data/appStore";
 import { lawyerService } from "@/services/lawyerService";
 import { lawyerStatusColor } from "@/lib/statusColors";
 import type { Lawyer } from "@/types";
@@ -92,13 +97,13 @@ export function LawyersPage() {
   useEffect(() => {
     const sync = () => setRows(getLawyers());
     lawyerService
-      .getLawyers()
+      .getLawyers<Partial<Lawyer>>()
       .then((backendLawyers) => {
-        if (Array.isArray(backendLawyers) && backendLawyers.length > 0) {
-          console.info("[Admin Lawyers] Live backend advocates count:", backendLawyers.length);
-        }
+        // Merging notifies store subscribers, so `sync` above picks this up.
+        mergeRemoteLawyers(backendLawyers);
       })
       .catch((err: unknown) => {
+        // Non-fatal: the table keeps rendering whatever the store already holds.
         console.warn("[Admin Lawyers] Backend fetch notice:", err);
       });
     return subscribeToStore(sync);

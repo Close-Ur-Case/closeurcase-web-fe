@@ -4,6 +4,7 @@
  */
 
 import { apiClient } from "./apiClient";
+import { resolveLegalCategoryOr } from "@/lib/caseCategories";
 import type {
   CreateUserCasePayload,
   UpdateLawyerCaseStagePayload,
@@ -82,14 +83,14 @@ export const caseService = {
    * Assign or reassign a lawyer to a case
    */
   async assignLawyer<T = Record<string, unknown>>(caseId: string, lawyerId: string): Promise<T> {
-    return apiClient.post<T>(`/cases/user/${caseId}/assign`, { lawyerId });
+    return apiClient.patch<T>(`/cases/${caseId}/assign-lawyer`, { lawyerId });
   },
 
   /**
    * Import an eCourts case by CNR number
    */
   async importCase<T = Record<string, unknown>>(payload: ImportCasePayload): Promise<T> {
-    return apiClient.post<T>("/cases/import", payload);
+    return apiClient.post<T>("/cases/imported/import", payload);
   },
 
   /**
@@ -175,23 +176,9 @@ export function mapBackendCaseToLegalCase(
     status = "Closed";
   }
 
-  // Category mapping
-  const categoryMap: Record<string, LegalCategory> = {
-    cat_1: "Civil",
-    cat_2: "Corporate",
-    cat_3: "Family",
-    cat_4: "Labour",
-    cat_5: "Property",
-    cat_6: "Criminal",
-    cat_7: "Consumer",
-    cat_8: "Cyber",
-    cat_9: "Tax",
-    cat_10: "Environmental",
-  };
-  const category: LegalCategory =
-    categoryMap[backend.practiceArea] ||
-    (backend.practiceArea as LegalCategory) ||
-    "Civil";
+  // Category mapping — shared with the lawyer merge so both agree on what a
+  // backend `cat_N` means. The previous inline table here was mis-keyed.
+  const category: LegalCategory = resolveLegalCategoryOr(backend.practiceArea);
 
   const today = new Date().toISOString().slice(0, 10);
   const createdDate = backend.createdAt ? backend.createdAt.slice(0, 10) : today;
@@ -212,10 +199,10 @@ export function mapBackendCaseToLegalCase(
     status: (t.status === "accepted"
       ? "Assigned"
       : t.status === "filinginprogress"
-      ? "In Progress"
-      : t.status === "rejected"
-      ? "Rejected"
-      : "Submitted") as CaseStatus,
+        ? "In Progress"
+        : t.status === "rejected"
+          ? "Rejected"
+          : "Submitted") as CaseStatus,
     at: t.at ? t.at.slice(0, 10) : createdDate,
     time: t.time || "12:00 PM",
     note: t.note,
@@ -240,41 +227,20 @@ export function mapBackendCaseToLegalCase(
     practiceArea: backend.practiceArea,
     specialization: backend.specialization,
     files: { files },
+    // A user-filed case has no eCourts record behind it, so the court-side fields
+    // stay empty until the case is registered and synced back with a CNR. Only the
+    // fields `CaseDetails` actually declares are set here — the docket screens read
+    // this shape directly.
     caseDetails: {
       caseNumber: backend.id,
       cnr: backend.cnr || undefined,
-      fillingNumber: undefined,
-      registrationNumber: undefined,
-      courtName: undefined,
-      district: undefined,
-      state: undefined,
-      firstHearingDate: undefined,
-      nextHearingDate: undefined,
-      decisionDate: undefined,
-      stageOfCase: status,
-      natureOfDisposal: undefined,
-      coram: undefined,
-      bench: undefined,
-      stateCode: undefined,
-      districtCode: undefined,
-      courtCode: undefined,
-      caseStatus: status,
-      subordinateCourtInfo: null,
-      firDetails: null,
-      historyOfCaseHearings: [],
-      orders: [],
-      transferDetails: [],
-      interlocutoryApplications: [],
-      acts: [],
-      caseCategory: category,
+      // Required by CaseDetails, but unknown until the case reaches a court.
+      courtName: "",
+      caseType: backend.caseType || "Civil",
       filingDate: createdDate,
       registrationDate: createdDate,
-      purposeOfListing: undefined,
-      caseType: backend.caseType || "Civil",
-      petitioner: citizen?.name || "Petitioner",
-      respondent: "Opposing Party",
-      petitionerAdvocate: lawyer?.name || undefined,
-      respondentAdvocate: undefined,
+      historyOfCaseHearings: [],
+      interimOrders: [],
       judges: [],
       petitioners: [citizen?.name || "Petitioner"],
       petitionerAdvocates: lawyer?.name ? [lawyer.name] : [],

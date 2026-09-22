@@ -1,10 +1,28 @@
 import type { Context } from "hono";
 import { NotificationService } from "../services/notificationService.ts";
 import { ApiResponse } from "../utils/apiResponse.ts";
+import { ApiError } from "../utils/apiError.ts";
 
+/**
+ * `userId`/`role` come from the authenticated session, never the request
+ * body — see the comment on `RegisterFcmTokenSchema`. This route requires
+ * `authenticateUser` (scoped in notificationRoutes.ts), unlike the rest of
+ * this router, precisely because there's no legitimate anonymous case for
+ * "register a push destination."
+ */
 export async function registerFcmToken(c: Context) {
-  const body = await c.req.json();
-  const result = await NotificationService.registerDeviceToken(body);
+  const user = c.get("user");
+  if (!user) throw ApiError.unauthorized("Authenticated session required");
+
+  const { deviceToken, deviceType } = await c.req.json();
+  if (!deviceToken) throw ApiError.badRequest("deviceToken is required");
+
+  const result = await NotificationService.registerDeviceToken({
+    userId: user.id,
+    role: user.role,
+    deviceToken,
+    deviceType,
+  });
   return ApiResponse.created(c, result, "FCM device token registered successfully");
 }
 

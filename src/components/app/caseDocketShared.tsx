@@ -7,7 +7,7 @@ import type { LegalCase, HistoryOfHearing } from "@/types";
 export function formatCaseVsTitle(
   caseOrTitle?: LegalCase | string | null,
   petitioners?: string[],
-  respondents?: string[]
+  respondents?: string[],
 ): string {
   if (!caseOrTitle && (!petitioners || petitioners.length === 0)) {
     return "Untitled Matter";
@@ -33,13 +33,12 @@ export function formatCaseVsTitle(
   if (!title) return "Untitled Matter";
 
   // Replace hyphen separators between party names with " vs "
-  title = title.replace(/\s+[\-\—\–]\s+/g, " vs ");
+  title = title.replace(/\s+[-—–]\s+/g, " vs ");
   // Normalize case-insensitive variations like " Vs ", " Vs. ", " V. ", " v " to " vs "
   title = title.replace(/\s+[vV][sS]?\.?\s+/g, " vs ");
 
   return title;
 }
-
 
 /**
  * Shared constants/helpers used by both CaseDocketRegister (search/filter

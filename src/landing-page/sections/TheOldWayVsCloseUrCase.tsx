@@ -18,7 +18,8 @@ interface LegalNode {
   icon: typeof FileText;
   x: number;
   y: number;
-  labelPosition: "top" | "top-right" | "right" | "bottom-right" | "bottom" | "bottom-left" | "left" | "top-left";
+  labelPosition:
+    "top" | "top-right" | "right" | "bottom-right" | "bottom" | "bottom-left" | "left" | "top-left";
   accentColor: string;
 }
 
@@ -130,7 +131,8 @@ export function TheOldWayVsCloseUrCase() {
             Stop juggling and start resolving
           </h2>
           <p className="mt-2 text-sm leading-relaxed text-slate-600">
-            Compare the scattered chaos of traditional litigation against CloseUrCase&apos;s unified legal hub.
+            Compare the scattered chaos of traditional litigation against CloseUrCase&apos;s unified
+            legal hub.
           </p>
         </div>
 
@@ -145,7 +147,8 @@ export function TheOldWayVsCloseUrCase() {
                   The Old Way
                 </h3>
                 <p className="mt-1.5 text-xs sm:text-sm leading-relaxed text-slate-500 max-w-xs mx-auto">
-                  Slow. Manual filing, error-prone, and full of paperwork. Deadlines are easy to miss, and expert help feels out of reach.
+                  Slow. Manual filing, error-prone, and full of paperwork. Deadlines are easy to
+                  miss, and expert help feels out of reach.
                 </p>
               </div>
 
@@ -286,7 +289,8 @@ export function TheOldWayVsCloseUrCase() {
                   The CloseUrCase Way
                 </h3>
                 <p className="mt-1.5 text-xs sm:text-sm leading-relaxed text-slate-600 max-w-xs mx-auto">
-                  Quick AI-powered filing, precise, and automated. You get smart alerts, secure document storage, and expert support anytime you need it.
+                  Quick AI-powered filing, precise, and automated. You get smart alerts, secure
+                  document storage, and expert support anytime you need it.
                 </p>
               </div>
 
@@ -317,13 +321,7 @@ export function TheOldWayVsCloseUrCase() {
                     strokeWidth="1.25"
                     opacity="0.5"
                   />
-                  <circle
-                    cx="130"
-                    cy="130"
-                    r="34"
-                    fill="#eff6ff"
-                    opacity="0.75"
-                  />
+                  <circle cx="130" cy="130" r="34" fill="#eff6ff" opacity="0.75" />
 
                   {/* Clean straight connection spokes from hub (130, 130) to each node */}
                   {NODES.map((node) => (
@@ -350,9 +348,7 @@ export function TheOldWayVsCloseUrCase() {
                     />
                   </div>
                   {/* Hand cursor clicking on the central hub */}
-                  <span className="pointer-events-none absolute -bottom-4 text-xs">
-                    👆
-                  </span>
+                  <span className="pointer-events-none absolute -bottom-4 text-xs">👆</span>
                 </div>
 
                 {/* Nodes positioned along the perimeter (Colorful & connected) */}

@@ -22,8 +22,14 @@ import {
   IndianRupee,
 } from "lucide-react";
 import { useState, useEffect, useLayoutEffect, useRef } from "react";
-import { getNotifications, getProfilePhoto, subscribeToStore } from "@/data/appStore";
+import {
+  getNotifications,
+  getProfilePhoto,
+  mergeRemoteNotifications,
+  subscribeToStore,
+} from "@/data/appStore";
 import { notificationService } from "@/services/notificationService";
+import type { AppNotification } from "@/types";
 import { LexBot } from "@/components/app/LexBot";
 import { WhatsAppFloatingButton } from "@/components/app/WhatsAppButton";
 import { UserAvatar } from "@/components/app/UserAvatar";
@@ -33,6 +39,7 @@ import { CitizenLanguageButtons } from "@/features/citizen/CitizenLanguageButton
 import { VideoCallProvider } from "@/features/video-call/VideoCallContext";
 import { clearCitizenSession } from "@/features/citizen/session";
 import { useAuth } from "@/context/useAuth";
+import { usePushNotifications } from "@/hooks/usePushNotifications";
 import { IconButton, Badge } from "@/components/m3";
 
 export interface NavItem {
@@ -242,6 +249,10 @@ export function DashboardLayout({
   const pathname = useRouterState({ select: (s) => s.location.pathname });
   const mainRef = useRef<HTMLElement>(null);
   const { logout } = useAuth();
+  // No-ops without Firebase config or browser support — see the hook's own
+  // comment. Mounted here rather than per-role so all three dashboards get
+  // it from one place, the same way notification fetching already works.
+  usePushNotifications();
 
   const resetScroll = () => {
     if (mainRef.current) {
@@ -295,12 +306,12 @@ export function DashboardLayout({
 
   useEffect(() => {
     notificationService
-      .getNotifications({ role })
+      .getNotifications<AppNotification>({ role })
       .then((backendAlerts) => {
-        if (Array.isArray(backendAlerts)) {
-          const unread = backendAlerts.filter((n) => !n.read).length;
-          if (unread > 0) setUnreadCount(unread);
-        }
+        // Merge rather than setting the count straight from the response — the
+        // store subscription below is the single source for the badge, and it
+        // would otherwise overwrite this on the next store change anyway.
+        mergeRemoteNotifications(backendAlerts);
       })
       .catch((err: unknown) => {
         console.warn("[Dashboard Layout] Notification count notice:", err);

@@ -4,7 +4,7 @@
  */
 
 import { apiClient } from "./apiClient";
-import type { AdminDashboardStats } from "@/types/api";
+import type { AdminDashboardStats, AdminProfileRecord, UpdateAdminMePayload } from "@/types/api";
 import {
   getCitizens,
   getLawyers,
@@ -40,8 +40,10 @@ export const adminService = {
     const payments = getPayments();
     const withdrawals = getWithdrawalRequests();
 
-    const totalGross = payments.reduce((acc, p) => acc + (p.amount || 0), 0);
-    const totalPlatform = payments.reduce((acc, p) => acc + (p.platformFee || 0), 0);
+    // `Payment` carries grossAmount/platformAmount — the old `amount`/`platformFee`
+    // names don't exist on the type, so these totals silently came out as zero.
+    const totalGross = payments.reduce((acc, p) => acc + (p.grossAmount || 0), 0);
+    const totalPlatform = payments.reduce((acc, p) => acc + (p.platformAmount || 0), 0);
     const pendingWithdrawals = withdrawals.filter((w) => w.status === "Pending");
     const pendingAmount = pendingWithdrawals.reduce((acc, w) => acc + (w.amount || 0), 0);
 
@@ -64,5 +66,19 @@ export const adminService = {
         pendingAmount,
       },
     };
+  },
+
+  /**
+   * Get the signed-in admin's own profile
+   */
+  async getMe<T = AdminProfileRecord>(): Promise<T> {
+    return apiClient.get<T>("/admin/me");
+  },
+
+  /**
+   * Update (or create, on first save) the signed-in admin's own profile
+   */
+  async updateMe<T = AdminProfileRecord>(payload: UpdateAdminMePayload): Promise<T> {
+    return apiClient.patch<T>("/admin/me", payload);
   },
 };

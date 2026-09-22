@@ -104,7 +104,9 @@ export function KnowledgeBasePage() {
                 size: r.size || "1.2 MB",
                 fileName: r.fileName || r.title,
                 fileMimeType: r.fileMimeType || "application/pdf",
-                fileUrl: r.fileUrl,
+                // The API calls this `fileUrl`; `KnowledgeItem` stores it as
+                // `fileDataUrl`, so a plain passthrough silently dropped it.
+                fileDataUrl: r.fileUrl ?? undefined,
                 uploadedAt: r.uploadedAt
                   ? r.uploadedAt.split("T")[0]
                   : new Date().toISOString().split("T")[0],

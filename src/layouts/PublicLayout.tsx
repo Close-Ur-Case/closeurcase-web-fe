@@ -170,9 +170,7 @@ export function PublicLayout({ children }: { children: ReactNode }) {
               <CitizenLanguageButtons size="sm" showLabel={false} />
 
               {/* On desktop: Animated 24/7 Download Button placed on left side of Lawyer Sign In */}
-              {isHome && (
-                <AnimatedDownloadButton useBlendedHeader={useBlendedHeader} size="md" />
-              )}
+              {isHome && <AnimatedDownloadButton useBlendedHeader={useBlendedHeader} size="md" />}
 
               <Link
                 to="/login"
@@ -216,10 +214,7 @@ export function PublicLayout({ children }: { children: ReactNode }) {
                 <X className="h-5 w-5 text-[#d4af37]" />
               ) : (
                 <Menu
-                  className={cn(
-                    "h-5 w-5",
-                    useBlendedHeader ? "text-white" : "text-slate-900",
-                  )}
+                  className={cn("h-5 w-5", useBlendedHeader ? "text-white" : "text-slate-900")}
                   strokeWidth={2.4}
                 />
               )}

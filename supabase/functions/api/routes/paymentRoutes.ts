@@ -1,8 +1,9 @@
-import { OpenAPIHono, createRoute } from "@hono/zod-openapi";
+import { OpenAPIHono, createRoute, z } from "@hono/zod-openapi";
 import {
   createRazorpayOrder,
   verifyAndCompletePayment,
   getPayments,
+  razorpayWebhook,
 } from "../controllers/paymentController.ts";
 import { authenticateUser } from "../middlewares/auth.ts";
 import {
@@ -12,7 +13,13 @@ import {
 } from "../schemas/index.ts";
 
 const payment = new OpenAPIHono();
-payment.use(authenticateUser);
+// Scoped per path rather than router-wide: `/webhook` is called directly by
+// Razorpay's own servers, which have no bearer token to send — it
+// authenticates via the `X-Razorpay-Signature` header instead (see the
+// handler), so it must stay reachable without one.
+payment.use("/create-order", authenticateUser);
+payment.use("/verify-payment", authenticateUser);
+payment.use("/", authenticateUser);
 
 const createOrderRoute = createRoute({
   method: "post",
@@ -64,8 +71,16 @@ const getPaymentsRoute = createRoute({
   method: "get",
   path: "/",
   tags: ["Payments"],
-  summary: "List payment transaction receipts",
+  summary: "List payment transaction receipts (scoped to the caller's role)",
+  description:
+    "Admins see all payments and may narrow by lawyerId/citizenId. Lawyers and citizens always receive only their own records; the filters are ignored for them.",
   security: [{ bearerAuth: [] }],
+  request: {
+    query: z.object({
+      lawyerId: z.string().optional().openapi({ example: "l_001" }),
+      citizenId: z.string().optional().openapi({ example: "u_001" }),
+    }),
+  },
   responses: {
     200: {
       description: "Transaction history",
@@ -77,5 +92,14 @@ const getPaymentsRoute = createRoute({
 payment.openapi(createOrderRoute, createRazorpayOrder as any);
 payment.openapi(verifyPaymentRoute, verifyAndCompletePayment as any);
 payment.openapi(getPaymentsRoute, getPayments as any);
+
+// Registered as a plain route, not through `createRoute`/`.openapi()` — see
+// the handler's comment in paymentController.ts for why: an OpenAPI-declared
+// body schema risks the framework reading the request body before this
+// handler gets a chance to, which would break raw-signature verification.
+// (It also means this endpoint — Razorpay's servers call it directly, never
+// this app's own client — doesn't show up in the generated Swagger docs,
+// which is the right outcome for it.)
+payment.post("/webhook", razorpayWebhook as any);
 
 export default payment;

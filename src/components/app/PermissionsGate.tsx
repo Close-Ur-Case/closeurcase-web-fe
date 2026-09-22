@@ -86,9 +86,7 @@ export function PermissionsGate({
                     {permission.reason}
                   </p>
                   {hint && (
-                    <p className="mt-1 text-[11px] leading-snug font-medium text-warning">
-                      {hint}
-                    </p>
+                    <p className="mt-1 text-[11px] leading-snug font-medium text-warning">{hint}</p>
                   )}
                   {canRetry && (
                     <Button

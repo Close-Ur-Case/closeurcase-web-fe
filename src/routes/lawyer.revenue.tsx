@@ -17,10 +17,13 @@ import {
   getLawyers,
   getPayments,
   getWithdrawalRequests,
+  mergeRemotePayments,
+  mergeRemoteWithdrawals,
   addWithdrawalRequest,
   subscribeToStore,
 } from "@/data/appStore";
 import { withdrawalService } from "@/services/withdrawalService";
+import { paymentService } from "@/services/paymentService";
 import { useAuth } from "@/context/useAuth";
 import type { Payment, WithdrawalRequest } from "@/types";
 import {
@@ -75,14 +78,24 @@ export function LawyerRevenuePage() {
   );
 
   useEffect(() => {
-    withdrawalService
-      .listWithdrawals(lawyerId)
+    // No lawyerId needed — the API scopes payments to the signed-in advocate.
+    paymentService
+      .getPayments()
       .then((data) => {
-        if (Array.isArray(data) && data.length > 0) {
-          console.info("[Lawyer Revenue] Live backend withdrawals count:", data.length);
-        }
+        mergeRemotePayments(data as Partial<Payment>[]);
       })
       .catch((err: unknown) => {
+        console.warn("[Lawyer Revenue] Payments fetch notice:", err);
+      });
+
+    withdrawalService
+      .listWithdrawals<Partial<WithdrawalRequest>>(lawyerId)
+      .then((data) => {
+        // Merging notifies store subscribers, so the sync below picks this up.
+        mergeRemoteWithdrawals(data);
+      })
+      .catch((err: unknown) => {
+        // Non-fatal: the page keeps rendering whatever the store already holds.
         console.warn("[Lawyer Revenue] Backend fetch notice:", err);
       });
 

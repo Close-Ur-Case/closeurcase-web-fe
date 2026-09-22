@@ -22,6 +22,73 @@ export interface LawyerCategoryDetail {
 
 export class LawyerCategoryService {
   /**
+   * Lenient counterpart to `validateAndNormalize`, for citizen case filing.
+   *
+   * The case wizard sends display names ("Criminal Defense", "Anticipatory Bail",
+   * "File Anticipatory Bail Application") while seeded cases store canonical IDs
+   * (cat_1 / spec_1_1 / srv_1_1_1), so `cases_user` ends up holding both shapes
+   * and category filters miss rows. This resolves names to IDs the same way.
+   *
+   * Unlike `validateAndNormalize` it never throws: an unrecognised value is kept
+   * verbatim rather than rejecting the filing. Registration keeps the strict path
+   * because a lawyer's practice areas must be valid; a citizen describing their
+   * own matter should not be blocked by taxonomy drift.
+   */
+  static async normalizeCaseTaxonomy(
+    practiceArea?: string | null,
+    specialization?: string | null,
+    legalServicesInput: string[] = []
+  ): Promise<{
+    practiceArea: string;
+    specialization: string;
+    legalServices: string[];
+  }> {
+    const [allCategories, allSpecs, allServices] = await Promise.all([
+      db.select().from(caseCategories),
+      db.select().from(caseSpecializations),
+      db.select().from(legalServices),
+    ]);
+
+    const area = (practiceArea || "").trim();
+    const spec = (specialization || "").trim();
+    const services = (legalServicesInput || [])
+      .map((v) => (typeof v === "string" ? v.trim() : ""))
+      .filter(Boolean);
+
+    const matchedCategory = area
+      ? allCategories.find(
+          (c) =>
+            c.id.toLowerCase() === area.toLowerCase() ||
+            (c.code || "").toLowerCase() === area.toLowerCase() ||
+            c.name.toLowerCase() === area.toLowerCase()
+        )
+      : undefined;
+
+    const matchedSpec = spec
+      ? allSpecs.find(
+          (sp) =>
+            sp.id.toLowerCase() === spec.toLowerCase() ||
+            sp.name.toLowerCase() === spec.toLowerCase()
+        )
+      : undefined;
+
+    const normalizedServices = services.map((srv) => {
+      const match = allServices.find(
+        (s) =>
+          s.id.toLowerCase() === srv.toLowerCase() || s.name.toLowerCase() === srv.toLowerCase()
+      );
+      return match ? match.id : srv;
+    });
+
+    return {
+      // Fall back to the specialization's own parent when only the spec resolved.
+      practiceArea: matchedCategory?.id || matchedSpec?.categoryId || area,
+      specialization: matchedSpec?.id || spec,
+      legalServices: Array.from(new Set(normalizedServices)),
+    };
+  }
+
+  /**
    * Validates and normalizes practice_areas, specializations, and legal_services against normalized master tables:
    * 1. case_categories
    * 2. case_specializations

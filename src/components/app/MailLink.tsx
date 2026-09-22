@@ -29,14 +29,7 @@ export function MailLink({
 
   const handleClick = (e: MouseEvent<HTMLAnchorElement>) => {
     // Leave new-tab / modified / non-primary clicks to the browser.
-    if (
-      e.defaultPrevented ||
-      e.button !== 0 ||
-      e.metaKey ||
-      e.ctrlKey ||
-      e.shiftKey ||
-      e.altKey
-    ) {
+    if (e.defaultPrevented || e.button !== 0 || e.metaKey || e.ctrlKey || e.shiftKey || e.altKey) {
       return;
     }
 

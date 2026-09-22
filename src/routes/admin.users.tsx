@@ -5,7 +5,12 @@ import { DataTable } from "@/components/app/DataTable";
 import { ConfirmDialog } from "@/components/app/ConfirmDialog";
 import { UserAvatar } from "@/components/app/UserAvatar";
 import { FilterPanelButton, type FilterSection } from "@/components/app/FilterPanelButton";
-import { getCitizens, updateCitizenStatus, subscribeToStore } from "@/data/appStore";
+import {
+  getCitizens,
+  mergeRemoteCitizens,
+  updateCitizenStatus,
+  subscribeToStore,
+} from "@/data/appStore";
 import { citizenService } from "@/services/citizenService";
 import type { Citizen } from "@/types";
 import { Search } from "lucide-react";
@@ -49,13 +54,13 @@ function UsersPage() {
   useEffect(() => {
     const sync = () => setRows(getCitizens());
     citizenService
-      .getCitizens()
+      .getCitizens<Partial<Citizen>>()
       .then((backendCitizens) => {
-        if (Array.isArray(backendCitizens) && backendCitizens.length > 0) {
-          console.info("[Admin Users] Live backend citizens count:", backendCitizens.length);
-        }
+        // Merging notifies store subscribers, so `sync` above picks this up.
+        mergeRemoteCitizens(backendCitizens);
       })
       .catch((err: unknown) => {
+        // Non-fatal: the table keeps rendering whatever the store already holds.
         console.warn("[Admin Users] Backend fetch notice:", err);
       });
     return subscribeToStore(sync);

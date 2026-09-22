@@ -13,6 +13,7 @@ import {
   Star,
   XCircle,
   AlertTriangle,
+  AlertCircle,
 } from "lucide-react";
 import { PageHeader } from "@/components/app/PageHeader";
 import { SegmentedControl } from "@/components/app/SegmentedControl";
@@ -26,10 +27,18 @@ import {
   DialogContent,
   DialogFooter,
 } from "@/components/m3";
-import { addSubscription, getPayments, getSubscriptions, subscribeToStore } from "@/data/appStore";
+import {
+  addSubscription,
+  getPayments,
+  getSubscriptions,
+  mergeRemotePayments,
+  subscribeToStore,
+} from "@/data/appStore";
 import { FREE_PLAN, SUBSCRIPTION_PLANS } from "@/data/subscriptionPlans";
 import { useAuth } from "@/context/useAuth";
 import { subscriptionService } from "@/services/subscriptionService";
+import { paymentService } from "@/services/paymentService";
+import { useRazorpayCheckout } from "@/hooks/useRazorpayCheckout";
 import type { Payment, Subscription, SubscriptionPlanId } from "@/types";
 import type { SubscriptionPlanItem } from "@/types/api";
 
@@ -180,7 +189,9 @@ const CONSULTATION_STATUS_STYLE: Record<Payment["status"], string> = {
 
 export function MySubscriptions() {
   const { user } = useAuth();
-  const citizenId = user?.id || "u_001";
+  // Payments and subscriptions reference the citizen *record* id ("u_001"),
+  // not the Supabase auth UUID that `user.id` holds.
+  const citizenId = user?.citizenId || user?.id || "u_001";
 
   const [subscriptions, setSubscriptions] = useState<Subscription[]>(() =>
     getSubscriptions(citizenId),
@@ -193,11 +204,24 @@ export function MySubscriptions() {
     ...SUBSCRIPTION_PLANS,
   ]);
   const [subscribingPlan, setSubscribingPlan] = useState<SubscriptionPlanId | null>(null);
+  const [subscribeError, setSubscribeError] = useState<string | null>(null);
+  const { startCheckout } = useRazorpayCheckout();
   const [historyTab, setHistoryTab] = useState<HistoryTab>("Subscription");
   const [showManageModal, setShowManageModal] = useState(false);
   const [isCancelling, setIsCancelling] = useState(false);
 
   useEffect(() => {
+    // The API scopes payments to the signed-in citizen; the local filter below
+    // narrows further to consultation commissions for the receipts tab.
+    paymentService
+      .getPayments()
+      .then((data) => {
+        mergeRemotePayments(data as Partial<Payment>[]);
+      })
+      .catch((err: unknown) => {
+        console.warn("[Citizen Subscriptions] Payments fetch notice:", err);
+      });
+
     subscriptionService.getPlans().then((items) => {
       if (Array.isArray(items) && items.length > 0) {
         setPlans(items);
@@ -229,16 +253,44 @@ export function MySubscriptions() {
 
   async function handleSubscribe(planId: SubscriptionPlanId, label: string, amount: number) {
     setSubscribingPlan(planId);
+    setSubscribeError(null);
     try {
-      await subscriptionService.createSubscription({
-        citizenId,
-        planId,
-        planLabel: label,
-        amount,
-      });
+      if (amount > 0) {
+        // Paid plans must be collected before activation. `verify-payment`
+        // validates the signature, writes the receipt and activates the plan in
+        // one server-side step, so there's no separate createSubscription call.
+        const result = await startCheckout({
+          amount,
+          description: `${label} Auto-Assign plan`,
+          prefill: { name: user?.name, email: user?.email ?? undefined },
+          verification: {
+            source: "subscription",
+            grossAmount: amount,
+            citizenId,
+            citizenName: user?.name,
+            planId,
+            planLabel: label,
+          },
+        });
+
+        // `null` means the citizen closed the checkout — leave the plan alone.
+        if (!result) return;
+        if (result.payment) mergeRemotePayments([result.payment as Partial<Payment>]);
+      } else {
+        // The free tier takes no payment, so it activates directly.
+        await subscriptionService.createSubscription({
+          citizenId,
+          planId,
+          planLabel: label,
+          amount,
+        });
+      }
+
       const updated = await subscriptionService.listSubscriptions(citizenId);
       setSubscriptions(updated as unknown as Subscription[]);
     } catch (err) {
+      const message = err instanceof Error ? err.message : "Could not activate this plan.";
+      setSubscribeError(message);
       console.error("Failed to activate subscription:", err);
     } finally {
       setSubscribingPlan(null);
@@ -268,6 +320,13 @@ export function MySubscriptions() {
         title="My Subscriptions"
         description="Manage your Auto-Assign plan, view active VIP perks, and track your billing history."
       />
+
+      {subscribeError && (
+        <div className="flex items-start gap-2.5 rounded-lg border border-destructive/30 bg-destructive/10 p-3 text-xs text-destructive">
+          <AlertCircle className="mt-0.5 h-4 w-4 shrink-0" />
+          <span>{subscribeError}</span>
+        </div>
+      )}
 
       {/* ── ACTIVE VIP MEMBERSHIP CARD / HERO BANNER ──────────────── */}
       {activeSub ? (

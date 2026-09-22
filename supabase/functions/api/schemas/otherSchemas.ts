@@ -63,10 +63,21 @@ export const UpdateInquiryStatusSchema = z
   })
   .openapi("UpdateInquiryStatusRequest");
 
+/**
+ * `userId`/`role` are deliberately NOT part of this contract — they come from
+ * the authenticated session (`c.get("user")`), not the request body. This
+ * used to declare `{ token, deviceType }` while the controller actually read
+ * `{ userId, role, deviceToken, deviceType }` from the body: two different
+ * shapes that happened to coexist because nothing ever called this endpoint
+ * to notice. Even if fixed to match the controller's old shape, trusting a
+ * client-supplied `userId` would let any caller register a device token
+ * under someone else's account — their future notifications would then push
+ * to the attacker's device instead of (or as well as) the real owner's.
+ */
 export const RegisterFcmTokenSchema = z
   .object({
-    token: z.string().openapi({ example: "fcm_token_device_abc123" }),
-    deviceType: z.string().optional().openapi({ example: "web" }),
+    deviceToken: z.string().min(1).openapi({ example: "fcm_token_device_abc123" }),
+    deviceType: z.enum(["web", "android", "ios"]).optional().openapi({ example: "web" }),
   })
   .openapi("RegisterFcmTokenRequest");
 

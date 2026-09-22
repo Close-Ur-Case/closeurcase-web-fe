@@ -31,6 +31,13 @@ interface RawAuthResponse {
     access_token?: string;
     refresh_token?: string;
   };
+  /** The citizen *record* (id like "u_001") — distinct from `user.id`, which is
+   * the Supabase auth UUID. Case rows reference this id via `citizenId`. */
+  citizen?: {
+    id?: string;
+    name?: string;
+    city?: string;
+  };
   lawyer?: {
     id?: string;
     name?: string;
@@ -86,9 +93,10 @@ export const authService = {
         role: "citizen",
         email: res?.user?.email || payload.email,
         phone: res?.user?.phone || payload.phone,
-        name: res?.user?.name || payload.name || "Citizen User",
-        city: res?.user?.city || payload.city,
-        citizenId: res?.user?.citizenId,
+        name: res?.citizen?.name || res?.user?.name || payload.name || "Citizen User",
+        city: res?.citizen?.city || res?.user?.city || payload.city,
+        // Must be the citizen record id, not the auth UUID — case scoping filters on it.
+        citizenId: res?.citizen?.id || res?.user?.citizenId,
       };
 
       if (token) {

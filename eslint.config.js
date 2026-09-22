@@ -6,7 +6,14 @@ import reactRefresh from "eslint-plugin-react-refresh";
 import tseslint from "typescript-eslint";
 
 export default tseslint.config(
-  { ignores: ["dist", ".output", ".vinxi"] },
+  {
+    // `dev-dist` is generated PWA build output (like `dist`, just for `vite dev`).
+    // `supabase` is the Deno-run backend — a separate runtime with its own
+    // toolchain (`deno check`, `deno.json`), already excluded from tsconfig.json's
+    // `include`; this repo is documented as frontend-only, so it stays out of the
+    // frontend's lint scope too rather than being force-fit to these rules.
+    ignores: ["dist", ".output", ".vinxi", "dev-dist", "supabase"],
+  },
   {
     extends: [js.configs.recommended, ...tseslint.configs.recommended],
     files: ["**/*.{ts,tsx}"],

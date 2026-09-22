@@ -8,11 +8,12 @@ import { LawyerCategoryService } from "./lawyerCategoryService.ts";
 
 export class AuthService {
   static async sendCitizenOtp(
-    param: string | { phone?: string; email?: string; identifier?: string }
+    param: string | { phone?: string; email?: string; identifier?: string },
   ) {
     let phone: string | undefined = typeof param === "string" ? param : param?.phone;
     let email: string | undefined = typeof param === "object" ? param?.email : undefined;
-    const identifier: string | undefined = typeof param === "object" ? param?.identifier : undefined;
+    const identifier: string | undefined =
+      typeof param === "object" ? param?.identifier : undefined;
 
     if (!phone && !email && identifier) {
       if (identifier.includes("@")) {
@@ -47,8 +48,8 @@ export class AuthService {
       const formattedPhone = phone.startsWith("+")
         ? phone
         : cleanDigits.length === 10
-        ? `+91${cleanDigits}`
-        : `+${cleanDigits}`;
+          ? `+91${cleanDigits}`
+          : `+${cleanDigits}`;
 
       const { data, error } = await supabase.auth.signInWithOtp({
         phone: formattedPhone,
@@ -122,8 +123,8 @@ export class AuthService {
       const formattedPhone = phone.startsWith("+")
         ? phone
         : cleanDigits.length === 10
-        ? `+91${cleanDigits}`
-        : `+${cleanDigits}`;
+          ? `+91${cleanDigits}`
+          : `+${cleanDigits}`;
       authResponse = await supabase.auth.verifyOtp({
         phone: formattedPhone,
         token: token.trim(),
@@ -268,9 +269,8 @@ export class AuthService {
     const lawyerId = `l_${Date.now()}`;
     const today = new Date().toISOString().slice(0, 10);
 
-    const { languageIds, details: linkedLanguagesList } = await LawyerLanguageService.resolveLanguageIds(
-      lawyerData.languages || []
-    );
+    const { languageIds, details: linkedLanguagesList } =
+      await LawyerLanguageService.resolveLanguageIds(lawyerData.languages || []);
 
     const {
       practiceAreas: normalizedAreas,
@@ -280,7 +280,7 @@ export class AuthService {
     } = await LawyerCategoryService.validateAndNormalize(
       practiceAreas || [],
       lawyerData.specializations || [],
-      legalServices || []
+      legalServices || [],
     );
 
     const targetCity = city || lawyerData.cities?.[0] || "Hyderabad";
@@ -293,12 +293,26 @@ export class AuthService {
         email,
         phone,
         category: category || primaryCategory,
-        roleTitle: lawyerData.roleTitle || (lawyerData.registrationType === "firm" ? "Law Firm / Organisation" : "Advocate"),
+        roleTitle:
+          lawyerData.roleTitle ||
+          (lawyerData.registrationType === "firm" ? "Law Firm / Organisation" : "Advocate"),
         registrationType: lawyerData.registrationType || "lawyer",
         city: targetCity,
         cities: lawyerData.cities || (targetCity ? [targetCity] : ["Hyderabad"]),
-        stateId: lawyerData.stateId || (targetCity === "Visakhapatnam" ? "andhra_pradesh" : targetCity === "Hyderabad" ? "telangana" : null),
-        districtId: lawyerData.districtId || (targetCity === "Visakhapatnam" ? "visakhapatnam" : targetCity === "Hyderabad" ? "hyderabad" : null),
+        stateId:
+          lawyerData.stateId ||
+          (targetCity === "Visakhapatnam"
+            ? "andhra_pradesh"
+            : targetCity === "Hyderabad"
+              ? "telangana"
+              : null),
+        districtId:
+          lawyerData.districtId ||
+          (targetCity === "Visakhapatnam"
+            ? "visakhapatnam"
+            : targetCity === "Hyderabad"
+              ? "hyderabad"
+              : null),
         barId,
         experienceYears: experienceYears || 0,
         status: "Pending",
@@ -324,7 +338,7 @@ export class AuthService {
     const categoriesDetails = await LawyerCategoryService.getCategoriesForLawyer(
       normalizedAreas,
       normalizedSpecs,
-      normalizedServices
+      normalizedServices,
     );
 
     return {
@@ -355,7 +369,7 @@ export class AuthService {
         LawyerCategoryService.getCategoriesForLawyer(
           (lawyerRecord.practiceAreas || []) as string[],
           (lawyerRecord.specializations || []) as string[],
-          (lawyerRecord.legalServices || []) as string[]
+          (lawyerRecord.legalServices || []) as string[],
         ),
       ]);
     }
@@ -377,7 +391,40 @@ export class AuthService {
     if (error) throw ApiError.unauthorized(error.message);
 
     const user = data.user!;
-    const [adminRecord] = await db.select().from(adminProfiles).where(eq(adminProfiles.userId, user.id));
+
+    // There is no self-service admin registration — accounts are provisioned
+    // out-of-band in Supabase Auth, so nothing stamps `user_metadata.role`
+    // the way `registerLawyer`'s `signUp` call does for lawyers. Without a
+    // matching `public.users` row either, `authenticateUser`'s role
+    // resolution falls through to its "citizen" default for every admin,
+    // regardless of how long they've been signing in.
+    //
+    // Verified live: signing in with real admin credentials, `GET /auth/me`
+    // resolved `role: "citizen"` from this exact gap, and `admin.me`'s new
+    // role check (added to close a separate leak — see adminController.ts)
+    // then correctly, but unhelpfully, locked out the only real admin
+    // account. Self-healing here, the same way `verifyCitizenOtp` already
+    // does for citizens, is what makes that check able to pass for a genuine
+    // admin at all.
+    const [existingUser] = await db.select().from(users).where(eq(users.id, user.id));
+    if (!existingUser) {
+      await db.insert(users).values({
+        id: user.id,
+        role: "admin",
+        email: user.email || email,
+        phone: user.phone || null,
+      });
+    } else if (existingUser.role !== "admin") {
+      await db
+        .update(users)
+        .set({ role: "admin", updatedAt: new Date() })
+        .where(eq(users.id, user.id));
+    }
+
+    const [adminRecord] = await db
+      .select()
+      .from(adminProfiles)
+      .where(eq(adminProfiles.userId, user.id));
 
     return {
       user: { id: user.id, role: "admin", email: user.email },

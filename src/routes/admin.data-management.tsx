@@ -910,11 +910,15 @@ export function AdminDataManagementPage() {
       }
     });
     const isNew = !payload.id || payload.id === NEW_ROW_ID;
-    const finalPayload = {
+    // `cfg.save` requires a boolean `active`, which a bare Record spread can't
+    // guarantee — so set it explicitly rather than asserting the shape. The
+    // payload is seeded with `active: true`, and only an explicit false flips it.
+    const finalPayload: Record<string, unknown> & { active: boolean } = {
       ...payload,
       id: isNew ? undefined : payload.id,
+      active: payload.active !== false,
     };
-    cfg.save(finalPayload as Record<string, unknown> & { active: boolean });
+    cfg.save(finalPayload);
     setEditingId(null);
 
     // Asynchronously synchronize with backend taxonomy endpoint

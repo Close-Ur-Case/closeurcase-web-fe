@@ -15,6 +15,7 @@ import {
   Link2,
 } from "lucide-react";
 import { getCases, subscribeToStore } from "@/data/appStore";
+import { useCaseDetailSync } from "@/hooks/useCaseSync";
 import { Button } from "@/components/m3";
 import { PageHeader } from "@/components/app/PageHeader";
 import type { LegalCase } from "@/types";
@@ -69,12 +70,24 @@ function StatTile({ label, value }: { label: string; value: string | number }) {
 export function CitizenCaseDetailPage() {
   const { id } = Route.useParams();
   const [cases, setCases] = useState<LegalCase[]>(getCases);
+  // Re-syncs this case's full docket; the merge notifies the store subscription below.
+  const { isSyncing } = useCaseDetailSync(id);
 
   useEffect(() => {
     return subscribeToStore(() => setCases(getCases()));
   }, []);
 
   const c = cases.find((x) => x.id === id);
+
+  // A case that only exists server-side isn't "not found" until its fetch settles.
+  if (!c && isSyncing) {
+    return (
+      <div className="space-y-4">
+        <PageHeader title="Loading case…" />
+        <p className="text-sm text-muted-foreground">Fetching case {id} from the server.</p>
+      </div>
+    );
+  }
 
   if (!c) {
     return (

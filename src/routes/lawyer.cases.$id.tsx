@@ -1,6 +1,7 @@
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
 import { getCases, updateCaseFields, subscribeToStore } from "@/data/appStore";
+import { useCaseDetailSync } from "@/hooks/useCaseSync";
 import type { LegalCase } from "@/types";
 import { StatusDot } from "@/components/app/StatusDot";
 import { PageHeader } from "@/components/app/PageHeader";
@@ -10,6 +11,7 @@ import {
   PRE_CNR_STAGES,
   fmtDate,
   getCourtHistory,
+  getStageHistory,
 } from "@/components/app/caseDocketShared";
 import {
   ArrowLeft,
@@ -61,12 +63,24 @@ function MetaLine({ parts }: { parts: (React.ReactNode | false | undefined)[] })
 export function LawyerCaseDetailPage() {
   const { id } = Route.useParams();
   const [cases, setCases] = useState<LegalCase[]>(getCases);
+  // Re-syncs this case's full docket; the merge notifies the store subscription below.
+  const { isSyncing } = useCaseDetailSync(id);
 
   useEffect(() => {
     return subscribeToStore(() => setCases(getCases()));
   }, []);
 
   const c = cases.find((x) => x.id === id);
+
+  // A case that only exists server-side isn't "not found" until its fetch settles.
+  if (!c && isSyncing) {
+    return (
+      <div className="space-y-4">
+        <PageHeader title="Loading case…" />
+        <p className="text-sm text-muted-foreground">Fetching case {id} from the server.</p>
+      </div>
+    );
+  }
 
   if (!c) {
     return (
@@ -418,16 +432,19 @@ function CaseHistoryTab({ caseItem: c }: { caseItem: LegalCase }) {
             STAGE HISTORY
           </div>
           <div className="relative ml-3 space-y-3.5 border-l-2 border-border py-1 pl-6">
-            {PRE_CNR_STAGES.map((stageKey, i) => {
-              const label = stageKey;
-              const at = (c as any)[stageKey];
-              const isCurrent = false;
-              const stage = { key: stageKey, label, at, isCurrent };
+            {/* Derived from the case's real timeline via `getStageHistory` — this used
+                to index `c` by the stage label directly (`(c as any)["Pending by
+                Lawyer"]`), which is not a property on `LegalCase` and was always
+                `undefined`. Every stage rendered as incomplete with no date, and
+                nothing was ever marked "Current". */}
+            {getStageHistory(c).map((stage) => {
               return (
                 <div key={stage.key} className="relative">
                   <span
                     className={`absolute -left-[29px] top-0.5 h-[14px] w-[14px] rounded-full border-2 ${
-                      stage.at ? "border-primary bg-primary" : "border-muted-foreground/50 bg-surface"
+                      stage.at
+                        ? "border-primary bg-primary"
+                        : "border-muted-foreground/50 bg-surface"
                     }`}
                   />
                   <div className="flex items-center justify-between gap-3">

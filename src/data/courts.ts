@@ -123,21 +123,25 @@ const RAW_FALLBACK_LANGUAGES: string[] = [
   "Marwari",
 ];
 
-const RAW_FALLBACK_COURT_OPTIONS: CourtOption[] = RAW_FALLBACK_COURTS.slice(0, 10).map((name, idx) => ({
-  id: `c_${idx}`,
-  name,
-  level: name.includes("Supreme")
-    ? "Supreme Court"
-    : name.includes("High Court")
-      ? "High Court"
-      : name.includes("Tribunal")
-        ? "Tribunal"
-        : "District Court",
-}));
+const RAW_FALLBACK_COURT_OPTIONS: CourtOption[] = RAW_FALLBACK_COURTS.slice(0, 10).map(
+  (name, idx) => ({
+    id: `c_${idx}`,
+    name,
+    level: name.includes("Supreme")
+      ? "Supreme Court"
+      : name.includes("High Court")
+        ? "High Court"
+        : name.includes("Tribunal")
+          ? "Tribunal"
+          : "District Court",
+  }),
+);
 
 export function getManagedCourtsList(): string[] {
   try {
-    const active = getCourts().filter((c) => c.active).map((c) => c.name);
+    const active = getCourts()
+      .filter((c) => c.active)
+      .map((c) => c.name);
     return active.length > 0 ? active : RAW_FALLBACK_COURTS;
   } catch {
     return RAW_FALLBACK_COURTS;
@@ -146,7 +150,9 @@ export function getManagedCourtsList(): string[] {
 
 export function getManagedCitiesList(): string[] {
   try {
-    const active = getCities().filter((c) => c.active).map((c) => c.name);
+    const active = getCities()
+      .filter((c) => c.active)
+      .map((c) => c.name);
     return active.length > 0 ? active : RAW_FALLBACK_CITIES;
   } catch {
     return RAW_FALLBACK_CITIES;
@@ -155,7 +161,9 @@ export function getManagedCitiesList(): string[] {
 
 export function getManagedLanguagesList(): string[] {
   try {
-    const active = getLanguages().filter((l) => l.active).map((l) => l.name);
+    const active = getLanguages()
+      .filter((l) => l.active)
+      .map((l) => l.name);
     return active.length > 0 ? active : RAW_FALLBACK_LANGUAGES;
   } catch {
     return RAW_FALLBACK_LANGUAGES;
@@ -172,7 +180,9 @@ export function getManagedCourtOptions(): CourtOption[] {
         level: (c.level as CourtOption["level"]) || "District Court",
       }));
     }
-  } catch {}
+  } catch {
+    // localStorage may be unavailable (SSR, private mode) — fall through to the fallback below.
+  }
   return RAW_FALLBACK_COURT_OPTIONS;
 }
 
@@ -264,4 +274,3 @@ export function searchCourts(query: string): string[] {
   if (!q) return list;
   return list.filter((c) => c.toLowerCase().includes(q));
 }
-

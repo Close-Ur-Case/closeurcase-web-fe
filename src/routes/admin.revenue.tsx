@@ -8,11 +8,14 @@ import { Card, Button } from "@/components/m3";
 import {
   getPayments,
   getWithdrawalRequests,
+  mergeRemotePayments,
+  mergeRemoteWithdrawals,
   approveWithdrawalRequest,
   rejectWithdrawalRequest,
   subscribeToStore,
 } from "@/data/appStore";
 import { withdrawalService } from "@/services/withdrawalService";
+import { paymentService } from "@/services/paymentService";
 import type { Payment, PaymentSource, WithdrawalRequest } from "@/types";
 import {
   IndianRupee,
@@ -61,14 +64,23 @@ export function AdminRevenuePage() {
   );
 
   useEffect(() => {
-    withdrawalService
-      .listWithdrawals()
+    paymentService
+      .getPayments()
       .then((data) => {
-        if (Array.isArray(data) && data.length > 0) {
-          console.info("[Admin Revenue] Live backend withdrawals count:", data.length);
-        }
+        mergeRemotePayments(data as Partial<Payment>[]);
       })
       .catch((err: unknown) => {
+        console.warn("[Admin Revenue] Payments fetch notice:", err);
+      });
+
+    withdrawalService
+      .listWithdrawals<Partial<WithdrawalRequest>>()
+      .then((data) => {
+        // Merging notifies store subscribers, so the sync below picks this up.
+        mergeRemoteWithdrawals(data);
+      })
+      .catch((err: unknown) => {
+        // Non-fatal: the page keeps rendering whatever the store already holds.
         console.warn("[Admin Revenue] Backend fetch notice:", err);
       });
 

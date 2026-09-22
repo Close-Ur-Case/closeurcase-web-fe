@@ -1,0 +1,33 @@
+name: CI
+
+# Gate for the class of bug this repo kept shipping silently: every previous
+# incident (a crash from an undeclared variable, a mis-keyed lookup table, a
+# wrong prop name, a discarded field) was visible to `tsc` and to ESLint, but
+# neither ran anywhere before merge. This workflow is that gate.
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  verify:
+    name: Typecheck, lint, build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: latest
+
+      - name: Install dependencies
+        run: bun install --frozen-lockfile
+
+      - name: Typecheck
+        run: bun run typecheck
+
+      - name: Lint
+        run: bun run lint
+
+      - name: Build
+        run: bun run build

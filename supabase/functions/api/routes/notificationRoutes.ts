@@ -5,11 +5,14 @@ import {
   markAsRead,
   markAllAsRead,
 } from "../controllers/notificationController.ts";
-import { optionalAuth } from "../middlewares/auth.ts";
+import { optionalAuth, authenticateUser } from "../middlewares/auth.ts";
 import { RegisterFcmTokenSchema, SuccessResponseSchema } from "../schemas/index.ts";
 
 const notification = new OpenAPIHono();
 notification.use(optionalAuth);
+// Stricter than the router default: registering a push destination has no
+// legitimate anonymous case, unlike reading/acking in-app notifications.
+notification.use("/register-token", authenticateUser);
 
 const registerTokenRoute = createRoute({
   method: "post",

@@ -21,7 +21,11 @@ export default defineConfig({
             return "vendor-react";
           }
           if (/[\\/]node_modules[\\/]@tanstack[\\/]/.test(id)) return "vendor-tanstack";
-          if (/[\\/]node_modules[\\/](@material[\\/]web|@lit[\\/]|lit|lit-html|lit-element)[\\/]/.test(id)) {
+          if (
+            /[\\/]node_modules[\\/](@material[\\/]web|@lit[\\/]|lit|lit-html|lit-element)[\\/]/.test(
+              id,
+            )
+          ) {
             return "vendor-material";
           }
         },

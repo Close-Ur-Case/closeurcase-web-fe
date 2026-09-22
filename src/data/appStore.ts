@@ -1,4 +1,5 @@
 import { DEFAULT_PARSED_COURTS } from "./courtParser";
+import { resolveLegalCategory } from "@/lib/caseCategories";
 import type {
   AppNotification,
   CaseDocument,
@@ -80,6 +81,17 @@ function load<T>(key: string, seed: T): T {
   } catch {
     return seed;
   }
+}
+
+/** Drop `undefined`/`null` entries so spreading a sparse server record over a
+ * local one can only fill fields in, never blank them out. */
+function definedOnly<T extends object>(obj: T): Partial<T> {
+  const out: Partial<T> = {};
+  (Object.keys(obj) as (keyof T)[]).forEach((k) => {
+    const v = obj[k];
+    if (v !== undefined && v !== null) out[k] = v;
+  });
+  return out;
 }
 
 function save<T>(key: string, data: T) {
@@ -397,6 +409,56 @@ export function saveLawyers(lawyers: Lawyer[]) {
   save(LAWYERS_KEY, lawyers);
 }
 
+/** Fold server advocates into the local store, mirroring `mergeRemoteCases`.
+ *
+ * Field-wise rather than wholesale: the backend `lawyers` table is a near-1:1
+ * match for `Lawyer`, but any column it leaves null must not blank out a value
+ * the local store already has. Unresolvable categories keep the local value too,
+ * since `category` drives the admin list's filters. */
+export function mergeRemoteLawyers(remote: Partial<Lawyer>[]): void {
+  if (!Array.isArray(remote) || remote.length === 0) return;
+  const current = load<Lawyer[]>(LAWYERS_KEY, seedLawyers);
+  const byId = new Map(current.map((l) => [l.id, l]));
+  let changed = false;
+
+  remote.forEach((r) => {
+    if (!r || !r.id) return;
+    const existing = byId.get(r.id);
+
+    // `rating` is stored as text server-side; coerce before it reaches the UI.
+    const rating =
+      r.rating !== undefined && r.rating !== null && !Number.isNaN(Number(r.rating))
+        ? Number(r.rating)
+        : existing?.rating;
+
+    const category = resolveLegalCategory(r.category) ?? existing?.category;
+
+    const merged: Lawyer = {
+      ...(existing ?? ({} as Lawyer)),
+      ...definedOnly(r),
+      id: r.id,
+      name: r.name ?? existing?.name ?? "Advocate",
+      email: r.email ?? existing?.email ?? "",
+      phone: r.phone ?? existing?.phone ?? "",
+      city: r.city ?? existing?.city ?? "",
+      barId: r.barId ?? existing?.barId ?? "",
+      joinedAt: r.joinedAt ?? existing?.joinedAt ?? new Date().toISOString().slice(0, 10),
+      status: r.status ?? existing?.status ?? "Pending",
+      experienceYears: r.experienceYears ?? existing?.experienceYears ?? 0,
+      activeCases: r.activeCases ?? existing?.activeCases ?? 0,
+      rating: rating ?? 0,
+      category: category ?? "Civil",
+    };
+
+    if (!existing || JSON.stringify(existing) !== JSON.stringify(merged)) {
+      byId.set(r.id, merged);
+      changed = true;
+    }
+  });
+
+  if (changed) saveLawyers(Array.from(byId.values()));
+}
+
 export function addLawyer(
   lawyer: Omit<Lawyer, "id" | "rating" | "activeCases" | "joinedAt">,
 ): Lawyer {
@@ -577,6 +639,41 @@ export function saveCitizens(citizens: Citizen[]) {
   save(CITIZENS_KEY, citizens);
 }
 
+/** Fold server citizens into the local store. Same field-wise approach as
+ * `mergeRemoteLawyers` — the backend leaves email/phone/city nullable, and a
+ * null must not wipe a value the store already holds. */
+export function mergeRemoteCitizens(remote: Partial<Citizen>[]): void {
+  if (!Array.isArray(remote) || remote.length === 0) return;
+  const current = load<Citizen[]>(CITIZENS_KEY, seedCitizens);
+  const byId = new Map(current.map((c) => [c.id, c]));
+  let changed = false;
+
+  remote.forEach((r) => {
+    if (!r || !r.id) return;
+    const existing = byId.get(r.id);
+
+    const merged: Citizen = {
+      ...(existing ?? ({} as Citizen)),
+      ...definedOnly(r),
+      id: r.id,
+      name: r.name ?? existing?.name ?? "Citizen",
+      email: r.email ?? existing?.email ?? "",
+      phone: r.phone ?? existing?.phone ?? "",
+      city: r.city ?? existing?.city ?? "",
+      joinedAt: r.joinedAt ?? existing?.joinedAt ?? new Date().toISOString().slice(0, 10),
+      lastLoginAt: r.lastLoginAt ?? existing?.lastLoginAt ?? "",
+      status: r.status ?? existing?.status ?? "Active",
+    };
+
+    if (!existing || JSON.stringify(existing) !== JSON.stringify(merged)) {
+      byId.set(r.id, merged);
+      changed = true;
+    }
+  });
+
+  if (changed) saveCitizens(Array.from(byId.values()));
+}
+
 export function updateCitizenStatus(id: string, status: Citizen["status"]) {
   const current = getCitizens();
   const updated = current.map((c) => (c.id === id ? { ...c, status } : c));
@@ -598,6 +695,7 @@ export interface AdminProfile {
   email: string;
   phone: string;
   city: string;
+  currentLocation?: string;
 }
 
 const ADMIN_PROFILE_KEY = "cuc_admin_profile_v1";
@@ -626,6 +724,58 @@ export function getNotifications(role?: UserRole): AppNotification[] {
 
 export function saveNotifications(notifications: AppNotification[]) {
   save(NOTIFICATIONS_KEY, notifications);
+}
+
+/** `at` is rendered verbatim in the notifications list, so server ISO timestamps
+ * are normalized to the store's own "YYYY-MM-DD HH:MM" display format. That
+ * format also sorts lexicographically, which keeps the newest-first ordering. */
+function normalizeNotificationAt(at: string | undefined): string {
+  if (!at) return new Date().toISOString().replace("T", " ").slice(0, 16);
+  if (/^\d{4}-\d{2}-\d{2} \d{2}:\d{2}$/.test(at)) return at;
+  const parsed = new Date(at);
+  if (Number.isNaN(parsed.getTime())) return at;
+  return parsed.toISOString().replace("T", " ").slice(0, 16);
+}
+
+/** Fold server notifications into the local store, mirroring `mergeRemoteCases`.
+ * Additive: seeded/local-only alerts are kept so the app still works offline. */
+export function mergeRemoteNotifications(remote: AppNotification[]): void {
+  if (!Array.isArray(remote) || remote.length === 0) return;
+  const current = load<AppNotification[]>(NOTIFICATIONS_KEY, seedNotifications);
+  const byId = new Map(current.map((n) => [n.id, n]));
+  let changed = false;
+
+  remote.forEach((r) => {
+    if (!r || !r.id) return;
+    const existing = byId.get(r.id);
+    // Marking read only ever goes one way, and either side may have done it
+    // before the other synced — so the union wins and nothing flips back to
+    // unread on the next fetch.
+    const read = Boolean(existing?.read) || Boolean(r.read);
+
+    if (existing) {
+      if (existing.read !== read) {
+        byId.set(r.id, { ...existing, read });
+        changed = true;
+      }
+      return;
+    }
+
+    byId.set(r.id, {
+      id: r.id,
+      title: r.title,
+      body: r.body,
+      at: normalizeNotificationAt(r.at),
+      read,
+      role: r.role || "all",
+    });
+    changed = true;
+  });
+
+  if (changed) {
+    const merged = Array.from(byId.values()).sort((a, b) => b.at.localeCompare(a.at));
+    saveNotifications(merged);
+  }
 }
 
 export function addNotification(n: { title: string; body: string; role?: UserRole | "all" }) {
@@ -661,7 +811,15 @@ export function getRecentVideoCalls(role: UserRole): VideoCall[] {
     .sort((a, b) => new Date(b.at).getTime() - new Date(a.at).getTime());
 }
 
+/** Records a video consultation.
+ *
+ * `id`/`at` are generated for calls placed in-app, but history synced from the
+ * API supplies its own. Regenerating a server id broke the caller's
+ * `some(c => c.id === h.id)` dedupe — it could never match, so every sync
+ * re-appended the whole remote history. */
 export function addVideoCall(entry: {
+  id?: string;
+  at?: string;
   caseId: string;
   withName: string;
   role: UserRole;
@@ -670,10 +828,10 @@ export function addVideoCall(entry: {
 }) {
   const current = load<VideoCall[]>(VIDEO_CALLS_KEY, seedVideoCalls);
   const call: VideoCall = {
-    id: `vc_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`,
+    id: entry.id || `vc_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`,
     caseId: entry.caseId,
     withName: entry.withName,
-    at: new Date().toISOString(),
+    at: entry.at || new Date().toISOString(),
     durationSeconds: entry.durationSeconds,
     status: entry.status,
     role: entry.role,
@@ -713,12 +871,20 @@ export function saveKnowledgeBase(kb: KnowledgeItem[]) {
   save(KB_KEY, kb);
 }
 
-export function addKnowledgeItem(item: Omit<KnowledgeItem, "id" | "uploadedAt">): KnowledgeItem {
+/** Adds a knowledge-base entry.
+ *
+ * `id`/`uploadedAt` are generated for locally-authored items, but items synced
+ * from the API pass their own. Overwriting a server id used to strip it, which
+ * left the local copy keyed `k_<timestamp>` — so deleting a synced item sent an
+ * id the backend had never seen. */
+export function addKnowledgeItem(
+  item: Omit<KnowledgeItem, "id" | "uploadedAt"> & { id?: string; uploadedAt?: string },
+): KnowledgeItem {
   const current = getKnowledgeBase();
   const newItem: KnowledgeItem = {
     ...item,
-    id: `k_${Date.now()}`,
-    uploadedAt: new Date().toISOString().slice(0, 10),
+    id: item.id || `k_${Date.now()}`,
+    uploadedAt: item.uploadedAt || new Date().toISOString().slice(0, 10),
   };
   saveKnowledgeBase([newItem, ...current]);
   return newItem;
@@ -766,8 +932,8 @@ export function getSubscriptions(citizenId?: string): Subscription[] {
 
 /** A citizen's membership tier, derived from their real subscription history —
  * NOT a name hash. An active `yearly` plan is Gold, an active `monthly` plan
- * is Silver, and everyone else (free, expired, cancelled, or no plan) is
- * Bronze. Accepts a citizen id ("u_003") or a display name.
+ * is Silver, and everyone else (daily, free, expired, cancelled, or no plan)
+ * is Bronze. Accepts a citizen id ("u_003") or a display name.
  * Returns `null` for anyone who isn't a known citizen. */
 export function planTierForCitizen(idOrName: string): "gold" | "silver" | "bronze" | null {
   const key = idOrName.trim();
@@ -780,7 +946,9 @@ export function planTierForCitizen(idOrName: string): "gold" | "silver" | "bronz
   const active = subs.find((s) => s.status === "Active");
   if (active?.planId === "yearly") return "gold";
   if (active?.planId === "monthly") return "silver";
-  if (active?.planId === "daily") return "copper";
+  // `daily` returned "copper", which isn't one of the three tiers the avatar
+  // badge styles — the lookup would come back undefined. Daily sits at the
+  // entry tier until a copper badge actually exists.
   return "bronze";
 }
 
@@ -836,6 +1004,40 @@ export function getPayments(lawyerId?: string): Payment[] {
   const all = load<Payment[]>(PAYMENTS_KEY, seedPayments);
   const sorted = [...all].sort((a, b) => b.date.localeCompare(a.date));
   return lawyerId ? sorted.filter((p) => p.lawyerId === lawyerId) : sorted;
+}
+
+/** Fold server payment receipts into the local store, mirroring the other
+ * merge helpers. The backend `payments` table matches `Payment` field-for-field
+ * (grossAmount / platformAmount / lawyerAmount), so this is a direct merge. */
+export function mergeRemotePayments(remote: Partial<Payment>[]): void {
+  if (!Array.isArray(remote) || remote.length === 0) return;
+  const current = load<Payment[]>(PAYMENTS_KEY, seedPayments);
+  const byId = new Map(current.map((p) => [p.id, p]));
+  let changed = false;
+
+  remote.forEach((r) => {
+    if (!r || !r.id) return;
+    const existing = byId.get(r.id);
+
+    const merged: Payment = {
+      ...(existing ?? ({} as Payment)),
+      ...definedOnly(r),
+      id: r.id,
+      source: r.source ?? existing?.source ?? "commission",
+      date: r.date ?? existing?.date ?? new Date().toISOString().slice(0, 10),
+      status: r.status ?? existing?.status ?? "Completed",
+      grossAmount: Number(r.grossAmount ?? existing?.grossAmount ?? 0),
+      platformAmount: Number(r.platformAmount ?? existing?.platformAmount ?? 0),
+      lawyerAmount: Number(r.lawyerAmount ?? existing?.lawyerAmount ?? 0),
+    };
+
+    if (!existing || JSON.stringify(existing) !== JSON.stringify(merged)) {
+      byId.set(r.id, merged);
+      changed = true;
+    }
+  });
+
+  if (changed) save(PAYMENTS_KEY, Array.from(byId.values()));
 }
 
 /* ── WITHDRAWAL REQUESTS STORE ───────────────────────────────────────────── */
@@ -912,6 +1114,42 @@ export function getWithdrawalRequests(lawyerId?: string): WithdrawalRequest[] {
   const all = load<WithdrawalRequest[]>(WITHDRAWALS_KEY, seedWithdrawals);
   const sorted = [...all].sort((a, b) => b.requestedAt.localeCompare(a.requestedAt));
   return lawyerId ? sorted.filter((w) => w.lawyerId === lawyerId) : sorted;
+}
+
+/** Fold server withdrawal requests into the local store. The backend
+ * `withdrawal_requests` table is a 1:1 match for `WithdrawalRequest`, so this is
+ * a straight field-wise merge that never blanks out local values. */
+export function mergeRemoteWithdrawals(remote: Partial<WithdrawalRequest>[]): void {
+  if (!Array.isArray(remote) || remote.length === 0) return;
+  const current = load<WithdrawalRequest[]>(WITHDRAWALS_KEY, seedWithdrawals);
+  const byId = new Map(current.map((w) => [w.id, w]));
+  let changed = false;
+
+  remote.forEach((r) => {
+    if (!r || !r.id) return;
+    const existing = byId.get(r.id);
+
+    const merged: WithdrawalRequest = {
+      ...(existing ?? ({} as WithdrawalRequest)),
+      ...definedOnly(r),
+      id: r.id,
+      lawyerId: r.lawyerId ?? existing?.lawyerId ?? "",
+      lawyerName: r.lawyerName ?? existing?.lawyerName ?? "Advocate",
+      amount: Number(r.amount ?? existing?.amount ?? 0),
+      requestedAt: r.requestedAt ?? existing?.requestedAt ?? new Date().toISOString().slice(0, 10),
+      status: r.status ?? existing?.status ?? "Pending",
+      bankName: r.bankName ?? existing?.bankName ?? "",
+      accountNumber: r.accountNumber ?? existing?.accountNumber ?? "",
+      ifscCode: r.ifscCode ?? existing?.ifscCode ?? "",
+    };
+
+    if (!existing || JSON.stringify(existing) !== JSON.stringify(merged)) {
+      byId.set(r.id, merged);
+      changed = true;
+    }
+  });
+
+  if (changed) save(WITHDRAWALS_KEY, Array.from(byId.values()));
 }
 
 export function addWithdrawalRequest(

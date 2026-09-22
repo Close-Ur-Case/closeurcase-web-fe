@@ -160,11 +160,12 @@ export function ImportCaseModal({
       : legalCase.caseDetails.respondents;
     legalCase.citizenName = plaintiff || legalCase.citizenName;
 
-    // Sync with backend API
-    if (match.cnr) {
+    // Sync with backend API. The fixture field is `cnrNumber` — guarding on a
+    // non-existent `cnr` meant this branch never ran and imports stayed local.
+    if (match.cnrNumber) {
       caseService
         .importCase({
-          cnr: match.cnr,
+          cnr: match.cnrNumber,
           rawData: match,
         })
         .catch((err: unknown) => {

@@ -61,8 +61,13 @@ export const statesData: LocationItem[] = rawLocations.states as LocationItem[];
 export const districtsDataMap: Record<string, LocationItem[]> =
   rawLocations.districts as unknown as Record<string, LocationItem[]>;
 
+/** `locations.json` currently ships only `states` and `districts` — there is no
+ * `mandals` key, so this resolved to `undefined` and any lookup below would have
+ * thrown. Defaulting to an empty map makes `getMandalsForDistrict` degrade to
+ * `[]` until mandal data is actually added. (Nothing consumes it today.) */
 export const mandalsDataMap: Record<string, LocationItem[]> =
-  rawLocations.mandals as unknown as Record<string, LocationItem[]>;
+  ((rawLocations as Record<string, unknown>).mandals as
+    Record<string, LocationItem[]> | undefined) ?? {};
 
 /* Helper: Get districts for a given state title or state ID */
 export function getDistrictsForState(stateIdentifier: string): LocationItem[] {

@@ -169,6 +169,9 @@ export interface MasterCategory {
   code: string;
   description?: string;
   icon?: string;
+  /** Soft-delete flag on the master `case_categories` table; the API returns it
+   * on every category, and the admin taxonomy screen reads it. */
+  active?: boolean;
   subCategories?: MasterSpecialization[];
 }
 
@@ -376,9 +379,11 @@ export interface NotificationItem {
   createdAt?: string;
 }
 
+/** `userId`/`role` are not part of this payload — the backend derives both
+ * from the authenticated session, never from client-supplied values (a
+ * client-chosen `userId` would let anyone register a push destination under
+ * someone else's account). */
 export interface RegisterFcmTokenPayload {
-  userId: string;
-  role: string;
   deviceToken: string;
   deviceType?: "web" | "android" | "ios" | string;
 }
@@ -658,6 +663,27 @@ export interface AdminDashboardStats {
     pendingCount: number;
     pendingAmount: number;
   };
+}
+
+export interface AdminProfileRecord {
+  id?: string;
+  userId?: string;
+  name: string;
+  email: string;
+  phone?: string | null;
+  city?: string | null;
+  currentLocation?: string | null;
+  avatarUrl?: string | null;
+  role?: string;
+}
+
+export interface UpdateAdminMePayload {
+  name?: string;
+  email?: string;
+  phone?: string;
+  city?: string;
+  currentLocation?: string;
+  avatarUrl?: string;
 }
 
 // ============================================================================

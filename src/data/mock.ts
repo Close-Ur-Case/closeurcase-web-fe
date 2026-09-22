@@ -296,10 +296,7 @@ export const lawyers: Lawyer[] = [
     officeAddress: "Gajuwaka, Visakhapatnam",
     bio: "Krishna has represented both employees and employers in labour disputes for 15 years, covering wrongful termination, wage recovery, and industrial tribunal matters.",
     languages: ["English", "Telugu"],
-    practiceAreas: [
-      { name: "Labour & Employment" },
-      { name: "Industrial Disputes" },
-    ],
+    practiceAreas: [{ name: "Labour & Employment" }, { name: "Industrial Disputes" }],
     specializations: ["Labour & Service"],
     legalServices: ["Employment Dispute", "Wrongful Termination Matter", "Service Matter"],
     courts: [
@@ -326,10 +323,7 @@ export const lawyers: Lawyer[] = [
     officeAddress: "3rd Floor, Indiranagar 100ft Road, Bengaluru",
     bio: "Rohan practices before the Karnataka High Court and Supreme Court, handling writ petitions, appeals, and constitutional matters for individuals and small businesses across Bengaluru.",
     languages: ["English", "Kannada", "Hindi"],
-    practiceAreas: [
-      { name: "Higher Courts" },
-      { name: "Civil Litigation" },
-    ],
+    practiceAreas: [{ name: "Higher Courts" }, { name: "Civil Litigation" }],
     specializations: ["High Court"],
     legalServices: ["High Court Case Filing", "High Court Representation", "Writ Petition"],
     courts: ["Karnataka High Court", "Supreme Court of India", "City Civil Court Bengaluru"],
@@ -352,10 +346,7 @@ export const lawyers: Lawyer[] = [
     officeAddress: "2nd Avenue, T. Nagar, Chennai",
     bio: "Priya represents consumers against defective products, insurance claim denials, and unfair trade practices before the Chennai District and State Consumer Disputes Redressal Commissions.",
     languages: ["English", "Tamil"],
-    practiceAreas: [
-      { name: "Consumer Law" },
-      { name: "Insurance Claims" },
-    ],
+    practiceAreas: [{ name: "Consumer Law" }, { name: "Insurance Claims" }],
     specializations: ["Consumer Court"],
     legalServices: ["Consumer Complaint", "Consumer Legal Notice", "Consumer Dispute"],
     courts: [
@@ -381,10 +372,7 @@ export const lawyers: Lawyer[] = [
     officeAddress: "Fergusson College Road, Shivajinagar, Pune",
     bio: "Aditya advises individuals and small businesses on income tax notices, GST compliance, and tax appeals, and represents clients before appellate tribunals across Maharashtra.",
     languages: ["English", "Marathi", "Hindi"],
-    practiceAreas: [
-      { name: "Banking & Finance" },
-      { name: "Tax Litigation" },
-    ],
+    practiceAreas: [{ name: "Banking & Finance" }, { name: "Tax Litigation" }],
     specializations: ["Tax"],
     legalServices: ["Tax Consultation", "Income Tax Matter", "Tax Dispute"],
     courts: ["Bombay High Court", "Income Tax Appellate Tribunal, Pune"],

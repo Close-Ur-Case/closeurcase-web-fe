@@ -6,6 +6,7 @@ import {
   markNotificationRead,
   markAllNotificationsRead,
   deleteNotification,
+  mergeRemoteNotifications,
   subscribeToStore,
 } from "@/data/appStore";
 import { notificationService } from "@/services/notificationService";
@@ -60,13 +61,13 @@ export function SharedNotificationsPage({ role }: { role: Role }) {
 
   useEffect(() => {
     notificationService
-      .getNotifications({ role })
+      .getNotifications<AppNotification>({ role })
       .then((data) => {
-        if (Array.isArray(data) && data.length > 0) {
-          console.info(`[Notifications] Live backend alerts (${role}):`, data.length);
-        }
+        // Merging notifies store subscribers, so `sync` below picks this up.
+        mergeRemoteNotifications(data);
       })
       .catch((err: unknown) => {
+        // Non-fatal: the list keeps rendering whatever the store already holds.
         console.warn("[Notifications] Backend fetch notice:", err);
       });
 

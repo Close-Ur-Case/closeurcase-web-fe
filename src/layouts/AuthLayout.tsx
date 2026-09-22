@@ -43,7 +43,6 @@ export function AuthLayout({
       data-auth-shell
       className="flex min-h-screen flex-col bg-background lg:h-screen lg:min-h-0 lg:overflow-hidden"
     >
-
       <header className="hidden shrink-0 border-b border-border bg-surface sm:block">
         <div className="mx-auto flex h-16 w-full max-w-[1560px] items-center justify-between px-6 sm:px-8 lg:px-10">
           <Link to="/" className="flex items-center gap-2.5 shrink-0 hover:opacity-90">
@@ -66,7 +65,6 @@ export function AuthLayout({
           centerOnMobile && "items-center lg:items-stretch",
         )}
       >
-
         <main
           className={cn(
             "w-full min-w-0 lg:h-full lg:w-[55%] lg:overflow-x-hidden xl:w-[54%]",

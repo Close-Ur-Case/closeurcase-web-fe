@@ -40,9 +40,7 @@ export function AnimatedDownloadButton({
       aria-label="Download CloseUrCase App"
       className={cn(
         "group inline-flex shrink-0 items-center justify-center font-semibold rounded-full transition-all duration-200 active:scale-95 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#d4af37]",
-        isSm
-          ? "h-9 px-2.5 sm:px-3 text-xs gap-1.5"
-          : "h-9 px-3.5 text-xs gap-2",
+        isSm ? "h-9 px-2.5 sm:px-3 text-xs gap-1.5" : "h-9 px-3.5 text-xs gap-2",
         useBlendedHeader
           ? "border border-[#d4af37]/50 bg-[#d4af37]/15 text-[#f5ebd2] backdrop-blur-sm shadow-sm hover:border-[#d4af37] hover:bg-[#d4af37]/25 hover:text-white"
           : "border border-[#d4af37]/55 bg-[#d4af37]/10 text-[#8a6d2f] shadow-sm hover:border-[#d4af37] hover:bg-[#d4af37]/20 hover:text-[#6e5522]",
@@ -61,4 +59,3 @@ export function AnimatedDownloadButton({
 }
 
 export { AnimatedDownloadButton as DownloadAppButton };
-

@@ -84,6 +84,8 @@ export const adminProfiles = pgTable("admin_profiles", {
   email: varchar("email", { length: 255 }).notNull(),
   phone: varchar("phone", { length: 32 }),
   role: varchar("role", { length: 64 }).default("superadmin").notNull(),
+  city: varchar("city", { length: 128 }),
+  currentLocation: text("current_location"),
   avatarUrl: text("avatar_url"),
   createdAt: timestamp("created_at").defaultNow().notNull(),
   updatedAt: timestamp("updated_at").defaultNow().notNull(),

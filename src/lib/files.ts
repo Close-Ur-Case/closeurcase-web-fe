@@ -218,4 +218,3 @@ export function openDocumentInNewTab(item: {
   const blobUrl = URL.createObjectURL(blob);
   window.open(blobUrl, "_blank");
 }
-

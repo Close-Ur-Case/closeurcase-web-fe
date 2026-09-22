@@ -5,6 +5,7 @@ import { lookups } from "../models/lookups.ts";
 import { eq, desc, and, or, ilike, sql } from "drizzle-orm";
 import { ApiError } from "../utils/apiError.ts";
 import { NotificationService } from "./notificationService.ts";
+import { LawyerCategoryService } from "./lawyerCategoryService.ts";
 
 export class CaseService {
   /**
@@ -269,11 +270,23 @@ export class CaseService {
       },
     ];
 
-    const legalServices = Array.isArray(caseData.legalServices)
+    const rawLegalServices = Array.isArray(caseData.legalServices)
       ? caseData.legalServices
       : caseData.legalService
       ? [caseData.legalService]
       : [];
+
+    // The citizen wizard sends display names; seeded cases store canonical IDs.
+    // Normalize so `cases_user` holds one shape and category filters match.
+    const {
+      practiceArea: normalizedPracticeArea,
+      specialization: normalizedSpecialization,
+      legalServices,
+    } = await LawyerCategoryService.normalizeCaseTaxonomy(
+      caseData.practiceArea,
+      caseData.specialization,
+      rawLegalServices
+    );
 
     const newCase = {
       id,
@@ -284,8 +297,8 @@ export class CaseService {
       title: caseData.title,
       description: caseData.description,
       documents: Array.isArray(caseData.documents) ? caseData.documents : [],
-      practiceArea: caseData.practiceArea,
-      specialization: caseData.specialization,
+      practiceArea: normalizedPracticeArea,
+      specialization: normalizedSpecialization,
       legalServices,
       caseStatus: "submitted",
       lawyerCasestageId: "submitted",
