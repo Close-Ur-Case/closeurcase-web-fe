@@ -3,14 +3,12 @@ import { Link } from "@tanstack/react-router";
 import { ArrowRight } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { SectionKicker } from "@/landing-page/SectionKicker";
-import { LAWYER_PRACTICE_AREAS } from "@/components/app/lawyerPracticeAreas";
+import { usePracticeAreas } from "@/hooks/queries/useMasterData";
 
 /** Compact three-step chip drill-down over the "Find a Lawyer" mega-menu
  * taxonomy: pick a practice area -> pick a specialization -> pick the legal
  * service. The final chip is the same `/citizen-login` link (with the same
  * `area / specialization / service` search params) the header dropdown uses. */
-
-const AREAS = LAWYER_PRACTICE_AREAS;
 
 const CHIP = "rounded-full border px-3 py-1.5 text-xs font-medium transition-all duration-150";
 const CHIP_ON =
@@ -30,11 +28,13 @@ function StepLabel({ n, text }: { n: number; text: string }) {
 }
 
 export function LegalServicesExplorer() {
-  const [areaName, setAreaName] = useState(AREAS[0].category);
+  const { practiceAreas } = usePracticeAreas();
+  const [selectedAreaName, setSelectedAreaName] = useState<string | null>(null);
   const [specName, setSpecName] = useState<string | null>(null);
 
-  const area = AREAS.find((a) => a.category === areaName) ?? AREAS[0];
-  const spec = area.case_types.find((s) => s.case_type === specName) ?? null;
+  const activeCategoryName = selectedAreaName ?? practiceAreas[0]?.category ?? "";
+  const area = practiceAreas.find((a) => a.category === activeCategoryName) ?? practiceAreas[0];
+  const spec = area?.case_types?.find((s) => s.case_type === specName) ?? null;
 
   return (
     <section className="border-t border-slate-200/70 bg-[#faf8f4] py-7 sm:py-10">
@@ -53,15 +53,15 @@ export function LegalServicesExplorer() {
           {/* Step 1 — practice area */}
           <StepLabel n={1} text="Practice area" />
           <div className="mt-2 flex flex-wrap gap-2">
-            {AREAS.map((a) => (
+            {practiceAreas.map((a) => (
               <button
                 key={a.category}
                 type="button"
                 onClick={() => {
-                  setAreaName(a.category);
+                  setSelectedAreaName(a.category);
                   setSpecName(null);
                 }}
-                className={cn(CHIP, a.category === areaName ? CHIP_ON : CHIP_OFF)}
+                className={cn(CHIP, a.category === (area?.category ?? "") ? CHIP_ON : CHIP_OFF)}
               >
                 {a.category}
               </button>
@@ -69,28 +69,30 @@ export function LegalServicesExplorer() {
           </div>
 
           {/* Step 2 — specialisation */}
-          <div className="mt-3 border-t border-slate-200/60 pt-3">
-            <StepLabel n={2} text="Specialisation" />
-            <div className="mt-2 flex flex-wrap gap-2">
-              {area.case_types.map((s) => (
-                <button
-                  key={s.case_type}
-                  type="button"
-                  onClick={() => setSpecName(s.case_type === specName ? null : s.case_type)}
-                  className={cn(CHIP, s.case_type === specName ? CHIP_ON : CHIP_OFF)}
-                >
-                  {s.case_type}
-                </button>
-              ))}
+          {area && (
+            <div className="mt-3 border-t border-slate-200/60 pt-3">
+              <StepLabel n={2} text="Specialisation" />
+              <div className="mt-2 flex flex-wrap gap-2">
+                {area.case_types?.map((s) => (
+                  <button
+                    key={s.case_type}
+                    type="button"
+                    onClick={() => setSpecName(s.case_type === specName ? null : s.case_type)}
+                    className={cn(CHIP, s.case_type === specName ? CHIP_ON : CHIP_OFF)}
+                  >
+                    {s.case_type}
+                  </button>
+                ))}
+              </div>
             </div>
-          </div>
+          )}
 
           {/* Step 3 — the service (links into filing) */}
-          {spec && (
+          {area && spec && (
             <div className="mt-3 animate-in fade-in slide-in-from-top-1 border-t border-slate-200/60 pt-3 duration-200">
               <StepLabel n={3} text="What you need" />
               <div className="mt-2 flex flex-wrap gap-2">
-                {spec.legal_services.map((service) => (
+                {spec.legal_services?.map((service) => (
                   <Link
                     key={service}
                     to="/citizen-login"

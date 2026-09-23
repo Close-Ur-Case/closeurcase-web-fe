@@ -40,6 +40,7 @@ import { VideoCallProvider } from "@/features/video-call/VideoCallContext";
 import { clearCitizenSession } from "@/features/citizen/session";
 import { useAuth } from "@/context/useAuth";
 import { usePushNotifications } from "@/hooks/usePushNotifications";
+import { useAppSync } from "@/hooks/useAppSync";
 import { IconButton, Badge } from "@/components/m3";
 
 export interface NavItem {
@@ -249,6 +250,8 @@ export function DashboardLayout({
   const pathname = useRouterState({ select: (s) => s.location.pathname });
   const mainRef = useRef<HTMLElement>(null);
   const { logout } = useAuth();
+  // Reactive boot sync for authenticated dashboard users
+  useAppSync();
   // No-ops without Firebase config or browser support — see the hook's own
   // comment. Mounted here rather than per-role so all three dashboards get
   // it from one place, the same way notification fetching already works.

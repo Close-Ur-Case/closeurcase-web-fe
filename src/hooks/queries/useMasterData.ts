@@ -2,8 +2,12 @@
  * React Query hooks for Master Data & Lookups
  */
 
+import { useEffect, useMemo } from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { masterDataService } from "@/services/masterDataService";
+import { mergeRemoteCaseCategories } from "@/data/appStore";
+import { getLawyerPracticeAreas, type LawyerPracticeArea } from "@/components/app/lawyerPracticeAreas";
+import type { MasterCategory } from "@/types/api";
 
 export function useCategoriesQuery() {
   return useQuery({
@@ -11,6 +15,54 @@ export function useCategoriesQuery() {
     queryFn: () => masterDataService.getCategories(),
     staleTime: 60 * 60 * 1000, // 1 hour
   });
+}
+
+/**
+ * React Query hook providing live legal practice areas (categories -> specializations -> services)
+ * for the public header mega-menu and landing explorer.
+ * Automatically synchronizes with appStore and falls back to local seed data.
+ */
+export function usePracticeAreas() {
+  const query = useCategoriesQuery();
+  const remoteCategories = query.data;
+
+  useEffect(() => {
+    if (Array.isArray(remoteCategories) && remoteCategories.length > 0) {
+      const mapped = remoteCategories.map((rc) => ({
+        id: rc.id,
+        name: rc.name,
+        code: rc.code || rc.name.slice(0, 4).toUpperCase(),
+        description: rc.description || "",
+        active: rc.active !== false,
+        subCategories: (rc.subCategories || []).map((sc) => ({
+          name: sc.name,
+          services: (sc.services || []).map((s) => (typeof s === "string" ? s : s.name)),
+        })),
+      }));
+      mergeRemoteCaseCategories(mapped);
+    }
+  }, [remoteCategories]);
+
+  const practiceAreas: LawyerPracticeArea[] = useMemo(() => {
+    if (Array.isArray(remoteCategories) && remoteCategories.length > 0) {
+      return remoteCategories
+        .filter((c) => c.active !== false)
+        .map((c) => ({
+          category: c.name,
+          case_types: (c.subCategories || []).map((sc) => ({
+            case_type: sc.name,
+            legal_services: (sc.services || []).map((s) => (typeof s === "string" ? s : s.name)),
+          })),
+        }));
+    }
+    return getLawyerPracticeAreas();
+  }, [remoteCategories]);
+
+  return {
+    practiceAreas,
+    isLoading: query.isLoading,
+    isError: query.isError,
+  };
 }
 
 export function useSpecializationsQuery(categoryId?: string) {

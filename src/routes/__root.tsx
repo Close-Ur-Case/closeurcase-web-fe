@@ -10,7 +10,6 @@ import { useEffect } from "react";
 import { CitizenLanguageProvider } from "@/features/citizen/i18n/CitizenLanguageContext";
 import { AuthProvider } from "@/context/AuthContext";
 import { Button, FILLED_LINK_BUTTON_CLASS, OUTLINED_LINK_BUTTON_CLASS } from "@/components/m3";
-import { useAppSync } from "@/hooks/useAppSync";
 
 function NotFoundComponent() {
   return (
@@ -140,18 +139,12 @@ function ScrollToTop() {
   return null;
 }
 
-function AppSyncSubscriber() {
-  useAppSync();
-  return null;
-}
-
 function RootComponent() {
   const { queryClient } = Route.useRouteContext();
 
   return (
     <QueryClientProvider client={queryClient}>
       <AuthProvider>
-        <AppSyncSubscriber />
         <CitizenLanguageProvider>
           <ScrollToTop />
           <Outlet />

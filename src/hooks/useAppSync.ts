@@ -49,7 +49,7 @@ import type {
 export function useAppSync() {
   const { user, role, isAuthenticated } = useAuth();
 
-  // 1. Synchronize Master Legal Taxonomies
+  // 1. Synchronize Master Legal Taxonomies (Courts, Languages, States, Court Levels)
   useMasterDataSync();
 
   // 2. Synchronize User-Scoped Cases
@@ -68,31 +68,37 @@ export function useAppSync() {
       .catch((err) => console.warn("[AppSync] Notifications notice:", err));
   }, [isAuthenticated, role, user?.id]);
 
-  const entitySyncRef = useRef(false);
+  const syncedUserRef = useRef<string | null>(null);
 
   useEffect(() => {
-    if (entitySyncRef.current) return;
-    entitySyncRef.current = true;
+    if (!isAuthenticated || !user) return;
+    const syncKey = `${user.id || "authed"}_${role || "none"}`;
+    if (syncedUserRef.current === syncKey) return;
+    syncedUserRef.current = syncKey;
 
-    // A. Sync Lawyers Directory
-    lawyerService
-      .getLawyers<Partial<Lawyer>>()
-      .then((lawyers) => {
-        if (Array.isArray(lawyers) && lawyers.length > 0) {
-          mergeRemoteLawyers(lawyers);
-        }
-      })
-      .catch((err) => console.warn("[AppSync] Lawyers notice:", err));
+    // A. Sync Lawyers Directory (Citizens searching for lawyers & Admins managing them)
+    if (role === "citizen" || role === "admin") {
+      lawyerService
+        .getLawyers<Partial<Lawyer>>()
+        .then((lawyers) => {
+          if (Array.isArray(lawyers) && lawyers.length > 0) {
+            mergeRemoteLawyers(lawyers);
+          }
+        })
+        .catch((err) => console.warn("[AppSync] Lawyers notice:", err));
+    }
 
-    // B. Sync Citizens Directory
-    citizenService
-      .getCitizens<Partial<Citizen>>()
-      .then((citizens) => {
-        if (Array.isArray(citizens) && citizens.length > 0) {
-          mergeRemoteCitizens(citizens);
-        }
-      })
-      .catch((err) => console.warn("[AppSync] Citizens notice:", err));
+    // B. Sync Citizens Directory (Admin only)
+    if (role === "admin") {
+      citizenService
+        .getCitizens<Partial<Citizen>>()
+        .then((citizens) => {
+          if (Array.isArray(citizens) && citizens.length > 0) {
+            mergeRemoteCitizens(citizens);
+          }
+        })
+        .catch((err) => console.warn("[AppSync] Citizens notice:", err));
+    }
 
     // C. Sync Knowledge Base Items
     knowledgeService
@@ -126,17 +132,7 @@ export function useAppSync() {
       })
       .catch((err) => console.warn("[AppSync] Payments notice:", err));
 
-    // F. Sync In-App Notifications
-    notificationService
-      .getNotifications()
-      .then((notifs) => {
-        if (Array.isArray(notifs) && notifs.length > 0) {
-          mergeRemoteNotifications(notifs);
-        }
-      })
-      .catch((err) => console.warn("[AppSync] Notifications notice:", err));
-
-    // G. Sync Video Consultations
+    // F. Sync Video Consultations
     videoCallService
       .listCalls()
       .then((calls) => {
@@ -146,14 +142,16 @@ export function useAppSync() {
       })
       .catch((err) => console.warn("[AppSync] Video calls notice:", err));
 
-    // H. Sync Payout Withdrawals
-    withdrawalService
-      .listWithdrawals<Partial<WithdrawalRequest>>()
-      .then((withdrawals) => {
-        if (Array.isArray(withdrawals) && withdrawals.length > 0) {
-          mergeRemoteWithdrawals(withdrawals);
-        }
-      })
-      .catch((err) => console.warn("[AppSync] Withdrawals notice:", err));
-  }, []);
+    // G. Sync Payout Withdrawals (Lawyers requesting & Admin approving)
+    if (role === "lawyer" || role === "admin") {
+      withdrawalService
+        .listWithdrawals<Partial<WithdrawalRequest>>()
+        .then((withdrawals) => {
+          if (Array.isArray(withdrawals) && withdrawals.length > 0) {
+            mergeRemoteWithdrawals(withdrawals);
+          }
+        })
+        .catch((err) => console.warn("[AppSync] Withdrawals notice:", err));
+    }
+  }, [isAuthenticated, role, user]);
 }

@@ -16,7 +16,7 @@ import {
 import { cn } from "@/lib/utils";
 import { CitizenLanguageButtons } from "@/features/citizen/CitizenLanguageButtons";
 import { PublicNav } from "@/components/app/PublicNav";
-import { LAWYER_PRACTICE_AREAS } from "@/components/app/lawyerPracticeAreas";
+import { usePracticeAreas } from "@/hooks/queries/useMasterData";
 import { GOVERNMENT_SERVICES } from "@/data/governmentServices";
 import { useCitizenLanguage } from "@/features/citizen/i18n/CitizenLanguageContext";
 import { AnimatedDownloadButton } from "@/components/app/AnimatedDownloadButton";
@@ -52,6 +52,7 @@ export function PublicLayout({ children }: { children: ReactNode }) {
   const [openGovCategory, setOpenGovCategory] = useState<string | null>(null);
   const [isHeroScrolled, setIsHeroScrolled] = useState(false);
   const { translate } = useCitizenLanguage();
+  const { practiceAreas } = usePracticeAreas();
   const location = useLocation();
   const isHome = location.pathname === "/";
 
@@ -274,7 +275,7 @@ export function PublicLayout({ children }: { children: ReactNode }) {
               }`}
             >
               <div className="border-t border-border">
-                {LAWYER_PRACTICE_AREAS.map((area) => {
+                {practiceAreas.map((area) => {
                   const isAreaOpen = openAreaName === area.category;
                   return (
                     <div key={area.category} className="border-b border-border last:border-b-0">
@@ -296,7 +297,7 @@ export function PublicLayout({ children }: { children: ReactNode }) {
 
                       {isAreaOpen && (
                         <div className="space-y-1 bg-muted/30 px-4 pb-2">
-                          {area.case_types.map((spec) => {
+                          {area.case_types?.map((spec) => {
                             const isSpecOpen = openSpecName === spec.case_type;
                             return (
                               <div key={spec.case_type}>
@@ -557,7 +558,7 @@ export function PublicLayout({ children }: { children: ReactNode }) {
                 Practice areas
               </h3>
               <ul className="mt-3 grid grid-cols-1 gap-2 text-xs text-slate-600">
-                {LAWYER_PRACTICE_AREAS.slice(0, 6).map((area) => (
+                {practiceAreas.slice(0, 6).map((area) => (
                   <li key={area.category}>
                     <Link
                       to="/citizen-login"

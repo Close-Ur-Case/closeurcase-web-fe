@@ -1,7 +1,7 @@
 import { Link } from "@tanstack/react-router";
 import { useEffect, useRef, useState } from "react";
 import { ArrowRight, ChevronDown, ChevronRight, ExternalLink } from "lucide-react";
-import { LAWYER_PRACTICE_AREAS } from "@/components/app/lawyerPracticeAreas";
+import { usePracticeAreas } from "@/hooks/queries/useMasterData";
 import { GOVERNMENT_SERVICES } from "@/data/governmentServices";
 
 type MenuKey = "lawyer" | "gov";
@@ -19,6 +19,7 @@ const CLOSE_DELAY_MS = 150;
  * real link, so it still works with JS/hover disabled or on click; hover
  * just reveals the preview. */
 export function PublicNav() {
+  const { practiceAreas } = usePracticeAreas();
   const [openMenu, setOpenMenu] = useState<MenuKey | null>(null);
   const [activeAreaIndex, setActiveAreaIndex] = useState(0);
   const closeTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -55,15 +56,15 @@ export function PublicNav() {
     };
   }, []);
 
-  const activeArea = LAWYER_PRACTICE_AREAS[activeAreaIndex];
+  const activeArea = practiceAreas[activeAreaIndex] ?? practiceAreas[0];
 
   return (
     <nav ref={navRef} className="relative hidden xl:flex items-center justify-center gap-1">
-      <Link
-        to="/citizen-login"
+      <button
+        type="button"
         onMouseEnter={() => openNow("lawyer")}
         onMouseLeave={closeSoon}
-        onClick={closeNow}
+        onClick={() => setOpenMenu((v) => (v === "lawyer" ? null : "lawyer"))}
         className="flex items-center gap-1 rounded-lg px-3 py-2 text-xs font-semibold text-foreground transition-colors duration-150 hover:bg-muted hover:text-primary"
       >
         Find a Lawyer
@@ -72,7 +73,7 @@ export function PublicNav() {
             openMenu === "lawyer" ? "rotate-180" : ""
           }`}
         />
-      </Link>
+      </button>
 
       <button
         type="button"
@@ -112,7 +113,7 @@ export function PublicNav() {
         <div className="overflow-hidden rounded-xl border border-border bg-surface shadow-lg">
           <div className="flex">
             <div className="w-52 shrink-0 border-r border-border py-2">
-              {LAWYER_PRACTICE_AREAS.map((area, i) => (
+              {practiceAreas.map((area, i) => (
                 <button
                   key={area.category}
                   type="button"
@@ -132,7 +133,7 @@ export function PublicNav() {
 
             <div className="max-h-105 flex-1 overflow-y-auto p-5">
               <div className="grid grid-cols-2 gap-x-6 gap-y-5 lg:grid-cols-3">
-                {activeArea.case_types.map((spec) => (
+                {activeArea?.case_types?.map((spec) => (
                   <div key={spec.case_type}>
                     <h4 className="text-xs font-bold text-foreground">{spec.case_type}</h4>
                     <ul className="mt-1.5 space-y-1">

@@ -6,6 +6,7 @@
  */
 
 import { useEffect, useRef } from "react";
+import { useAuth } from "@/context/useAuth";
 import { masterDataService } from "@/services/masterDataService";
 import {
   mergeRemoteCaseCategories,
@@ -19,9 +20,11 @@ import {
 import type { MasterCategory, MasterCourt } from "@/types/api";
 
 export function useMasterDataSync() {
+  const { isAuthenticated } = useAuth();
   const syncedRef = useRef(false);
 
   useEffect(() => {
+    if (!isAuthenticated) return;
     if (syncedRef.current) return;
     syncedRef.current = true;
 
