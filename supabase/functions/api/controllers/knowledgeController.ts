@@ -17,6 +17,15 @@ export async function getKnowledgeBase(c: Context) {
   return ApiResponse.success(c, items, "Knowledge items retrieved successfully");
 }
 
+export async function getKnowledgeItemById(c: Context) {
+  const id = c.req.param("id")!;
+  const [item] = await db.select().from(knowledgeItems).where(eq(knowledgeItems.id, id));
+  if (!item) {
+    throw ApiError.notFound(`Knowledge item '${id}' not found`);
+  }
+  return ApiResponse.success(c, item, "Knowledge item retrieved successfully");
+}
+
 export async function addKnowledgeItem(c: Context) {
   const { title, type, category, size, fileUrl, fileName, fileMimeType } = await c.req.json();
   if (!title || !type || !category) {

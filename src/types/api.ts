@@ -99,7 +99,6 @@ export interface AuthResponseData {
   lawyer?: Record<string, unknown>;
   admin?: Record<string, unknown>;
   message?: string;
-  isMock?: boolean;
 }
 
 // ============================================================================
@@ -556,6 +555,21 @@ export interface CaseQAResponse {
   timestamp: string;
 }
 
+export interface LegalQAPayload {
+  question: string;
+  context?: string;
+  category?: string;
+}
+
+export interface LegalQAResponse {
+  question: string;
+  answer: string;
+  followUps?: string[];
+  sources?: string[];
+  confidenceScore?: number;
+  timestamp: string;
+}
+
 export interface SummarizeDocPayload {
   documentTitle?: string;
   documentText?: string;
@@ -570,6 +584,25 @@ export interface SummarizeDocResponse {
   keyPoints: string[];
   pageCount?: number;
   classifiedType?: string;
+}
+
+export interface CaseAnalysisPayload {
+  caseId?: string;
+  briefText?: string;
+  text?: string;
+}
+
+export interface CaseAnalysisResponse {
+  id: string;
+  caseId?: string | null;
+  generatedAt: string;
+  summary: string;
+  strengthScore: number;
+  strengths: string[];
+  weaknesses: string[];
+  recommendedActions: string[];
+  relevantPrecedents: string[];
+  suggestedTimeline: { step: string; targetDays: string }[];
 }
 
 // ============================================================================

@@ -22,6 +22,14 @@ export interface UserCaseTimelineEvent {
   note: string;
 }
 
+export interface UserCaseNote {
+  id: string;
+  caseId?: string;
+  text: string;
+  author: string;
+  createdAt: string;
+}
+
 export const casesUser = pgTable("cases_user", {
   id: varchar("id", { length: 128 }).primaryKey(),
   citizenId: varchar("citizen_id", { length: 64 }).notNull().references(() => citizens.id, { onDelete: "cascade" }),
@@ -39,6 +47,7 @@ export const casesUser = pgTable("cases_user", {
   rejectionReason: text("rejection_reason"),
   isEmergency: boolean("is_emergency").default(false),
   timeline: jsonb("timeline").$type<UserCaseTimelineEvent[]>().notNull().default([]),
+  notes: jsonb("notes").$type<UserCaseNote[]>().notNull().default([]),
   createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
   updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
 });

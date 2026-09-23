@@ -22,6 +22,7 @@ import { useCitizenLanguage } from "@/features/citizen/i18n/CitizenLanguageConte
 import { AnimatedDownloadButton } from "@/components/app/AnimatedDownloadButton";
 import { MailLink } from "@/components/app/MailLink";
 import { FILLED_LINK_BUTTON_CITIZEN_CLASS, IconButton } from "@/components/m3";
+import { LexBot } from "@/components/app/LexBot";
 
 /** Gold gradient treatment for header/drawer CTAs, matching the gold CTAs
  * used throughout the new landing page instead of the component's default
@@ -587,6 +588,7 @@ export function PublicLayout({ children }: { children: ReactNode }) {
           </div>
         </div>
       </footer>
+      <LexBot />
     </div>
   );
 }

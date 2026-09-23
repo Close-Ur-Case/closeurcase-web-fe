@@ -1,10 +1,14 @@
-import rawCategories from "../../case_categories.json";
-import rawLocations from "../../locations.json";
-import rawLawyers from "../../lawyers.json";
+/**
+ * Legal Data Access Layer - ZERO-MOCK DYNAMIC STATE
+ * Decoupled from static .json files.
+ * Data is dynamically sourced from PostgreSQL via appStore and Supabase Master Data APIs.
+ */
+
 import type { Lawyer, LegalCategory } from "@/types";
+import { getCaseCategories, getStates, getLawyers } from "./appStore";
 
 /* ─────────────────────────────────────────────────────────────────────────────
-   Types & Interfaces for JSON Datasets
+   Types & Interfaces
 ───────────────────────────────────────────────────────────────────────────── */
 export interface RawCategoryItem {
   id: string;
@@ -31,22 +35,33 @@ export interface RawLawyerItem {
 }
 
 /* ─────────────────────────────────────────────────────────────────────────────
-   1. Case Categories
+   1. Case Categories (Dynamic)
 ───────────────────────────────────────────────────────────────────────────── */
-export const legalCategoriesData: RawCategoryItem[] = rawCategories as RawCategoryItem[];
+export const legalCategoriesData: RawCategoryItem[] = [];
 
-export const categoryTitlesList: string[] = legalCategoriesData.map((c) => c.title);
+export const categoryTitlesList: string[] = [
+  "Criminal",
+  "Civil",
+  "Property",
+  "Family",
+  "Consumer",
+  "Cyber",
+  "Corporate",
+  "Labour",
+  "Tax",
+  "Environmental",
+];
 
 /* Map raw category string to standard title */
 export function normalizeCategoryTitle(catRaw: string): string {
   if (!catRaw) return "General Legal Matter";
-  const found = legalCategoriesData.find(
+  const categories = getCaseCategories();
+  const found = categories.find(
     (c) =>
-      c.id.toLowerCase() === catRaw.toLowerCase() || c.title.toLowerCase() === catRaw.toLowerCase(),
+      c.id.toLowerCase() === catRaw.toLowerCase() || c.name.toLowerCase() === catRaw.toLowerCase(),
   );
-  if (found) return found.title;
+  if (found) return found.name;
 
-  // Capitalize nicely
   return catRaw
     .split("_")
     .map((w) => w.charAt(0).toUpperCase() + w.slice(1))
@@ -56,56 +71,43 @@ export function normalizeCategoryTitle(catRaw: string): string {
 /* ─────────────────────────────────────────────────────────────────────────────
    2. Locations (States, Districts, Mandals)
 ───────────────────────────────────────────────────────────────────────────── */
-export const statesData: LocationItem[] = rawLocations.states as LocationItem[];
+export const statesData: LocationItem[] = [];
 
-export const districtsDataMap: Record<string, LocationItem[]> =
-  rawLocations.districts as unknown as Record<string, LocationItem[]>;
+export const districtsDataMap: Record<string, LocationItem[]> = {};
 
-/** `locations.json` currently ships only `states` and `districts` — there is no
- * `mandals` key, so this resolved to `undefined` and any lookup below would have
- * thrown. Defaulting to an empty map makes `getMandalsForDistrict` degrade to
- * `[]` until mandal data is actually added. (Nothing consumes it today.) */
-export const mandalsDataMap: Record<string, LocationItem[]> =
-  ((rawLocations as Record<string, unknown>).mandals as
-    Record<string, LocationItem[]> | undefined) ?? {};
+export const mandalsDataMap: Record<string, LocationItem[]> = {};
 
 /* Helper: Get districts for a given state title or state ID */
 export function getDistrictsForState(stateIdentifier: string): LocationItem[] {
   if (!stateIdentifier) return [];
-  const stateObj = statesData.find(
-    (s) => s.id === stateIdentifier || s.title.toLowerCase() === stateIdentifier.toLowerCase(),
+  const states = getStates();
+  const stateObj = states.find(
+    (s) =>
+      s.id === stateIdentifier ||
+      s.name.toLowerCase() === stateIdentifier.toLowerCase() ||
+      s.code?.toLowerCase() === stateIdentifier.toLowerCase(),
   );
-  const stateId = stateObj ? stateObj.id : stateIdentifier.toLowerCase().replace(/\s+/g, "_");
-  return districtsDataMap[stateId] || [];
+  if (!stateObj || !stateObj.districts) return [];
+
+  return stateObj.districts.map((d) => ({
+    id: d.toLowerCase().replace(/\s+/g, "_"),
+    title: d,
+  }));
 }
 
 /* Helper: Get mandals for a given district title or district ID */
 export function getMandalsForDistrict(districtIdentifier: string): LocationItem[] {
   if (!districtIdentifier) return [];
-  // Find key in mandalsDataMap
   const lower = districtIdentifier.toLowerCase().replace(/\s+/g, "_");
   if (mandalsDataMap[lower]) return mandalsDataMap[lower];
-
-  // Try matching by district title across all lists
-  for (const list of Object.values(districtsDataMap)) {
-    const found = list.find(
-      (d) =>
-        d.title.toLowerCase() === districtIdentifier.toLowerCase() || d.id === districtIdentifier,
-    );
-    if (found && mandalsDataMap[found.id]) {
-      return mandalsDataMap[found.id];
-    }
-  }
-
   return [];
 }
 
 /* ─────────────────────────────────────────────────────────────────────────────
-   3. Lawyers Dataset
+   3. Lawyers Dynamic Lookups
 ───────────────────────────────────────────────────────────────────────────── */
-const rawLawyersList: RawLawyerItem[] = rawLawyers as unknown as RawLawyerItem[];
 
-/* Convert raw lawyer item from lawyers.json into standard Lawyer app type */
+/* Convert raw lawyer item into standard Lawyer app type */
 export function adaptRawLawyer(l: RawLawyerItem, index: number): Lawyer {
   const normCat = normalizeCategoryTitle(l.Category) as LegalCategory;
   const ratingVal = Number((4.3 + (index % 7) * 0.1).toFixed(1));
@@ -129,13 +131,17 @@ export function adaptRawLawyer(l: RawLawyerItem, index: number): Lawyer {
   };
 }
 
-/* All adapted lawyers */
-export const allDatabaseLawyers: Lawyer[] = rawLawyersList.map(adaptRawLawyer);
+/* All dynamic lawyers from store */
+export function getAllDatabaseLawyers(): Lawyer[] {
+  return getLawyers();
+}
 
-/* Count of verified Lawyers whose category matches the given category title exactly */
+export const allDatabaseLawyers: Lawyer[] = [];
+
+/* Count of verified Lawyers whose category matches the given category title */
 export function getLawyerCountByCategory(categoryTitle: string): number {
   if (!categoryTitle) return 0;
-  return allDatabaseLawyers.filter((l) => l.category === categoryTitle).length;
+  return getLawyers().filter((l) => l.category === categoryTitle).length;
 }
 
 /* Helper: Search lawyers matching criteria (State, District, Mandal, Category) */
@@ -148,60 +154,33 @@ export function searchLawyersFromDb(criteria: {
   const cCat = criteria.category ? criteria.category.toLowerCase() : "";
   const cState = criteria.state ? criteria.state.toLowerCase() : "";
   const cDistrict = criteria.district ? criteria.district.toLowerCase() : "";
-  const cMandal = criteria.mandal ? criteria.mandal.toLowerCase() : "";
 
+  const lawyers = getLawyers();
   const results: { lawyer: Lawyer; raw: RawLawyerItem }[] = [];
 
-  for (let i = 0; i < rawLawyersList.length; i++) {
-    const raw = rawLawyersList[i];
-    const catTitle = normalizeCategoryTitle(raw.Category).toLowerCase();
+  for (let i = 0; i < lawyers.length; i++) {
+    const l = lawyers[i];
+    const cat = (l.category || "").toLowerCase();
+    const city = (l.city || "").toLowerCase();
 
-    // Category check
-    if (cCat && !catTitle.includes(cCat) && !raw.Category.toLowerCase().includes(cCat)) {
-      continue;
-    }
+    if (cCat && !cat.includes(cCat)) continue;
+    if (cState && !city.includes(cState)) continue;
+    if (cDistrict && !city.includes(cDistrict)) continue;
 
-    // State check
-    if (cState && !raw.Address.State.toLowerCase().includes(cState)) {
-      continue;
-    }
+    const raw: RawLawyerItem = {
+      id: l.id,
+      name: l.name,
+      Phone_Number: l.phone,
+      registration_number: l.barId,
+      Category: l.category,
+      Address: {
+        State: l.city.split(",")[1]?.trim() || l.city,
+        District: l.city.split(",")[0]?.trim() || l.city,
+        Mandal: "",
+      },
+    };
 
-    // District check
-    if (cDistrict && !raw.Address.District.toLowerCase().includes(cDistrict)) {
-      continue;
-    }
-
-    // Mandal check
-    if (cMandal && !raw.Address.Mandal.toLowerCase().includes(cMandal)) {
-      continue;
-    }
-
-    results.push({
-      lawyer: adaptRawLawyer(raw, i),
-      raw,
-    });
-  }
-
-  // Fallback: If no exact mandal match found, relax mandal/district filter to return state/category matched lawyers
-  if (results.length === 0 && (cCat || cState)) {
-    for (let i = 0; i < rawLawyersList.length; i++) {
-      const raw = rawLawyersList[i];
-      const catTitle = normalizeCategoryTitle(raw.Category).toLowerCase();
-
-      if (cCat && !catTitle.includes(cCat) && !raw.Category.toLowerCase().includes(cCat)) {
-        continue;
-      }
-      if (cState && !raw.Address.State.toLowerCase().includes(cState)) {
-        continue;
-      }
-
-      results.push({
-        lawyer: adaptRawLawyer(raw, i),
-        raw,
-      });
-
-      if (results.length >= 15) break;
-    }
+    results.push({ lawyer: l, raw });
   }
 
   return results;

@@ -2,6 +2,8 @@ import { useState, useRef, useEffect, useCallback } from "react";
 import { Bot, X, Send, Minimize2, Maximize2, Scale, Trash2 } from "lucide-react";
 import { Fab, IconButton, Button, TextField, SuggestionChip } from "@/components/m3";
 import type { MdOutlinedTextField } from "@material/web/textfield/outlined-text-field.js";
+import { aiService } from "@/services/aiService";
+import { getKnowledgeBase } from "@/data/appStore";
 
 /* ─────────────────────────────────────────────────────────────────────────────
    Legal Knowledge Base (sourced from Indian legal databases & government sites)
@@ -256,26 +258,69 @@ export function LexBot({
     }
   }, [open, messages]);
 
-  const sendMessage = useCallback((text: string) => {
-    if (!text.trim()) return;
-    const userMsg: Message = { id: mkId(), role: "user", html: text, ts: mkTime() };
+  const sendMessage = useCallback(async (text: string) => {
+    const trimmed = text.trim();
+    if (!trimmed) return;
+
+    const userMsg: Message = { id: mkId(), role: "user", html: trimmed, ts: mkTime() };
     setMessages((prev) => [...prev, userMsg]);
     setInput("");
     setTyping(true);
 
-    const delay = 900 + Math.random() * 600;
-    setTimeout(() => {
-      const resp = findAnswer(text);
-      const botMsg: Message = {
-        id: mkId(),
-        role: "bot",
-        html: resp.text,
-        followUps: resp.followUps,
-        ts: mkTime(),
-      };
-      setMessages((prev) => [...prev, botMsg]);
-      setTyping(false);
-    }, delay);
+    try {
+      const res = await aiService.legalQA({ question: trimmed });
+      if (res?.answer) {
+        let formatted = formatAnswer(res.answer);
+        const allSources = [...(res.sources || [])];
+
+        // Also check if any local knowledge base documents match the topic
+        try {
+          const localDocs = getKnowledgeBase().filter(
+            (k) =>
+              trimmed.toLowerCase().includes(k.category.toLowerCase()) ||
+              k.title.toLowerCase().includes(trimmed.toLowerCase()),
+          );
+          for (const doc of localDocs.slice(0, 2)) {
+            const label = `${doc.title} (${doc.type})`;
+            if (!allSources.includes(label)) {
+              allSources.push(label);
+            }
+          }
+        } catch {
+          // ignore store lookup error
+        }
+
+        if (allSources.length > 0) {
+          formatted += `<div class="mt-2 pt-1.5 border-t border-border/50 text-[10px] text-muted-foreground flex flex-wrap items-center gap-1"><span>⚖️</span><span class="font-medium">Sources: ${allSources.join(" · ")}</span></div>`;
+        }
+
+        const botMsg: Message = {
+          id: mkId(),
+          role: "bot",
+          html: formatted,
+          followUps:
+            res.followUps && res.followUps.length > 0 ? res.followUps : SUGGESTED.slice(0, 3),
+          ts: mkTime(),
+        };
+        setMessages((prev) => [...prev, botMsg]);
+        setTyping(false);
+        return;
+      }
+    } catch (err) {
+      console.warn("LexBot remote legalQA error, falling back to local KB:", err);
+    }
+
+    // Fallback: local curated legal knowledge base
+    const resp = findAnswer(trimmed);
+    const botMsg: Message = {
+      id: mkId(),
+      role: "bot",
+      html: resp.text,
+      followUps: resp.followUps,
+      ts: mkTime(),
+    };
+    setMessages((prev) => [...prev, botMsg]);
+    setTyping(false);
   }, []);
 
   const handleSubmit = (e: React.FormEvent) => {

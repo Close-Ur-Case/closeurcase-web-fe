@@ -11,6 +11,7 @@ import { getCases, getLawyers, subscribeToStore } from "@/data/appStore";
 import type { LegalCase } from "@/types";
 import { Search, Download } from "lucide-react";
 import { Button, TextField } from "@/components/m3";
+import { useAuth } from "@/context/useAuth";
 
 type CaseTab = "Assigned" | "Imported";
 
@@ -42,9 +43,18 @@ export function CasesListView() {
     setPage(1);
   }
 
-  const currentLawyer = lawyersList.find((l) => l.id === "l_001") || lawyersList[0];
+  const { user } = useAuth();
+  const currentLawyerId = user?.lawyerId || user?.id || "l_001";
+  const currentLawyer =
+    lawyersList.find(
+      (l) =>
+        l.id === currentLawyerId ||
+        (user?.email && l.email?.toLowerCase() === user.email.toLowerCase()),
+    ) || lawyersList[0];
   const myCases = rows.filter(
-    (c) => c.lawyerId === "l_001" || c.lawyerName === currentLawyer?.name,
+    (c) =>
+      c.lawyerId === currentLawyerId ||
+      (currentLawyer && (c.lawyerId === currentLawyer.id || c.lawyerName === currentLawyer.name)),
   );
 
   const assignedCases = myCases.filter((c) => c.source !== "ecourt");

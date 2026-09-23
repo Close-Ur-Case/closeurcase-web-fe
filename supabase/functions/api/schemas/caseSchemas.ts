@@ -87,3 +87,22 @@ export const ListLookupsQuerySchema = z.object({
   category: z.string().optional().openapi({ example: "case_type", description: "Filter by category: case_type, lawyer_casestage" }),
 });
 
+export const UpdateUserCaseSchema = z
+  .object({
+    title: z.string().optional().openapi({ example: "Updated Case Title" }),
+    description: z.string().optional().openapi({ example: "Updated case description" }),
+    cnr: z.string().optional().transform((v) => (v ? v.trim().toUpperCase() : undefined)).openapi({ example: "DLND020047882015" }),
+    caseType: z.string().optional().openapi({ example: "new" }),
+    practiceArea: z.string().optional().openapi({ example: "cat_1" }),
+    specialization: z.string().optional().openapi({ example: "spec_1_1" }),
+    isEmergency: z.boolean().optional(),
+    status: z.string().optional(),
+    caseStatus: z.string().optional(),
+    documents: z.array(z.any()).optional(),
+    timeline: z.array(z.any()).optional(),
+    notes: z.array(z.any()).optional(),
+  })
+  .passthrough()
+  .openapi("UpdateUserCaseRequest");
+
+

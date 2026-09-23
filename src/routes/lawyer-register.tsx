@@ -51,6 +51,7 @@ import {
 import type { LegalCategory, LawyerAward } from "@/types";
 import { useLawyerRegister } from "@/hooks/queries/useAuth";
 import { useCategoriesQuery, useCourtsQuery, useCitiesQuery } from "@/hooks/queries/useMasterData";
+import { storageService } from "@/services/storageService";
 import {
   Button,
   IconButton,
@@ -757,13 +758,46 @@ function LawyerRegister() {
     );
     const legalServices = Array.from(new Set(selectedPracticeEntries.map((pe) => pe.legalService)));
     const practiceAreas = Array.from(new Set(selectedPracticeEntries.map((pe) => pe.practiceArea)));
-    const photoUrl = photoPreview || undefined;
-    const idProofUrl = idProofFile ? URL.createObjectURL(idProofFile) : undefined;
-
     setIsSubmitting(true);
     setStepError("");
 
     try {
+      let photoUrl = photoPreview || undefined;
+      let idProofUrl = idProofFile ? URL.createObjectURL(idProofFile) : undefined;
+
+      if (photoFile) {
+        try {
+          const res = await storageService.uploadFile(photoFile, {
+            bucket: "profile-photos",
+            folder: "lawyers",
+          });
+          if (res?.fileUrl) {
+            photoUrl = res.fileUrl;
+          }
+        } catch (uploadErr) {
+          console.warn(
+            "[LawyerRegister] Failed photo cloud upload, falling back to preview URL:",
+            uploadErr,
+          );
+        }
+      }
+
+      if (idProofFile) {
+        try {
+          const res = await storageService.uploadFile(idProofFile, {
+            bucket: "case-documents",
+            folder: "lawyer-credentials",
+          });
+          if (res?.fileUrl) {
+            idProofUrl = res.fileUrl;
+          }
+        } catch (uploadErr) {
+          console.warn(
+            "[LawyerRegister] Failed idProof cloud upload, falling back to local URL:",
+            uploadErr,
+          );
+        }
+      }
       await registerMutation.mutateAsync({
         name: name.trim() || (isFirm ? "Law Firm" : "Lawyer"),
         roleTitle: isFirm ? "Law Firm / Organisation" : "Advocate",

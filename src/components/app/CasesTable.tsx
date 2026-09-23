@@ -336,9 +336,13 @@ export function CasesTable({ cases, role }: { cases: LegalCase[]; role: "lawyer"
     const historyOfCaseHearings = journey.map(({ id: _id, ...h }) => h);
 
     if (editingCase) {
+      const targetCaseId = editingCase.id;
       const statusChanged = editingCase.status !== caseStatus;
+      const trimmedTitle = partyNames.trim();
+      const trimmedCaseNo = caseNo.trim();
+      const trimmedCnr = cnr.trim();
       const updatedCases = allCases.map((c) => {
-        if (c.id !== editingCase.id) return c;
+        if (c.id !== targetCaseId) return c;
         const timeline = statusChanged
           ? [
               ...(c.timeline || []),
@@ -353,11 +357,11 @@ export function CasesTable({ cases, role }: { cases: LegalCase[]; role: "lawyer"
           : c.timeline;
         return {
           ...c,
-          title: partyNames.trim(),
+          title: trimmedTitle,
           caseDetails: {
             ...c.caseDetails,
-            caseNumber: caseNo.trim(),
-            cnr: cnr.trim(),
+            caseNumber: trimmedCaseNo,
+            cnr: trimmedCnr,
             historyOfCaseHearings,
             hearingCount: historyOfCaseHearings.length,
           },
@@ -367,6 +371,15 @@ export function CasesTable({ cases, role }: { cases: LegalCase[]; role: "lawyer"
         };
       });
       saveCases(updatedCases);
+
+      // Persist changes to backend server
+      caseService
+        .updateCase(targetCaseId, {
+          title: trimmedTitle,
+          cnr: trimmedCnr || undefined,
+          status: caseStatus,
+        })
+        .catch((err: unknown) => console.warn("[Case Edit] Server notice:", err));
     }
 
     setDialogOpen(false);
@@ -375,9 +388,15 @@ export function CasesTable({ cases, role }: { cases: LegalCase[]; role: "lawyer"
   function handleDeleteCase() {
     if (!editingCase) return;
     if (confirm("Delete this case permanently? This cannot be undone.")) {
-      const updated = allCases.filter((x) => x.id !== editingCase.id);
+      const targetCaseId = editingCase.id;
+      const updated = allCases.filter((x) => x.id !== targetCaseId);
       saveCases(updated);
       setDialogOpen(false);
+
+      // Persist deletion to backend server
+      caseService
+        .deleteCase(targetCaseId)
+        .catch((err: unknown) => console.warn("[Case Delete] Server notice:", err));
     }
   }
 

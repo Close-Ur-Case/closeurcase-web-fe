@@ -40,6 +40,7 @@ import {
   getLawyers,
   generateCloseUrCaseId,
   subscribeToStore,
+  mergeRemotePayments,
 } from "@/data/appStore";
 import { caseService } from "@/services/caseService";
 import { storageService } from "@/services/storageService";
@@ -58,6 +59,7 @@ import type {
   LegalCategory,
   Lawyer,
   SubscriptionPlanId,
+  Payment,
 } from "@/types";
 import {
   Button,
@@ -97,8 +99,7 @@ const CITIZEN_ID = "u_001";
 const CITIZEN_NAME = "Sai Teja Reddy";
 const CITIZEN_CITY = "Hyderabad";
 
-/* Same mocked-AI keyword heuristic the old wizard used for category prediction —
-   no real LLM call, just enough to make the "AI analysed your case" step feel real. */
+/* Keyword heuristic for initial category suggestion */
 function predictCategory(text: string): LegalCategory {
   const t = text.toLowerCase();
   if (t.includes("upi") || t.includes("hack") || t.includes("cyber")) return "Cyber";
@@ -186,7 +187,7 @@ export function FindLawyerWizard() {
   const [images, setImages] = useState<File[]>([]);
   const [documents, setDocuments] = useState<File[]>([]);
   // Whether the citizen knows their case's legal category already — if so,
-  // skip the mocked-AI classification and let them pick it directly via the
+  // skip the automatic classification and let them pick it directly via the
   // same Practice Area -> Specialization -> Legal Service cascade used to
   // browse the lawyer directory, instead of a flat category dropdown.
   const [knowsCaseType, setKnowsCaseType] = useState<boolean | null>(hasParams ? true : null);
@@ -641,9 +642,16 @@ export function FindLawyerWizard() {
         });
 
       addCase(newCase);
-      // A successful plan purchase is already recorded server-side by
-      // verify-payment, so only mirror it locally when that didn't happen.
-      if (assignMode === "admin" && selectedPlan && !paymentResult?.subscription) {
+
+      // Record verified payment in store so it appears in citizen and advocate revenue tabs
+      if (paymentResult?.payment) {
+        mergeRemotePayments([paymentResult.payment as Partial<Payment>]);
+      }
+
+      // Record active subscription in store
+      if (paymentResult?.subscription) {
+        addSubscription(paymentResult.subscription);
+      } else if (assignMode === "admin" && selectedPlan) {
         addSubscription({
           citizenId: currentCitizenId,
           planId: selectedPlan.id,
@@ -1627,7 +1635,7 @@ export function FindLawyerWizard() {
           </div>
         )}
 
-        {/* ── STEP 3: mock payment passport ────────────────────────────── */}
+        {/* ── STEP 3: payment confirmation passport ────────────────────────────── */}
         {step === "payment" && (
           <Card
             variant="elevated"

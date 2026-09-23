@@ -1,10 +1,24 @@
-import { Outlet, createFileRoute, useRouterState } from "@tanstack/react-router";
+import { Outlet, createFileRoute, redirect, useRouterState } from "@tanstack/react-router";
 import { DashboardLayout } from "@/layouts/DashboardLayout";
 import { lawyerNav } from "@/features/lawyer/nav";
 import { useAuth } from "@/context/useAuth";
 import { useCaseSync } from "@/hooks/useCaseSync";
+import { getStoredToken, getStoredUser } from "@/services/apiClient";
+import type { AuthUser } from "@/types/api";
 
 export const Route = createFileRoute("/lawyer")({
+  beforeLoad: () => {
+    if (typeof window !== "undefined") {
+      const token = getStoredToken();
+      const user = getStoredUser<AuthUser>();
+      if (!token && !user) {
+        throw redirect({ to: "/login" });
+      }
+      if (user && user.role && user.role !== "lawyer") {
+        throw redirect({ to: user.role === "admin" ? "/admin" : "/citizen" });
+      }
+    }
+  },
   component: LawyerLayout,
 });
 

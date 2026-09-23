@@ -21,6 +21,7 @@ import type { LegalCase } from "@/types";
 import { UserAvatar } from "@/components/app/UserAvatar";
 import { useVideoCall } from "@/features/video-call/VideoCallContext";
 import { chatService } from "@/services/chatService";
+import { storageService } from "@/services/storageService";
 
 /* ══════════════════════════════════════════════════════════
    TYPES
@@ -505,50 +506,57 @@ export function CaseChat({ caseItem, role, onClose }: CaseChatProps) {
     refresh();
     window.addEventListener("cuc_chat_updated", refresh);
 
-    // Sync messages from Supabase Edge Function API
-    chatService
-      .getMessages(caseItem.id)
-      .then((remoteMessages) => {
-        if (remoteMessages && Array.isArray(remoteMessages) && remoteMessages.length > 0) {
-          const current = loadMessages();
-          let changed = false;
-          const merged = [...current];
+    const syncRemote = () => {
+      chatService
+        .getMessages(caseItem.id)
+        .then((remoteMessages) => {
+          if (remoteMessages && Array.isArray(remoteMessages) && remoteMessages.length > 0) {
+            const current = loadMessages();
+            let changed = false;
+            const merged = [...current];
 
-          remoteMessages.forEach((rm) => {
-            const exists = merged.some((m) => m.id === rm.id);
-            if (!exists) {
-              changed = true;
-              merged.push({
-                id: rm.id,
-                caseId: rm.caseId,
-                text: rm.text || rm.message || undefined,
-                sender: rm.sender,
-                senderName: rm.senderName,
-                at: rm.at,
-                read: rm.read,
-                attachmentType: rm.attachmentType || undefined,
-                attachmentName: rm.attachmentName || undefined,
-                attachmentUrl: rm.attachmentUrl || undefined,
-                attachmentSize: rm.attachmentSize || undefined,
-                audioDuration: rm.audioDuration || undefined,
-              });
+            remoteMessages.forEach((rm) => {
+              const exists = merged.some((m) => m.id === rm.id);
+              if (!exists) {
+                changed = true;
+                merged.push({
+                  id: rm.id,
+                  caseId: rm.caseId,
+                  text: rm.text || rm.message || undefined,
+                  sender: rm.sender,
+                  senderName: rm.senderName,
+                  at: rm.at,
+                  read: rm.read,
+                  attachmentType: rm.attachmentType || undefined,
+                  attachmentName: rm.attachmentName || undefined,
+                  attachmentUrl: rm.attachmentUrl || undefined,
+                  attachmentSize: rm.attachmentSize || undefined,
+                  audioDuration: rm.audioDuration || undefined,
+                });
+              }
+            });
+
+            if (changed) {
+              saveMessages(merged);
+              setMessages(merged.filter((m) => m.caseId === caseItem.id));
             }
-          });
-
-          if (changed) {
-            saveMessages(merged);
-            setMessages(merged.filter((m) => m.caseId === caseItem.id));
           }
-        }
-      })
-      .catch((err) => console.warn("Remote chat messages sync error:", err));
+        })
+        .catch((err) => console.warn("Remote chat messages sync error:", err));
+    };
+
+    syncRemote();
+    const intervalId = setInterval(syncRemote, 3500);
 
     // Mark remote messages read
     chatService
       .markRead(caseItem.id)
       .catch((err) => console.warn("Remote chat mark read error:", err));
 
-    return () => window.removeEventListener("cuc_chat_updated", refresh);
+    return () => {
+      clearInterval(intervalId);
+      window.removeEventListener("cuc_chat_updated", refresh);
+    };
   }, [refresh, caseItem.id]);
 
   /* -- hide any global floating widget (e.g. a support/webbot bubble) while a chat is open --
@@ -676,28 +684,32 @@ export function CaseChat({ caseItem, role, onClose }: CaseChatProps) {
   const handleFiles = useCallback(
     (fileList: FileList | File[]) => {
       const files = Array.from(fileList).slice(0, 8); // sane cap per batch
-      files.forEach((file) => {
+      files.forEach(async (file) => {
         setUploading((p) => [...p, file.name]);
-        const reader = new FileReader();
-        reader.onload = () => {
-          const url = reader.result as string;
-          const type: "image" | "file" = file.type.startsWith("image/") ? "image" : "file";
-          // Small delay so the upload state is perceptible — mirrors a real upload without needing a backend.
-          setTimeout(() => {
-            sendAttach(type, url, file.name, fmtBytes(file.size));
-            setUploading((p) => {
-              const idx = p.indexOf(file.name);
-              if (idx === -1) return p;
-              const next = [...p];
-              next.splice(idx, 1);
-              return next;
-            });
-          }, 450);
-        };
-        reader.readAsDataURL(file);
+        const type: "image" | "file" = file.type.startsWith("image/") ? "image" : "file";
+        let url = "";
+
+        try {
+          const res = await storageService.uploadFile(file, {
+            bucket: "case-documents",
+            folder: `chat_${caseItem.id}`,
+          });
+          if (res?.fileUrl) {
+            url = res.fileUrl;
+          }
+        } catch (uploadErr) {
+          console.warn("[CaseChat] Cloud attachment upload fallback to local:", uploadErr);
+        }
+
+        if (!url) {
+          url = await storageService.readFileAsDataUrl(file);
+        }
+
+        sendAttach(type, url, file.name, fmtBytes(file.size));
+        setUploading((p) => p.filter((n) => n !== file.name));
       });
     },
-    [sendAttach],
+    [sendAttach, caseItem.id],
   );
 
   const onFile = (e: React.ChangeEvent<HTMLInputElement>) => {

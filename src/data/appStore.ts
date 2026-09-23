@@ -1,4 +1,3 @@
-import { DEFAULT_PARSED_COURTS } from "./courtParser";
 import { resolveLegalCategory } from "@/lib/caseCategories";
 import type {
   AppNotification,
@@ -24,36 +23,24 @@ import type {
   StateItem,
   CourtLevelItem,
 } from "@/types";
-import {
-  categories as seedCategories,
-  citizens as seedCitizens,
-  lawyers as seedLawyers,
-  cases as seedCases,
-  subscriptions as seedSubscriptions,
-  payments as seedPayments,
-  notifications as seedNotifications,
-  videoCalls as seedVideoCalls,
-  knowledgeBase as seedKnowledgeBase,
-} from "./mock";
-
-const LAWYERS_KEY = "cuc_lawyers_v10";
-const CITIZENS_KEY = "cuc_citizens_v3";
-const NOTIFICATIONS_KEY = "cuc_notifications_v2";
-const VIDEO_CALLS_KEY = "cuc_video_calls_v1";
-const KB_KEY = "cuc_kb_v3";
+const LAWYERS_KEY = "cuc_lawyers_v11";
+const CITIZENS_KEY = "cuc_citizens_v4";
+const NOTIFICATIONS_KEY = "cuc_notifications_v3";
+const VIDEO_CALLS_KEY = "cuc_video_calls_v2";
+const KB_KEY = "cuc_kb_v4";
 const LAWYER_DOCS_KEY = "cuc_lawyer_docs_v1";
 const PROFILE_PHOTOS_KEY = "cuc_profile_photos_v1";
-const CASES_KEY = "cuc_cases_v12";
+const CASES_KEY = "cuc_cases_v13";
 const NOTES_KEY = "cuc_case_notes_v1";
-const SUBSCRIPTIONS_KEY = "cuc_subscriptions_v1";
-const PAYMENTS_KEY = "cuc_payments_v1";
+const SUBSCRIPTIONS_KEY = "cuc_subscriptions_v2";
+const PAYMENTS_KEY = "cuc_payments_v2";
 const LAWYER_RATINGS_KEY = "cuc_lawyer_ratings_v1";
-const CASE_CATEGORIES_KEY = "cuc_case_categories_v3";
-const LANGUAGES_KEY = "cuc_languages_v1";
-const CITIES_KEY = "cuc_cities_v2";
-const COURTS_KEY = "cuc_courts_v2";
-const STATES_KEY = "cuc_states_v1";
-const COURT_LEVELS_KEY = "cuc_court_levels_v1";
+const CASE_CATEGORIES_KEY = "cuc_case_categories_v5";
+const LANGUAGES_KEY = "cuc_languages_v3";
+const CITIES_KEY = "cuc_cities_v4";
+const COURTS_KEY = "cuc_courts_v4";
+const STATES_KEY = "cuc_states_v3";
+const COURT_LEVELS_KEY = "cuc_court_levels_v3";
 
 type Listener = () => void;
 const listeners = new Set<Listener>();
@@ -118,15 +105,7 @@ export function generateCloseUrCaseId(): string {
 }
 
 export function getCases(): LegalCase[] {
-  const cases = load<LegalCase[]>(CASES_KEY, seedCases);
-  const existingIds = new Set(cases.map((c) => c.id));
-  const missingSeedEmergency = seedCases.filter((sc) => sc.isEmergency && !existingIds.has(sc.id));
-  if (missingSeedEmergency.length > 0) {
-    const merged = [...missingSeedEmergency, ...cases];
-    save(CASES_KEY, merged);
-    return merged;
-  }
-  return cases;
+  return load<LegalCase[]>(CASES_KEY, []);
 }
 
 export function saveCases(cases: LegalCase[]) {
@@ -402,7 +381,7 @@ export function deleteCaseNote(noteId: string) {
 
 /* ── LAWYERS STORE ───────────────────────────────────────────────────────── */
 export function getLawyers(): Lawyer[] {
-  return load<Lawyer[]>(LAWYERS_KEY, seedLawyers);
+  return load<Lawyer[]>(LAWYERS_KEY, []);
 }
 
 export function saveLawyers(lawyers: Lawyer[]) {
@@ -417,7 +396,7 @@ export function saveLawyers(lawyers: Lawyer[]) {
  * since `category` drives the admin list's filters. */
 export function mergeRemoteLawyers(remote: Partial<Lawyer>[]): void {
   if (!Array.isArray(remote) || remote.length === 0) return;
-  const current = load<Lawyer[]>(LAWYERS_KEY, seedLawyers);
+  const current = getLawyers();
   const byId = new Map(current.map((l) => [l.id, l]));
   let changed = false;
 
@@ -632,7 +611,7 @@ export function submitLawyerRating({
 
 /* ── CITIZENS STORE ──────────────────────────────────────────────────────── */
 export function getCitizens(): Citizen[] {
-  return load<Citizen[]>(CITIZENS_KEY, seedCitizens);
+  return load<Citizen[]>(CITIZENS_KEY, []);
 }
 
 export function saveCitizens(citizens: Citizen[]) {
@@ -644,7 +623,7 @@ export function saveCitizens(citizens: Citizen[]) {
  * null must not wipe a value the store already holds. */
 export function mergeRemoteCitizens(remote: Partial<Citizen>[]): void {
   if (!Array.isArray(remote) || remote.length === 0) return;
-  const current = load<Citizen[]>(CITIZENS_KEY, seedCitizens);
+  const current = getCitizens();
   const byId = new Map(current.map((c) => [c.id, c]));
   let changed = false;
 
@@ -717,7 +696,7 @@ export function updateAdminProfile(fields: Partial<AdminProfile>) {
 
 /* ── NOTIFICATIONS STORE ─────────────────────────────────────────────────── */
 export function getNotifications(role?: UserRole): AppNotification[] {
-  const all = load<AppNotification[]>(NOTIFICATIONS_KEY, seedNotifications);
+  const all = load<AppNotification[]>(NOTIFICATIONS_KEY, []);
   if (!role) return all;
   return all.filter((n) => !n.role || n.role === "all" || n.role === role);
 }
@@ -741,7 +720,7 @@ function normalizeNotificationAt(at: string | undefined): string {
  * Additive: seeded/local-only alerts are kept so the app still works offline. */
 export function mergeRemoteNotifications(remote: AppNotification[]): void {
   if (!Array.isArray(remote) || remote.length === 0) return;
-  const current = load<AppNotification[]>(NOTIFICATIONS_KEY, seedNotifications);
+  const current = getNotifications();
   const byId = new Map(current.map((n) => [n.id, n]));
   let changed = false;
 
@@ -779,7 +758,7 @@ export function mergeRemoteNotifications(remote: AppNotification[]): void {
 }
 
 export function addNotification(n: { title: string; body: string; role?: UserRole | "all" }) {
-  const current = load<AppNotification[]>(NOTIFICATIONS_KEY, seedNotifications);
+  const current = getNotifications();
   const todayTime = new Date().toISOString().replace("T", " ").slice(0, 16);
   const newNotif: AppNotification = {
     id: `n_${Date.now()}_${Math.random().toString(36).substring(2, 6)}`,
@@ -804,19 +783,54 @@ export function markAllNotificationsRead() {
   saveNotifications(updated);
 }
 
+export function getVideoCalls(): VideoCall[] {
+  return load<VideoCall[]>(VIDEO_CALLS_KEY, []);
+}
+
+export function saveVideoCalls(calls: VideoCall[]) {
+  save(VIDEO_CALLS_KEY, calls);
+}
+
+export function mergeRemoteVideoCalls(remote: Partial<VideoCall>[]): void {
+  if (!Array.isArray(remote) || remote.length === 0) return;
+  const current = getVideoCalls();
+  const byId = new Map(current.map((v) => [v.id, v]));
+  let changed = false;
+
+  remote.forEach((r) => {
+    if (!r || !r.id) return;
+    const existing = byId.get(r.id);
+    const merged: VideoCall = {
+      ...(existing ?? ({} as VideoCall)),
+      ...definedOnly(r),
+      id: r.id,
+      caseId: r.caseId ?? existing?.caseId ?? "",
+      withName: r.withName ?? existing?.withName ?? "Participant",
+      at: r.at ?? existing?.at ?? new Date().toISOString(),
+      durationSeconds: r.durationSeconds ?? existing?.durationSeconds ?? 0,
+      status: r.status ?? existing?.status ?? "Scheduled",
+      role: r.role ?? existing?.role ?? "citizen",
+    };
+
+    if (!existing || JSON.stringify(existing) !== JSON.stringify(merged)) {
+      byId.set(r.id, merged);
+      changed = true;
+    }
+  });
+
+  if (changed) {
+    saveVideoCalls(Array.from(byId.values()));
+  }
+}
+
 export function getRecentVideoCalls(role: UserRole): VideoCall[] {
-  const all = load<VideoCall[]>(VIDEO_CALLS_KEY, seedVideoCalls);
+  const all = getVideoCalls();
   return all
     .filter((call) => call.role === role)
     .sort((a, b) => new Date(b.at).getTime() - new Date(a.at).getTime());
 }
 
-/** Records a video consultation.
- *
- * `id`/`at` are generated for calls placed in-app, but history synced from the
- * API supplies its own. Regenerating a server id broke the caller's
- * `some(c => c.id === h.id)` dedupe — it could never match, so every sync
- * re-appended the whole remote history. */
+/** Records a video consultation. */
 export function addVideoCall(entry: {
   id?: string;
   at?: string;
@@ -826,7 +840,7 @@ export function addVideoCall(entry: {
   status: VideoCall["status"];
   durationSeconds?: number;
 }) {
-  const current = load<VideoCall[]>(VIDEO_CALLS_KEY, seedVideoCalls);
+  const current = getVideoCalls();
   const call: VideoCall = {
     id: entry.id || `vc_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`,
     caseId: entry.caseId,
@@ -864,11 +878,45 @@ export function clearProfilePhoto(role: UserRole) {
 
 /* ── KNOWLEDGE BASE STORE ────────────────────────────────────────────────── */
 export function getKnowledgeBase(): KnowledgeItem[] {
-  return load<KnowledgeItem[]>(KB_KEY, seedKnowledgeBase);
+  return load<KnowledgeItem[]>(KB_KEY, []);
 }
 
 export function saveKnowledgeBase(kb: KnowledgeItem[]) {
   save(KB_KEY, kb);
+}
+
+export function mergeRemoteKnowledgeItems(remote: Partial<KnowledgeItem>[]): void {
+  if (!Array.isArray(remote) || remote.length === 0) return;
+  const current = getKnowledgeBase();
+  const byId = new Map(current.map((k) => [k.id, k]));
+  let changed = false;
+
+  remote.forEach((r) => {
+    if (!r || !r.id) return;
+    const existing = byId.get(r.id);
+    const merged: KnowledgeItem = {
+      ...(existing ?? ({} as KnowledgeItem)),
+      ...definedOnly(r),
+      id: r.id,
+      title: r.title ?? existing?.title ?? "Legal Document",
+      category: r.category ?? existing?.category ?? "General",
+      fileName: r.fileName ?? existing?.fileName ?? "doc.pdf",
+      fileSize: r.fileSize ?? existing?.fileSize ?? "1.0 MB",
+      uploadedAt: r.uploadedAt ?? existing?.uploadedAt ?? new Date().toISOString().slice(0, 10),
+      summary: r.summary ?? existing?.summary ?? "",
+      tags: r.tags ?? existing?.tags ?? [],
+      status: r.status ?? existing?.status ?? "Indexed",
+    };
+
+    if (!existing || JSON.stringify(existing) !== JSON.stringify(merged)) {
+      byId.set(r.id, merged);
+      changed = true;
+    }
+  });
+
+  if (changed) {
+    saveKnowledgeBase(Array.from(byId.values()));
+  }
 }
 
 /** Adds a knowledge-base entry.
@@ -925,9 +973,49 @@ export function deleteLawyerDocument(id: string) {
 
 /* ── SUBSCRIPTIONS STORE ("My Subscriptions") ────────────────────────────── */
 export function getSubscriptions(citizenId?: string): Subscription[] {
-  const all = load<Subscription[]>(SUBSCRIPTIONS_KEY, seedSubscriptions);
+  const all = load<Subscription[]>(SUBSCRIPTIONS_KEY, []);
   const sorted = [...all].sort((a, b) => b.startedAt.localeCompare(a.startedAt));
   return citizenId ? sorted.filter((s) => s.citizenId === citizenId) : sorted;
+}
+
+export function saveSubscriptions(subscriptions: Subscription[]) {
+  save(SUBSCRIPTIONS_KEY, subscriptions);
+}
+
+export function mergeRemoteSubscriptions(remote: Partial<Subscription>[]): void {
+  if (!Array.isArray(remote) || remote.length === 0) return;
+  const current = getSubscriptions();
+  const byId = new Map(current.map((s) => [s.id, s]));
+  let changed = false;
+
+  remote.forEach((r) => {
+    if (!r || !r.id) return;
+    const existing = byId.get(r.id);
+    const merged: Subscription = {
+      ...(existing ?? ({} as Subscription)),
+      ...definedOnly(r),
+      id: r.id,
+      citizenId: r.citizenId ?? existing?.citizenId ?? "u_001",
+      planId: r.planId ?? existing?.planId ?? "free",
+      planLabel: r.planLabel ?? existing?.planLabel ?? "Free Plan",
+      amount: r.amount ?? existing?.amount ?? 0,
+      status: r.status ?? existing?.status ?? "Active",
+      startedAt: r.startedAt ?? existing?.startedAt ?? new Date().toISOString().slice(0, 10),
+      expiresAt:
+        r.expiresAt ??
+        existing?.expiresAt ??
+        new Date(Date.now() + 30 * 86400000).toISOString().slice(0, 10),
+    };
+
+    if (!existing || JSON.stringify(existing) !== JSON.stringify(merged)) {
+      byId.set(r.id, merged);
+      changed = true;
+    }
+  });
+
+  if (changed) {
+    saveSubscriptions(Array.from(byId.values()));
+  }
 }
 
 /** A citizen's membership tier, derived from their real subscription history —
@@ -937,25 +1025,23 @@ export function getSubscriptions(citizenId?: string): Subscription[] {
  * Returns `null` for anyone who isn't a known citizen. */
 export function planTierForCitizen(idOrName: string): "gold" | "silver" | "bronze" | null {
   const key = idOrName.trim();
+  const citizens = getCitizens();
   const citizen = key.startsWith("u_")
-    ? seedCitizens.find((c) => c.id === key)
-    : seedCitizens.find((c) => c.name.toLowerCase() === key.toLowerCase());
+    ? citizens.find((c) => c.id === key)
+    : citizens.find((c) => c.name.toLowerCase() === key.toLowerCase());
   if (!citizen) return null;
 
   const subs = getSubscriptions(citizen.id);
   const active = subs.find((s) => s.status === "Active");
   if (active?.planId === "yearly") return "gold";
   if (active?.planId === "monthly") return "silver";
-  // `daily` returned "copper", which isn't one of the three tiers the avatar
-  // badge styles — the lookup would come back undefined. Daily sits at the
-  // entry tier until a copper badge actually exists.
   return "bronze";
 }
 
 export function addSubscription(
   sub: Omit<Subscription, "id" | "startedAt" | "status">,
 ): Subscription {
-  const current = load<Subscription[]>(SUBSCRIPTIONS_KEY, seedSubscriptions);
+  const current = getSubscriptions();
   // A citizen only has one active plan at a time — starting a new one
   // supersedes whichever plan they were previously on.
   const withPriorExpired = current.map((s) =>
@@ -980,7 +1066,7 @@ export function addSubscription(
 }
 
 export function cancelSubscription(id: string): Subscription | null {
-  const current = load<Subscription[]>(SUBSCRIPTIONS_KEY, seedSubscriptions);
+  const current = getSubscriptions();
   let target: Subscription | null = null;
   const updated = current.map((s) => {
     if (s.id === id) {
@@ -1001,7 +1087,7 @@ export function cancelSubscription(id: string): Subscription | null {
 
 /* ── PAYMENTS STORE (Revenue tabs) ───────────────────────────────────────── */
 export function getPayments(lawyerId?: string): Payment[] {
-  const all = load<Payment[]>(PAYMENTS_KEY, seedPayments);
+  const all = load<Payment[]>(PAYMENTS_KEY, []);
   const sorted = [...all].sort((a, b) => b.date.localeCompare(a.date));
   return lawyerId ? sorted.filter((p) => p.lawyerId === lawyerId) : sorted;
 }
@@ -1011,7 +1097,7 @@ export function getPayments(lawyerId?: string): Payment[] {
  * (grossAmount / platformAmount / lawyerAmount), so this is a direct merge. */
 export function mergeRemotePayments(remote: Partial<Payment>[]): void {
   if (!Array.isArray(remote) || remote.length === 0) return;
-  const current = load<Payment[]>(PAYMENTS_KEY, seedPayments);
+  const current = getPayments();
   const byId = new Map(current.map((p) => [p.id, p]));
   let changed = false;
 
@@ -1043,75 +1129,10 @@ export function mergeRemotePayments(remote: Partial<Payment>[]): void {
 /* ── WITHDRAWAL REQUESTS STORE ───────────────────────────────────────────── */
 const WITHDRAWALS_KEY = "cuc_withdrawals_v3";
 
-const seedWithdrawals: WithdrawalRequest[] = [
-  // Adv. Swathi Reddy (l_001) — the demo lawyer; a settled payout from CS-22418.
-  {
-    id: "w_101",
-    lawyerId: "l_001",
-    lawyerName: "Swathi Reddy",
-    amount: 12240,
-    requestedAt: "2026-09-02",
-    status: "Approved",
-    bankName: "HDFC Bank Ltd",
-    accountNumber: "•••• 4829",
-    ifscCode: "HDFC0001234",
-    processedAt: "2026-09-03",
-    referenceId: "TXN_94820194",
-  },
-  // Srinivas Chowdary (l_002) — pending; matches the ₹8,500 admin notification.
-  {
-    id: "w_102",
-    lawyerId: "l_002",
-    lawyerName: "Srinivas Chowdary",
-    amount: 8500,
-    requestedAt: "2026-09-06",
-    status: "Pending",
-    bankName: "State Bank of India",
-    accountNumber: "•••• 9102",
-    ifscCode: "SBIN0004812",
-  },
-  // Sailaja Naidu (l_003) — pending payout from the resolved divorce matter.
-  {
-    id: "w_103",
-    lawyerId: "l_003",
-    lawyerName: "Sailaja Naidu",
-    amount: 15400,
-    requestedAt: "2026-09-07",
-    status: "Pending",
-    bankName: "ICICI Bank",
-    accountNumber: "•••• 3391",
-    ifscCode: "ICIC0000281",
-  },
-  // Venkatesh Rao (l_004) — pending.
-  {
-    id: "w_104",
-    lawyerId: "l_004",
-    lawyerName: "Venkatesh Rao",
-    amount: 16800,
-    requestedAt: "2026-09-07",
-    status: "Pending",
-    bankName: "Axis Bank",
-    accountNumber: "•••• 7714",
-    ifscCode: "UTIB0001092",
-  },
-  // Suresh Kumar (l_018) — an earlier rejected request (stale bank details).
-  {
-    id: "w_105",
-    lawyerId: "l_018",
-    lawyerName: "Suresh Kumar",
-    amount: 6800,
-    requestedAt: "2026-08-24",
-    status: "Rejected",
-    bankName: "Union Bank of India",
-    accountNumber: "•••• 5567",
-    ifscCode: "UBIN0553441",
-    processedAt: "2026-08-26",
-    rejectionReason: "Account name mismatch — please re-submit with updated bank proof.",
-  },
-];
+export const seedWithdrawals: WithdrawalRequest[] = [];
 
 export function getWithdrawalRequests(lawyerId?: string): WithdrawalRequest[] {
-  const all = load<WithdrawalRequest[]>(WITHDRAWALS_KEY, seedWithdrawals);
+  const all = load<WithdrawalRequest[]>(WITHDRAWALS_KEY, []);
   const sorted = [...all].sort((a, b) => b.requestedAt.localeCompare(a.requestedAt));
   return lawyerId ? sorted.filter((w) => w.lawyerId === lawyerId) : sorted;
 }
@@ -1121,7 +1142,7 @@ export function getWithdrawalRequests(lawyerId?: string): WithdrawalRequest[] {
  * a straight field-wise merge that never blanks out local values. */
 export function mergeRemoteWithdrawals(remote: Partial<WithdrawalRequest>[]): void {
   if (!Array.isArray(remote) || remote.length === 0) return;
-  const current = load<WithdrawalRequest[]>(WITHDRAWALS_KEY, seedWithdrawals);
+  const current = getWithdrawalRequests();
   const byId = new Map(current.map((w) => [w.id, w]));
   let changed = false;
 
@@ -1155,7 +1176,7 @@ export function mergeRemoteWithdrawals(remote: Partial<WithdrawalRequest>[]): vo
 export function addWithdrawalRequest(
   req: Omit<WithdrawalRequest, "id" | "requestedAt" | "status">,
 ): WithdrawalRequest {
-  const current = load<WithdrawalRequest[]>(WITHDRAWALS_KEY, seedWithdrawals);
+  const current = getWithdrawalRequests();
   const today = new Date().toISOString().slice(0, 10);
   const newReq: WithdrawalRequest = {
     ...req,
@@ -1176,7 +1197,7 @@ export function addWithdrawalRequest(
 }
 
 export function approveWithdrawalRequest(id: string): WithdrawalRequest | undefined {
-  const current = load<WithdrawalRequest[]>(WITHDRAWALS_KEY, seedWithdrawals);
+  const current = getWithdrawalRequests();
   const today = new Date().toISOString().slice(0, 10);
   const refId = `TXN_${Date.now().toString().slice(-8)}`;
 
@@ -1210,7 +1231,7 @@ export function rejectWithdrawalRequest(
   id: string,
   reason?: string,
 ): WithdrawalRequest | undefined {
-  const current = load<WithdrawalRequest[]>(WITHDRAWALS_KEY, seedWithdrawals);
+  const current = getWithdrawalRequests();
   let rejectedReq: WithdrawalRequest | undefined;
 
   const updated = current.map((w) => {
@@ -1245,1423 +1266,12 @@ export function rejectWithdrawalRequest(
  * → legal services. The nine browse practice areas plus Cyber/Tax/Environmental
  * for internal lawyer/case classification.
  */
-export const DEFAULT_CASE_CATEGORIES: CaseCategoryItem[] = [
-  {
-    id: "cat_1",
-    name: "Criminal Defense",
-    code: "CRIM",
-    description: "Bail, trials, appeals, and white-collar defence across criminal courts",
-    subCategories: [
-      {
-        name: "Anticipatory Bail",
-        services: [
-          "File Anticipatory Bail Application",
-          "Anticipatory Bail Hearing",
-          "Anticipatory Bail Appeal",
-        ],
-      },
-      {
-        name: "Criminal",
-        services: [
-          "File Criminal Case",
-          "Criminal Defense",
-          "Criminal Case Consultation",
-          "Criminal Appeal",
-          "Criminal Revision",
-        ],
-      },
-      {
-        name: "Cyber Crime",
-        services: [
-          "Cyber Crime Complaint",
-          "Cyber Fraud Case",
-          "Online Harassment Case",
-          "Cyber Crime Defense",
-          "Cyber Crime Investigation Assistance",
-        ],
-      },
-      {
-        name: "Fraud Case",
-        services: [
-          "File Fraud Case",
-          "Fraud Case Defense",
-          "Financial Fraud Complaint",
-          "Fraud Case Appeal",
-        ],
-      },
-      {
-        name: "Litigation",
-        services: [
-          "Civil Litigation",
-          "Criminal Litigation",
-          "Court Representation",
-          "File Lawsuit",
-          "Litigation Consultation",
-        ],
-      },
-      {
-        name: "POCSO Act",
-        services: [
-          "POCSO Case Filing",
-          "POCSO Case Defense",
-          "POCSO Bail Application",
-          "POCSO Case Representation",
-          "POCSO Appeal",
-        ],
-      },
-      {
-        name: "Anti Corruption",
-        services: [
-          "Anti Corruption Complaint",
-          "Anti Corruption Case Defense",
-          "Vigilance Case",
-          "Anti Corruption Litigation",
-        ],
-      },
-      {
-        name: "PMLA",
-        services: [
-          "PMLA Case Defense",
-          "PMLA Bail Application",
-          "PMLA Property Attachment Matter",
-          "PMLA Case Representation",
-          "PMLA Appeal",
-        ],
-      },
-    ],
-    active: true,
-  },
-  {
-    id: "cat_2",
-    name: "Corporate Law",
-    code: "CORP",
-    description: "Arbitration, company law, NCLT, insolvency, IP, and commercial contracts",
-    subCategories: [
-      {
-        name: "Arbitration",
-        services: [
-          "Arbitration Consultation",
-          "File Arbitration Case",
-          "Arbitration Representation",
-          "Arbitration Award Challenge",
-          "Arbitration Appeal",
-        ],
-      },
-      {
-        name: "Startup",
-        services: [
-          "Startup Legal Consultation",
-          "Business Registration",
-          "Founder Agreement",
-          "Shareholder Agreement",
-          "Startup Compliance",
-        ],
-      },
-      {
-        name: "Corporate",
-        services: [
-          "Corporate Legal Consultation",
-          "Company Law Compliance",
-          "Corporate Dispute",
-          "Board and Shareholder Matters",
-          "Corporate Representation",
-        ],
-      },
-      {
-        name: "Breach of Contract",
-        services: [
-          "Contract Review",
-          "Breach of Contract Notice",
-          "Breach of Contract Case",
-          "Contract Dispute Resolution",
-          "Contract Litigation",
-        ],
-      },
-      {
-        name: "NCLT",
-        services: [
-          "NCLT Case Filing",
-          "NCLT Representation",
-          "Company Petition",
-          "NCLT Appeal",
-          "Corporate Insolvency Matter",
-        ],
-      },
-      {
-        name: "Bankruptcy / Insolvency",
-        services: [
-          "Insolvency Consultation",
-          "Insolvency Proceedings",
-          "Bankruptcy Proceedings",
-          "IBC Case Filing",
-          "Insolvency Representation",
-        ],
-      },
-      {
-        name: "Patent",
-        services: [
-          "Patent Search",
-          "Patent Application",
-          "Patent Registration",
-          "Patent Infringement Case",
-          "Patent Opposition",
-        ],
-      },
-      {
-        name: "Media and Entertainment",
-        services: [
-          "Media Legal Consultation",
-          "Entertainment Contract",
-          "Copyright Dispute",
-          "Defamation Matter",
-          "Media Litigation",
-        ],
-      },
-      {
-        name: "Trademark & Copyright",
-        services: [
-          "Trademark Search",
-          "Trademark Registration",
-          "Trademark Infringement",
-          "Copyright Registration",
-          "Copyright Infringement",
-        ],
-      },
-      {
-        name: "Documentation",
-        services: [
-          "Legal Document Drafting",
-          "Agreement Drafting",
-          "Contract Drafting",
-          "Document Review",
-          "Legal Documentation",
-        ],
-      },
-    ],
-    active: true,
-  },
-  {
-    id: "cat_3",
-    name: "Family Law",
-    code: "FAM",
-    description: "Divorce, custody, maintenance, wills, and domestic relations",
-    subCategories: [
-      {
-        name: "Wills / Trusts",
-        services: [
-          "Will Drafting",
-          "Will Registration",
-          "Will Review",
-          "Trust Deed Drafting",
-          "Trust Registration",
-        ],
-      },
-      {
-        name: "Child Custody",
-        services: [
-          "Child Custody Case",
-          "Child Custody Petition",
-          "Child Visitation Matter",
-          "Child Custody Dispute",
-          "Child Custody Appeal",
-        ],
-      },
-      {
-        name: "Muslim Law",
-        services: [
-          "Muslim Marriage Matter",
-          "Muslim Divorce Matter",
-          "Muslim Personal Law Consultation",
-          "Muslim Inheritance Matter",
-          "Muslim Family Dispute",
-        ],
-      },
-      {
-        name: "Domestic Violence",
-        services: [
-          "Domestic Violence Complaint",
-          "Domestic Violence Case",
-          "Protection Order",
-          "Domestic Violence Defense",
-          "Domestic Violence Appeal",
-        ],
-      },
-      {
-        name: "Succession Certificate",
-        services: [
-          "Succession Certificate Application",
-          "Succession Certificate Case",
-          "Succession Certificate Consultation",
-          "Succession Certificate Appeal",
-        ],
-      },
-      {
-        name: "Divorce",
-        services: [
-          "File for Divorce",
-          "Reply / Send Legal Notice for Divorce",
-          "Contest Divorce Case",
-          "Divorce Appeal",
-          "Mutual Consent Divorce",
-          "Contested Divorce",
-          "Divorce Settlement",
-        ],
-      },
-      {
-        name: "Family",
-        services: [
-          "Family Dispute",
-          "Family Settlement",
-          "Maintenance Matter",
-          "Family Court Representation",
-          "Family Legal Consultation",
-        ],
-      },
-      {
-        name: "Court Marriage",
-        services: [
-          "Court Marriage Registration",
-          "Marriage Registration",
-          "Special Marriage Act Registration",
-          "Court Marriage Documentation",
-        ],
-      },
-      {
-        name: "Dowry Case",
-        services: [
-          "Dowry Complaint",
-          "Dowry Harassment Case",
-          "Dowry Case Defense",
-          "Dowry Case Representation",
-          "Dowry Case Appeal",
-        ],
-      },
-    ],
-    active: true,
-  },
-  {
-    id: "cat_4",
-    name: "Banking & Finance",
-    code: "BANK",
-    description: "Cheque bounce, debt recovery, banking disputes, GST, and customs",
-    subCategories: [
-      {
-        name: "Cheque Bounce",
-        services: [
-          "Cheque Bounce Legal Notice",
-          "File Cheque Bounce Case",
-          "Cheque Bounce Case Defense",
-          "Cheque Bounce Settlement",
-          "Cheque Bounce Appeal",
-        ],
-      },
-      {
-        name: "Recovery",
-        services: [
-          "Money Recovery Notice",
-          "Debt Recovery Case",
-          "Loan Recovery Matter",
-          "Recovery Suit",
-          "Debt Settlement",
-        ],
-      },
-      {
-        name: "Tax",
-        services: [
-          "Tax Consultation",
-          "Income Tax Matter",
-          "Tax Notice Reply",
-          "Tax Dispute",
-          "Tax Appeal",
-        ],
-      },
-      {
-        name: "Banking / Finance",
-        services: [
-          "Banking Dispute",
-          "Loan Dispute",
-          "Banking Legal Notice",
-          "Financial Agreement Review",
-          "Banking Litigation",
-        ],
-      },
-      {
-        name: "GST",
-        services: [
-          "GST Registration",
-          "GST Notice Reply",
-          "GST Compliance",
-          "GST Dispute",
-          "GST Appeal",
-        ],
-      },
-      {
-        name: "Customs & Central Excise",
-        services: [
-          "Customs Consultation",
-          "Customs Dispute",
-          "Customs Notice Reply",
-          "Central Excise Matter",
-          "Customs Appeal",
-        ],
-      },
-    ],
-    active: true,
-  },
-  {
-    id: "cat_5",
-    name: "Consumer Law",
-    code: "CONS",
-    description: "Consumer forum complaints, insurance, medical negligence, and motor accidents",
-    subCategories: [
-      {
-        name: "Insurance",
-        services: [
-          "Insurance Claim Dispute",
-          "Insurance Claim Rejection",
-          "Insurance Legal Notice",
-          "Insurance Consumer Case",
-          "Insurance Appeal",
-        ],
-      },
-      {
-        name: "Medical Negligence",
-        services: [
-          "Medical Negligence Consultation",
-          "Medical Negligence Complaint",
-          "Medical Negligence Case",
-          "Medical Negligence Consumer Case",
-          "Medical Negligence Defense",
-        ],
-      },
-      {
-        name: "Motor Accident",
-        services: [
-          "Motor Accident Claim",
-          "Motor Accident Compensation",
-          "Motor Accident Case",
-          "Motor Accident Tribunal Matter",
-          "Motor Accident Appeal",
-        ],
-      },
-      {
-        name: "Consumer Court",
-        services: [
-          "Consumer Complaint",
-          "Consumer Legal Notice",
-          "Consumer Court Representation",
-          "Consumer Dispute",
-          "Consumer Court Appeal",
-        ],
-      },
-    ],
-    active: true,
-  },
-  {
-    id: "cat_6",
-    name: "Higher Courts",
-    code: "HCRT",
-    description: "Supreme Court, High Court, writs, SLPs, and tribunal representation",
-    subCategories: [
-      {
-        name: "Armed Forces Tribunal",
-        services: [
-          "AFT Case Filing",
-          "AFT Representation",
-          "Service Matter Appeal",
-          "Armed Forces Legal Consultation",
-        ],
-      },
-      {
-        name: "Supreme Court",
-        services: [
-          "Supreme Court Case Filing",
-          "Supreme Court Representation",
-          "Special Leave Petition (SLP)",
-          "Supreme Court Appeal",
-          "Supreme Court Legal Consultation",
-        ],
-      },
-      {
-        name: "High Court",
-        services: [
-          "High Court Case Filing",
-          "High Court Representation",
-          "Writ Petition",
-          "High Court Appeal",
-          "High Court Bail Application",
-          "High Court Legal Consultation",
-        ],
-      },
-    ],
-    active: true,
-  },
-  {
-    id: "cat_7",
-    name: "International Law",
-    code: "INTL",
-    description: "Immigration, cross-border disputes, and NRI legal matters",
-    subCategories: [
-      {
-        name: "Immigration",
-        services: [
-          "Immigration Consultation",
-          "Visa Legal Assistance",
-          "Immigration Application",
-          "Immigration Appeal",
-          "Immigration Dispute",
-        ],
-      },
-      {
-        name: "International Law",
-        services: [
-          "International Legal Consultation",
-          "Cross Border Dispute",
-          "International Contract Matter",
-          "International Arbitration",
-          "International Litigation",
-        ],
-      },
-      {
-        name: "NRI",
-        services: [
-          "NRI Legal Consultation",
-          "NRI Property Matter",
-          "NRI Family Dispute",
-          "NRI Documentation",
-          "NRI Power of Attorney",
-        ],
-      },
-    ],
-    active: true,
-  },
-  {
-    id: "cat_8",
-    name: "Labour & Civil Matters",
-    code: "LAB",
-    description: "Employment disputes, service matters, RTI, and civil suits",
-    subCategories: [
-      {
-        name: "Labour & Service",
-        services: [
-          "Employment Dispute",
-          "Wrongful Termination Matter",
-          "Salary / Wage Dispute",
-          "Service Matter",
-          "Labour Court Case",
-        ],
-      },
-      {
-        name: "R.T.I",
-        services: ["RTI Application", "RTI Appeal", "RTI Legal Consultation", "RTI Complaint"],
-      },
-      {
-        name: "Civil",
-        services: [
-          "Civil Suit",
-          "Civil Dispute",
-          "Civil Litigation",
-          "Civil Appeal",
-          "Civil Legal Notice",
-        ],
-      },
-    ],
-    active: true,
-  },
-  {
-    id: "cat_9",
-    name: "Property Law",
-    code: "PROP",
-    description: "Land titles, landlord-tenant, RERA, and real-estate litigation",
-    subCategories: [
-      {
-        name: "Landlord/Tenant",
-        services: [
-          "Landlord / Tenant Dispute",
-          "Rent Agreement",
-          "Eviction Matter",
-          "Rent Recovery",
-          "Tenant Rights Matter",
-          "Landlord Rights Matter",
-        ],
-      },
-      {
-        name: "Property",
-        services: [
-          "Property Dispute",
-          "Property Documentation",
-          "Property Verification",
-          "Property Sale Agreement",
-          "Transfer of Ownership",
-          "Property Registration",
-          "Illegal Possession",
-          "Illegal Construction",
-          "Ancestral Property Dispute",
-        ],
-      },
-      {
-        name: "RERA",
-        services: [
-          "RERA Complaint",
-          "RERA Case Filing",
-          "Builder Delay Case",
-          "Builder Fraud Case",
-          "Property Possession Dispute",
-          "RERA Appeal",
-        ],
-      },
-    ],
-    active: true,
-  },
-  {
-    id: "cat_10",
-    name: "Cyber",
-    code: "CYB",
-    description: "Cybercrime, IT Act offences, digital fraud, and online privacy",
-    subCategories: [
-      {
-        name: "Cyber Crime Complaint",
-        services: [
-          "File Cyber Crime Complaint",
-          "Cyber Crime FIR Assistance",
-          "Cyber Cell Representation",
-        ],
-      },
-      {
-        name: "Online Harassment",
-        services: [
-          "Online Harassment Complaint",
-          "Stalking / Threats Case",
-          "Takedown Request",
-          "John Doe Injunction",
-        ],
-      },
-      {
-        name: "Financial Cyber Fraud",
-        services: [
-          "UPI / Card Fraud Recovery",
-          "Bank Liability Representation",
-          "Cyber Fraud FIR & Follow-up",
-        ],
-      },
-      {
-        name: "Data Theft & Privacy",
-        services: [
-          "Data Breach Response",
-          "Privacy Violation Notice",
-          "Data Protection Compliance",
-        ],
-      },
-      {
-        name: "IT Act Offenses",
-        services: ["IT Act Case Filing", "IT Act Defense", "IT Act Appeal"],
-      },
-      {
-        name: "Social Media Impersonation",
-        services: [
-          "Impersonation Complaint",
-          "Profile Takedown Request",
-          "Defamation & Impersonation Suit",
-        ],
-      },
-    ],
-    active: true,
-  },
-  {
-    id: "cat_11",
-    name: "Tax",
-    code: "TAX",
-    description: "Direct/indirect tax appeals, GST disputes, and income-tax tribunals",
-    subCategories: [
-      {
-        name: "Income Tax Appeals",
-        services: [
-          "CIT(A) Appeal Filing",
-          "ITAT Representation",
-          "Stay Application",
-          "Rectification Petition",
-        ],
-      },
-      {
-        name: "GST Disputes & Filings",
-        services: ["GST SCN Reply", "GST Appeal", "Input Tax Credit Dispute", "GST Refund Claim"],
-      },
-      {
-        name: "Customs & Central Excise",
-        services: ["Customs SCN Reply", "CESTAT Appeal", "Duty Drawback Matter"],
-      },
-      {
-        name: "Tax Assessment Notices",
-        services: ["Reassessment Notice Reply", "Scrutiny Assessment Support", "Assessment Appeal"],
-      },
-      {
-        name: "Cheque Bounce (Sec 138)",
-        services: ["Statutory Notice", "Section 138 Complaint", "Section 138 Defense"],
-      },
-      {
-        name: "Debt Recovery Tribunal (DRT)",
-        services: ["DRT Application", "SARFAESI Objection", "DRAT Appeal"],
-      },
-    ],
-    active: true,
-  },
-  {
-    id: "cat_12",
-    name: "Environmental",
-    code: "ENV",
-    description: "NGT proceedings, pollution-control violations, and clearances",
-    subCategories: [
-      {
-        name: "National Green Tribunal (NGT)",
-        services: ["NGT Original Application", "NGT Representation", "NGT Appeal"],
-      },
-      {
-        name: "Pollution Control Board Matters",
-        services: ["Consent to Establish / Operate", "Closure Notice Reply", "PCB Appeal"],
-      },
-      {
-        name: "Environmental Impact Clearance",
-        services: [
-          "EIA Clearance Application",
-          "Clearance Condition Compliance",
-          "Clearance Challenge",
-        ],
-      },
-      {
-        name: "Forest & Wildlife Regulations",
-        services: ["Forest Clearance Matter", "Wildlife Permit Matter", "Encroachment Defense"],
-      },
-      {
-        name: "Waste Management Compliance",
-        services: [
-          "Waste Rules Compliance Advice",
-          "Violation Notice Reply",
-          "Remediation Plan Support",
-        ],
-      },
-    ],
-    active: true,
-  },
-];
-
-export const DEFAULT_LANGUAGES: LanguageItem[] = [
-  { id: "lang_1", name: "English", nativeName: "English", code: "EN", active: true },
-  { id: "lang_2", name: "Telugu", nativeName: "తెలుగు", code: "TE", active: true },
-  { id: "lang_3", name: "Hindi", nativeName: "हिन्दी", code: "HI", active: true },
-  { id: "lang_4", name: "Tamil", nativeName: "தமிழ்", code: "TA", active: true },
-  { id: "lang_5", name: "Kannada", nativeName: "ಕನ್ನಡ", code: "KN", active: true },
-  { id: "lang_6", name: "Malayalam", nativeName: "മലയാളം", code: "ML", active: true },
-  { id: "lang_7", name: "Marathi", nativeName: "मराठी", code: "MR", active: true },
-  { id: "lang_8", name: "Bengali", nativeName: "বাংলা", code: "BN", active: true },
-  { id: "lang_9", name: "Gujarati", nativeName: "ગુજરાતી", code: "GU", active: true },
-  { id: "lang_10", name: "Odia", nativeName: "ଓଡ଼ିଆ", code: "OR", active: true },
-  { id: "lang_11", name: "Punjabi", nativeName: "ਪੰਜਾਬੀ", code: "PA", active: true },
-  { id: "lang_12", name: "Urdu", nativeName: "اردو", code: "UR", active: true },
-];
-
-export const DEFAULT_CITIES: CityItem[] = [
-  { id: "city_1", name: "Hyderabad", state: "Telangana", tier: "Tier 1", active: true },
-  { id: "city_2", name: "Bengaluru", state: "Karnataka", tier: "Tier 1", active: true },
-  { id: "city_3", name: "Mumbai", state: "Maharashtra", tier: "Tier 1", active: true },
-  { id: "city_4", name: "New Delhi", state: "Delhi", tier: "Tier 1", active: true },
-  { id: "city_5", name: "Chennai", state: "Tamil Nadu", tier: "Tier 1", active: true },
-  { id: "city_6", name: "Kolkata", state: "West Bengal", tier: "Tier 1", active: true },
-  { id: "city_7", name: "Pune", state: "Maharashtra", tier: "Tier 1", active: true },
-  { id: "city_8", name: "Ahmedabad", state: "Gujarat", tier: "Tier 1", active: true },
-  { id: "city_9", name: "Visakhapatnam", state: "Andhra Pradesh", tier: "Tier 2", active: true },
-  { id: "city_10", name: "Vijayawada", state: "Andhra Pradesh", tier: "Tier 2", active: true },
-  { id: "city_11", name: "Jaipur", state: "Rajasthan", tier: "Tier 2", active: true },
-  { id: "city_12", name: "Lucknow", state: "Uttar Pradesh", tier: "Tier 2", active: true },
-  { id: "city_13", name: "Chandigarh", state: "Chandigarh", tier: "Tier 2", active: true },
-  { id: "city_14", name: "Kochi", state: "Kerala", tier: "Tier 2", active: true },
-  { id: "city_15", name: "Indore", state: "Madhya Pradesh", tier: "Tier 2", active: true },
-];
-
-export const DEFAULT_COURTS: CourtItem[] = DEFAULT_PARSED_COURTS;
-
-export const DEFAULT_STATES: StateItem[] = [
-  {
-    id: "st_1",
-    name: "Andhra Pradesh",
-    code: "AP",
-    active: true,
-    districts: [
-      "Visakhapatnam",
-      "Vijayawada",
-      "Guntur",
-      "Tirupati",
-      "Kurnool",
-      "Nellore",
-      "YSR Kadapa",
-      "Kakinada",
-      "Rajamahendravaram",
-      "Anantapur",
-      "Eluru",
-      "Ongole",
-      "Chittoor",
-      "Srikakulam",
-      "Vizianagaram",
-      "Anakapalli",
-      "Nandyal",
-      "Bapatla",
-      "Palnadu",
-    ],
-  },
-  {
-    id: "st_2",
-    name: "Arunachal Pradesh",
-    code: "AR",
-    active: true,
-    districts: [
-      "Papum Pare",
-      "Tawang",
-      "West Kameng",
-      "East Kameng",
-      "Upper Subansiri",
-      "West Siang",
-      "East Siang",
-      "Upper Siang",
-      "Changlang",
-      "Tirap",
-      "Anjaw",
-      "Lower Subansiri",
-      "Kurung Kumey",
-      "Dibang Valley",
-      "Lohit",
-    ],
-  },
-  {
-    id: "st_3",
-    name: "Assam",
-    code: "AS",
-    active: true,
-    districts: [
-      "Kamrup Metropolitan (Guwahati)",
-      "Kamrup",
-      "Cachar (Silchar)",
-      "Dibrugarh",
-      "Jorhat",
-      "Nagaon",
-      "Tinsukia",
-      "Barpeta",
-      "Dhubri",
-      "Sonitpur",
-      "Bongaigaon",
-      "Golaghat",
-      "Karbi Anglong",
-      "Hailakandi",
-      "Karimganj",
-    ],
-  },
-  {
-    id: "st_4",
-    name: "Bihar",
-    code: "BR",
-    active: true,
-    districts: [
-      "Patna",
-      "Gaya",
-      "Bhagalpur",
-      "Muzaffarpur",
-      "Purnia",
-      "Darbhanga",
-      "Bihar Sharif (Nalanda)",
-      "Arrah (Bhojpur)",
-      "Begusarai",
-      "Katihar",
-      "Munger",
-      "Chhapra (Saran)",
-      "Samastipur",
-      "Rohtas",
-      "Vaishali",
-    ],
-  },
-  {
-    id: "st_5",
-    name: "Chhattisgarh",
-    code: "CG",
-    active: true,
-    districts: [
-      "Raipur",
-      "Durg (Bhilai)",
-      "Bilaspur",
-      "Korba",
-      "Rajnandgaon",
-      "Jagdalpur (Bastar)",
-      "Raigarh",
-      "Ambikapur (Surguja)",
-      "Dhamtari",
-      "Mahasamund",
-      "Kanker",
-      "Kabirdham",
-    ],
-  },
-  {
-    id: "st_6",
-    name: "Goa",
-    code: "GA",
-    active: true,
-    districts: ["North Goa (Panaji)", "South Goa (Margao)"],
-  },
-  {
-    id: "st_7",
-    name: "Gujarat",
-    code: "GJ",
-    active: true,
-    districts: [
-      "Ahmedabad",
-      "Surat",
-      "Vadodara",
-      "Rajkot",
-      "Bhavnagar",
-      "Jamnagar",
-      "Junagadh",
-      "Gandhinagar",
-      "Anand",
-      "Navsari",
-      "Morbi",
-      "Bharuch",
-      "Mehsana",
-      "Valsad (Vapi)",
-      "Kutch",
-      "Patan",
-      "Surendranagar",
-    ],
-  },
-  {
-    id: "st_8",
-    name: "Haryana",
-    code: "HR",
-    active: true,
-    districts: [
-      "Gurugram",
-      "Faridabad",
-      "Panipat",
-      "Ambala",
-      "Yamunanagar",
-      "Rohtak",
-      "Hisar",
-      "Karnal",
-      "Sonipat",
-      "Panchkula",
-      "Bhiwani",
-      "Sirsa",
-      "Jhajjar",
-      "Kurukshetra",
-    ],
-  },
-  {
-    id: "st_9",
-    name: "Himachal Pradesh",
-    code: "HP",
-    active: true,
-    districts: [
-      "Shimla",
-      "Kangra (Dharamshala)",
-      "Solan",
-      "Mandi",
-      "Kullu",
-      "Hamirpur",
-      "Una",
-      "Bilaspur",
-      "Sirmaur",
-      "Chamba",
-      "Kinnaur",
-      "Lahaul and Spiti",
-    ],
-  },
-  {
-    id: "st_10",
-    name: "Jharkhand",
-    code: "JH",
-    active: true,
-    districts: [
-      "Ranchi",
-      "East Singhbhum (Jamshedpur)",
-      "Dhanbad",
-      "Bokaro",
-      "Deoghar",
-      "Hazaribagh",
-      "West Singhbhum (Chaibasa)",
-      "Giridih",
-      "Ramgarh",
-      "Dumka",
-      "Palamu",
-    ],
-  },
-  {
-    id: "st_11",
-    name: "Karnataka",
-    code: "KA",
-    active: true,
-    districts: [
-      "Bengaluru Urban",
-      "Bengaluru Rural",
-      "Mysuru",
-      "Dakshina Kannada (Mangaluru)",
-      "Dharwad (Hubballi)",
-      "Belagavi",
-      "Kalaburagi",
-      "Davanagere",
-      "Ballari",
-      "Vijayapura",
-      "Shivamogga",
-      "Tumakuru",
-      "Udupi",
-      "Bagalkot",
-      "Hassan",
-      "Bidar",
-      "Raichur",
-      "Mandya",
-      "Chikkamagaluru",
-    ],
-  },
-  {
-    id: "st_12",
-    name: "Kerala",
-    code: "KL",
-    active: true,
-    districts: [
-      "Thiruvananthapuram",
-      "Ernakulam (Kochi)",
-      "Kozhikode",
-      "Thrissur",
-      "Kollam",
-      "Palakkad",
-      "Alappuzha",
-      "Kannur",
-      "Kottayam",
-      "Malappuram",
-      "Kasaragod",
-      "Idukki",
-      "Wayanad",
-      "Pathanamthitta",
-    ],
-  },
-  {
-    id: "st_13",
-    name: "Madhya Pradesh",
-    code: "MP",
-    active: true,
-    districts: [
-      "Bhopal",
-      "Indore",
-      "Gwalior",
-      "Jabalpur",
-      "Ujjain",
-      "Sagar",
-      "Dewas",
-      "Satna",
-      "Ratlam",
-      "Rewa",
-      "Katni",
-      "Singrauli",
-      "Chhindwara",
-      "Sehore",
-      "Vidisha",
-      "Hoshangabad",
-    ],
-  },
-  {
-    id: "st_14",
-    name: "Maharashtra",
-    code: "MH",
-    active: true,
-    districts: [
-      "Mumbai City",
-      "Mumbai Suburban",
-      "Pune",
-      "Nagpur",
-      "Thane",
-      "Nashik",
-      "Chhatrapati Sambhajinagar (Aurangabad)",
-      "Solapur",
-      "Kolhapur",
-      "Navi Mumbai",
-      "Amravati",
-      "Nanded",
-      "Jalgaon",
-      "Raigad (Alibag)",
-      "Palghar (Vasai)",
-      "Satara",
-      "Sangli",
-      "Ahmednagar",
-      "Latur",
-      "Dhule",
-    ],
-  },
-  {
-    id: "st_15",
-    name: "Manipur",
-    code: "MN",
-    active: true,
-    districts: [
-      "Imphal West",
-      "Imphal East",
-      "Thoubal",
-      "Bishnupur",
-      "Churachandpur",
-      "Ukhrul",
-      "Senapati",
-      "Tamenglong",
-      "Chandel",
-    ],
-  },
-  {
-    id: "st_16",
-    name: "Meghalaya",
-    code: "ML",
-    active: true,
-    districts: [
-      "East Khasi Hills (Shillong)",
-      "West Garo Hills (Tura)",
-      "Ri-Bhoi",
-      "West Khasi Hills",
-      "South West Khasi Hills",
-      "East Jaintia Hills",
-      "West Jaintia Hills",
-    ],
-  },
-  {
-    id: "st_17",
-    name: "Mizoram",
-    code: "MZ",
-    active: true,
-    districts: ["Aizawl", "Lunglei", "Champhai", "Kolasib", "Serchhip", "Lawngtlai", "Siaha"],
-  },
-  {
-    id: "st_18",
-    name: "Nagaland",
-    code: "NL",
-    active: true,
-    districts: ["Kohima", "Dimapur", "Mokokchung", "Tuensang", "Wokha", "Mon", "Phek", "Zunheboto"],
-  },
-  {
-    id: "st_19",
-    name: "Odisha",
-    code: "OD",
-    active: true,
-    districts: [
-      "Khordha (Bhubaneswar)",
-      "Cuttack",
-      "Sundargarh (Rourkela)",
-      "Ganjam (Berhampur)",
-      "Sambalpur",
-      "Puri",
-      "Balasore",
-      "Bhadrak",
-      "Mayurbhanj (Baripada)",
-      "Angul",
-      "Jajpur",
-      "Balangir",
-      "Koraput",
-    ],
-  },
-  {
-    id: "st_20",
-    name: "Punjab",
-    code: "PB",
-    active: true,
-    districts: [
-      "Ludhiana",
-      "Amritsar",
-      "Jalandhar",
-      "Patiala",
-      "Bathinda",
-      "SAS Nagar (Mohali)",
-      "Hoshiarpur",
-      "Pathankot",
-      "Moga",
-      "Firozpur",
-      "Gurdaspur",
-      "Kapurthala",
-      "Sangrur",
-      "Faridkot",
-    ],
-  },
-  {
-    id: "st_21",
-    name: "Rajasthan",
-    code: "RJ",
-    active: true,
-    districts: [
-      "Jaipur",
-      "Jodhpur",
-      "Kota",
-      "Bikaner",
-      "Ajmer",
-      "Udaipur",
-      "Bhilwara",
-      "Alwar",
-      "Sikar",
-      "Sri Ganganagar",
-      "Bharatpur",
-      "Pali",
-      "Nagaur (Makrana)",
-      "Kotputli-Behror",
-      "Barmer",
-      "Chittorgarh",
-      "Jhunjhunu",
-    ],
-  },
-  {
-    id: "st_22",
-    name: "Sikkim",
-    code: "SK",
-    active: true,
-    districts: [
-      "East Sikkim (Gangtok)",
-      "West Sikkim (Geyzing)",
-      "South Sikkim (Namchi)",
-      "North Sikkim (Mangan)",
-      "Pakyong",
-      "Soreng",
-    ],
-  },
-  {
-    id: "st_23",
-    name: "Tamil Nadu",
-    code: "TN",
-    active: true,
-    districts: [
-      "Chennai",
-      "Coimbatore",
-      "Madurai",
-      "Tiruchirappalli",
-      "Salem",
-      "Tirunelveli",
-      "Tiruppur",
-      "Vellore",
-      "Erode",
-      "Thoothukudi",
-      "Dindigul",
-      "Thanjavur",
-      "Kanchipuram",
-      "Cuddalore",
-      "Chengalpattu",
-      "Tiruvallur",
-      "Viluppuram",
-      "Dharmapuri",
-    ],
-  },
-  {
-    id: "st_24",
-    name: "Telangana",
-    code: "TS",
-    active: true,
-    districts: [
-      "Hyderabad",
-      "Ranga Reddy",
-      "Medchal-Malkajgiri",
-      "Warangal",
-      "Karimnagar",
-      "Nizamabad",
-      "Khammam",
-      "Peddapalli (Ramagundam)",
-      "Mahbubnagar",
-      "Nalgonda",
-      "Adilabad",
-      "Suryapet",
-      "Siddipet",
-      "Sangareddy",
-      "Mancherial",
-      "Jagtial",
-      "Bhadradri Kothagudem",
-      "Kamareddy",
-      "Yadadri Bhuvanagiri",
-    ],
-  },
-  {
-    id: "st_25",
-    name: "Tripura",
-    code: "TR",
-    active: true,
-    districts: [
-      "West Tripura (Agartala)",
-      "Gomati",
-      "South Tripura",
-      "North Tripura",
-      "Dhalai",
-      "Unakoti",
-      "Khowai",
-      "Sepahijala",
-    ],
-  },
-  {
-    id: "st_26",
-    name: "Uttar Pradesh",
-    code: "UP",
-    active: true,
-    districts: [
-      "Lucknow",
-      "Kanpur Nagar",
-      "Ghaziabad",
-      "Agra",
-      "Meerut",
-      "Varanasi",
-      "Prayagraj (Allahabad)",
-      "Bareilly",
-      "Aligarh",
-      "Moradabad",
-      "Saharanpur",
-      "Gorakhpur",
-      "Gautam Buddha Nagar (Noida)",
-      "Firozabad",
-      "Jhansi",
-      "Mathura",
-      "Baghpat",
-      "Muzaffarnagar",
-      "Ayodhya",
-      "Shahjahanpur",
-      "Bulandshahr",
-    ],
-  },
-  {
-    id: "st_27",
-    name: "Uttarakhand",
-    code: "UK",
-    active: true,
-    districts: [
-      "Dehradun",
-      "Haridwar",
-      "Nainital (Haldwani)",
-      "Udham Singh Nagar (Rudrapur)",
-      "Almora",
-      "Pauri Garhwal",
-      "Tehri Garhwal",
-      "Pithoragarh",
-      "Chamoli",
-      "Uttarkashi",
-    ],
-  },
-  {
-    id: "st_28",
-    name: "West Bengal",
-    code: "WB",
-    active: true,
-    districts: [
-      "Kolkata",
-      "North 24 Parganas",
-      "South 24 Parganas",
-      "Howrah",
-      "Hooghly",
-      "Paschim Bardhaman (Asansol/Durgapur)",
-      "Purba Bardhaman",
-      "Darjeeling (Siliguri)",
-      "Jalpaiguri",
-      "Alipurduar",
-      "Bankura",
-      "Nadia (Kalyani)",
-      "Murshidabad",
-      "Malda",
-      "Purba Medinipur",
-      "Paschim Medinipur",
-      "Birbhum",
-    ],
-  },
-  {
-    id: "st_29",
-    name: "Andaman & Nicobar Islands",
-    code: "AN",
-    active: true,
-    districts: ["South Andaman (Port Blair)", "North & Middle Andaman", "Nicobar"],
-  },
-  {
-    id: "st_30",
-    name: "Chandigarh",
-    code: "CH",
-    active: true,
-    districts: ["Chandigarh"],
-  },
-  {
-    id: "st_31",
-    name: "Dadra & Nagar Haveli and Daman & Diu",
-    code: "DN",
-    active: true,
-    districts: ["Daman", "Diu", "Dadra & Nagar Haveli (Silvassa)"],
-  },
-  {
-    id: "st_32",
-    name: "Delhi",
-    code: "DL",
-    active: true,
-    districts: [
-      "New Delhi",
-      "Central Delhi",
-      "North Delhi",
-      "North East Delhi",
-      "North West Delhi",
-      "South Delhi",
-      "South East Delhi",
-      "South West Delhi",
-      "East Delhi",
-      "West Delhi",
-      "Shahdara",
-    ],
-  },
-  {
-    id: "st_33",
-    name: "Jammu & Kashmir",
-    code: "JK",
-    active: true,
-    districts: [
-      "Srinagar",
-      "Jammu",
-      "Anantnag",
-      "Baramulla",
-      "Kathua",
-      "Udhampur",
-      "Budgam",
-      "Pulwama",
-      "Kupwara",
-      "Rajouri",
-      "Poonch",
-      "Doda",
-      "Samba",
-    ],
-  },
-  {
-    id: "st_34",
-    name: "Ladakh",
-    code: "LA",
-    active: true,
-    districts: ["Leh", "Kargil"],
-  },
-  {
-    id: "st_35",
-    name: "Lakshadweep",
-    code: "LD",
-    active: true,
-    districts: ["Kavaratti", "Agatti", "Amini", "Andrott", "Minicoy"],
-  },
-  {
-    id: "st_36",
-    name: "Puducherry",
-    code: "PY",
-    active: true,
-    districts: ["Puducherry", "Karaikal", "Mahe", "Yanam"],
-  },
-];
-
-export const DEFAULT_COURT_LEVELS: CourtLevelItem[] = [
-  { id: "lvl_supreme_court", name: "Supreme Court", code: "SC", active: true },
-  { id: "lvl_high_court", name: "High Court", code: "HC", active: true },
-  { id: "lvl_district_court", name: "District Court", code: "DC", active: true },
-  { id: "lvl_sessions_court", name: "Sessions Court", code: "SESS", active: true },
-  { id: "lvl_civil_court", name: "Civil Court", code: "CIV", active: true },
-  { id: "lvl_criminal_court", name: "Criminal Court", code: "CRIM", active: true },
-  { id: "lvl_family_court", name: "Family Court", code: "FC", active: true },
-  { id: "lvl_commercial_court", name: "Commercial Court", code: "COMM", active: true },
-  { id: "lvl_labour_court", name: "Labour Court", code: "LC", active: true },
-  { id: "lvl_consumer_court", name: "Consumer Court", code: "CDRC", active: true },
-  { id: "lvl_juvenile_justice_court", name: "Juvenile Justice Court", code: "JJB", active: true },
-  { id: "lvl_pocso_court", name: "POCSO Court", code: "POCSO", active: true },
-  { id: "lvl_ndps_court", name: "NDPS Court", code: "NDPS", active: true },
-  { id: "lvl_mact", name: "Motor Accident Claims Tribunal", code: "MACT", active: true },
-  { id: "lvl_nclt", name: "National Company Law Tribunal (NCLT)", code: "NCLT", active: true },
-  { id: "lvl_cat", name: "Central Administrative Tribunal (CAT)", code: "CAT", active: true },
-  { id: "lvl_drt", name: "Debt Recovery Tribunal (DRT)", code: "DRT", active: true },
-];
+export const DEFAULT_CASE_CATEGORIES: CaseCategoryItem[] = [];
+export const DEFAULT_LANGUAGES: LanguageItem[] = [];
+export const DEFAULT_CITIES: CityItem[] = [];
+export const DEFAULT_COURTS: CourtItem[] = [];
+export const DEFAULT_STATES: StateItem[] = [];
+export const DEFAULT_COURT_LEVELS: CourtLevelItem[] = [];
 
 // --- Case Categories CRUD ---
 
@@ -2700,39 +1310,13 @@ function normalizeSubCategories(raw: unknown): CaseSubCategoryItem[] {
 }
 
 export function getCaseCategories(): CaseCategoryItem[] {
-  const loaded = load<CaseCategoryItem[]>(CASE_CATEGORIES_KEY, DEFAULT_CASE_CATEGORIES);
+  const loaded = load<CaseCategoryItem[]>(CASE_CATEGORIES_KEY, []);
   let changed = false;
   const hydrated = loaded.map((cat) => {
     const normalized = normalizeSubCategories(cat.subCategories);
-
-    if (normalized.length === 0) {
-      const match = DEFAULT_CASE_CATEGORIES.find(
-        (d) => d.name.toLowerCase() === cat.name.toLowerCase() || d.code === cat.code,
-      );
-      if (match?.subCategories?.length) {
-        changed = true;
-        return { ...cat, subCategories: match.subCategories };
-      }
-    }
-
-    const defMatch = DEFAULT_CASE_CATEGORIES.find(
-      (d) => d.name.toLowerCase() === cat.name.toLowerCase() || d.code === cat.code,
-    );
-    const withServices = normalized.map((sc) => {
-      if (sc.services.length > 0) return sc;
-      const defSc = defMatch?.subCategories?.find(
-        (d) => d.name.toLowerCase() === sc.name.toLowerCase(),
-      );
-      if (defSc?.services.length) {
-        changed = true;
-        return { ...sc, services: [...defSc.services] };
-      }
-      return sc;
-    });
-
-    if (changed || JSON.stringify(withServices) !== JSON.stringify(cat.subCategories ?? [])) {
+    if (JSON.stringify(normalized) !== JSON.stringify(cat.subCategories ?? [])) {
       changed = true;
-      return { ...cat, subCategories: withServices };
+      return { ...cat, subCategories: normalized };
     }
     return cat;
   });
@@ -2791,7 +1375,7 @@ export function deleteCaseCategory(id: string): boolean {
 
 // --- Languages CRUD ---
 export function getLanguages(): LanguageItem[] {
-  return load<LanguageItem[]>(LANGUAGES_KEY, DEFAULT_LANGUAGES);
+  return load<LanguageItem[]>(LANGUAGES_KEY, []);
 }
 
 export function saveLanguage(item: Omit<LanguageItem, "id"> & { id?: string }): LanguageItem {
@@ -2826,13 +1410,7 @@ export function deleteLanguage(id: string): boolean {
 
 // --- Courts CRUD ---
 export function getCourts(): CourtItem[] {
-  const loaded = load<CourtItem[]>(COURTS_KEY, DEFAULT_COURTS);
-  // Auto-migrate from old initial seed (<= 15 courts) to full courts dataset
-  if (loaded.length <= 15 && DEFAULT_COURTS.length > 100) {
-    save(COURTS_KEY, DEFAULT_COURTS);
-    return DEFAULT_COURTS;
-  }
-  return loaded;
+  return load<CourtItem[]>(COURTS_KEY, []);
 }
 
 export function saveCourt(item: Omit<CourtItem, "id"> & { id?: string }): CourtItem {
@@ -2877,26 +1455,7 @@ export function deleteCourt(id: string): boolean {
 
 // --- States & Districts CRUD ---
 export function getStates(): StateItem[] {
-  const loaded = load<StateItem[]>(STATES_KEY, DEFAULT_STATES);
-  let changed = false;
-  const hydrated = loaded.map((st) => {
-    const def = DEFAULT_STATES.find(
-      (d) => d.name.toLowerCase() === st.name.toLowerCase() || d.code === st.code,
-    );
-    const districts =
-      Array.isArray(st.districts) && st.districts.length > 0
-        ? st.districts
-        : (def?.districts ?? []);
-    if (districts !== st.districts) {
-      changed = true;
-      return { ...st, districts };
-    }
-    return st;
-  });
-  if (changed) {
-    save(STATES_KEY, hydrated);
-  }
-  return hydrated;
+  return load<StateItem[]>(STATES_KEY, []);
 }
 
 export function saveState(item: Omit<StateItem, "id"> & { id?: string }): StateItem {
@@ -3008,7 +1567,7 @@ export function deleteCity(id: string): boolean {
 
 // --- Court Levels CRUD ---
 export function getCourtLevels(): CourtLevelItem[] {
-  return load<CourtLevelItem[]>(COURT_LEVELS_KEY, DEFAULT_COURT_LEVELS);
+  return load<CourtLevelItem[]>(COURT_LEVELS_KEY, []);
 }
 
 export function saveCourtLevel(item: Omit<CourtLevelItem, "id"> & { id?: string }): CourtLevelItem {
@@ -3073,4 +1632,162 @@ export function getActiveStates(): StateItem[] {
 
 export function getActiveCourtLevels(): CourtLevelItem[] {
   return getCourtLevels().filter((cl) => cl.active);
+}
+
+/* ── Remote Master Data Synchronization ───────────────────────────────────── */
+export function mergeRemoteCaseCategories(remote: Partial<CaseCategoryItem>[]): void {
+  if (!Array.isArray(remote) || remote.length === 0) return;
+  const current = getCaseCategories();
+  const byId = new Map(current.map((c) => [c.id, c]));
+  const byName = new Map(current.map((c) => [c.name.toLowerCase(), c]));
+  let changed = false;
+
+  remote.forEach((rc) => {
+    if (!rc || !rc.name) return;
+    const existing = (rc.id ? byId.get(rc.id) : undefined) || byName.get(rc.name.toLowerCase());
+    const merged: CaseCategoryItem = {
+      id: rc.id || existing?.id || `cat_${Date.now()}`,
+      name: rc.name,
+      code: rc.code || existing?.code || rc.name.slice(0, 4).toUpperCase(),
+      description: rc.description ?? existing?.description ?? "",
+      active: rc.active !== false,
+      subCategories:
+        rc.subCategories && rc.subCategories.length > 0
+          ? rc.subCategories
+          : (existing?.subCategories ?? []),
+      updatedAt: rc.updatedAt || existing?.updatedAt || new Date().toISOString().slice(0, 10),
+    };
+
+    if (existing) {
+      const idx = current.findIndex((c) => c.id === existing.id);
+      if (idx !== -1) {
+        current[idx] = merged;
+        changed = true;
+      }
+    } else {
+      current.push(merged);
+      changed = true;
+    }
+  });
+
+  if (changed) {
+    save(CASE_CATEGORIES_KEY, current);
+  }
+}
+
+export function mergeRemoteLanguages(remote: Partial<LanguageItem>[]): void {
+  if (!Array.isArray(remote) || remote.length === 0) return;
+  const current = getLanguages();
+  const byName = new Map(current.map((l) => [l.name.toLowerCase(), l]));
+  let changed = false;
+
+  remote.forEach((rl) => {
+    if (!rl || !rl.name) return;
+    const existing = byName.get(rl.name.toLowerCase());
+    if (!existing) {
+      current.push({
+        id: rl.id || `lang_${Date.now()}`,
+        name: rl.name,
+        nativeName: rl.nativeName || rl.name,
+        code: rl.code || rl.name.slice(0, 2).toLowerCase(),
+        active: rl.active !== false,
+        updatedAt: rl.updatedAt || new Date().toISOString().slice(0, 10),
+      });
+      changed = true;
+    }
+  });
+
+  if (changed) {
+    save(LANGUAGES_KEY, current);
+  }
+}
+
+export function mergeRemoteCourts(remote: Partial<CourtItem>[]): void {
+  if (!Array.isArray(remote) || remote.length === 0) return;
+  const current = getCourts();
+  const byName = new Map(current.map((c) => [c.name.toLowerCase(), c]));
+  let changed = false;
+
+  remote.forEach((rc) => {
+    if (!rc || !rc.name) return;
+    const existing = byName.get(rc.name.toLowerCase());
+    if (!existing) {
+      current.push({
+        id: rc.id || `court_${Date.now()}`,
+        name: rc.name,
+        level: rc.level || "District Court",
+        state: rc.state || "Telangana",
+        city: rc.city,
+        district: rc.district,
+        active: rc.active !== false,
+        updatedAt: rc.updatedAt || new Date().toISOString().slice(0, 10),
+      });
+      changed = true;
+    }
+  });
+
+  if (changed) {
+    save(COURTS_KEY, current);
+  }
+}
+
+export function mergeRemoteStates(remote: Partial<StateItem>[]): void {
+  if (!Array.isArray(remote) || remote.length === 0) return;
+  const current = getStates();
+  const byName = new Map(current.map((s) => [s.name.toLowerCase(), s]));
+  let changed = false;
+
+  remote.forEach((rs) => {
+    if (!rs || !rs.name) return;
+    const existing = byName.get(rs.name.toLowerCase());
+    if (existing) {
+      if (Array.isArray(rs.districts) && rs.districts.length > 0) {
+        const set = new Set([...(existing.districts || []), ...rs.districts]);
+        if (set.size > (existing.districts || []).length) {
+          existing.districts = Array.from(set);
+          changed = true;
+        }
+      }
+    } else {
+      current.push({
+        id: rs.id || `st_${Date.now()}`,
+        name: rs.name,
+        code: rs.code || rs.name.slice(0, 2).toUpperCase(),
+        districts: rs.districts || [],
+        active: rs.active !== false,
+        updatedAt: rs.updatedAt || new Date().toISOString().slice(0, 10),
+      });
+      changed = true;
+    }
+  });
+
+  if (changed) {
+    save(STATES_KEY, current);
+  }
+}
+
+export function mergeRemoteCourtLevels(remote: Partial<CourtLevelItem>[]): void {
+  if (!Array.isArray(remote) || remote.length === 0) return;
+  const current = getCourtLevels();
+  const byName = new Map(current.map((cl) => [cl.name.toLowerCase(), cl]));
+  let changed = false;
+
+  remote.forEach((rcl) => {
+    if (!rcl || !rcl.name) return;
+    const existing = byName.get(rcl.name.toLowerCase());
+    if (!existing) {
+      current.push({
+        id: rcl.id || `cl_${Date.now()}`,
+        name: rcl.name,
+        code: rcl.code || rcl.name.slice(0, 2).toUpperCase(),
+        active: rcl.active !== false,
+        updatedAt: rcl.updatedAt || new Date().toISOString().slice(0, 10),
+      });
+      changed = true;
+    }
+  });
+
+  if (changed) {
+    save(COURT_LEVELS_KEY, current);
+  }
 }

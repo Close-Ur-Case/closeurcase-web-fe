@@ -79,8 +79,48 @@ const getCallHistoryRoute = createRoute({
   },
 });
 
+const listCallsRoute = createRoute({
+  method: "get",
+  path: "/",
+  tags: ["Video Calls"],
+  summary: "Get consultation call records list",
+  security: [{ bearerAuth: [] }],
+  request: {
+    query: z.object({
+      caseId: z.string().optional().openapi({ example: "c_101" }),
+    }),
+  },
+  responses: {
+    200: {
+      description: "Call history list",
+      content: { "application/json": { schema: SuccessResponseSchema } },
+    },
+  },
+});
+
+const getCallHistoryRootRoute = createRoute({
+  method: "get",
+  path: "/history",
+  tags: ["Video Calls"],
+  summary: "Get consultation call records list (alias)",
+  security: [{ bearerAuth: [] }],
+  request: {
+    query: z.object({
+      caseId: z.string().optional().openapi({ example: "c_101" }),
+    }),
+  },
+  responses: {
+    200: {
+      description: "Call history list",
+      content: { "application/json": { schema: SuccessResponseSchema } },
+    },
+  },
+});
+
 videoCall.openapi(generateTokenRoute, generateAgoraToken as any);
 videoCall.openapi(logSessionRoute, logCallSession as any);
+videoCall.openapi(listCallsRoute, getCallHistory as any);
+videoCall.openapi(getCallHistoryRootRoute, getCallHistory as any);
 videoCall.openapi(getCallHistoryRoute, getCallHistory as any);
 
 export default videoCall;

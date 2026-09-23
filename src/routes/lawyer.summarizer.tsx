@@ -21,8 +21,7 @@ export const Route = createFileRoute("/lawyer/summarizer")({
   component: CaseSummarizer,
 });
 
-/* Canned "suggested next steps" per legal category — same mocked-AI convention as
-   CASE_ARGUMENTS_MAP in lawyer.ai-assistant.tsx (no real LLM call). */
+/* Procedural next steps by legal category for supplementary guidance */
 const NEXT_STEPS_MAP: Record<LegalCategory, string[]> = {
   Criminal: [
     "Verify FIR copy and cross-check charge sections cited",
@@ -76,8 +75,8 @@ const NEXT_STEPS_MAP: Record<LegalCategory, string[]> = {
   ],
 };
 
-/* Case descriptions in this app are written as numbered paragraphs separated by blank
-   lines (see src/data/mock.ts), so split on blank lines rather than sentence punctuation
+/* Case descriptions are formatted as structured paragraphs separated by blank lines,
+   so split on blank lines rather than sentence punctuation
    — a naive period-split breaks on abbreviations like "Plot No. 44". */
 function extractKeyFacts(description: string): string[] {
   const paragraphs = description
@@ -101,9 +100,8 @@ function formatDateShort(iso: string): string {
 }
 
 /* A longer narrative summary (up to ~300 words), distinct from the Key Facts bullets —
-   same mocked-AI convention as the rest of this page, but woven together from several
-   of the case's own real fields (description, timeline, hearings, category) rather than
-   a single templated sentence, so it reads as a proper case brief rather than a blurb. */
+   assembled from several of the case's own real fields (description, timeline, hearings, category)
+   so it reads as a proper case brief rather than a blurb. */
 function buildSummaryParagraphs(c: LegalCase): string[] {
   const paragraphs: string[] = [];
 

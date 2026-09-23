@@ -68,6 +68,11 @@ const formatInrCompact = (n: number) => {
 export function LawyerRevenuePage() {
   const { user } = useAuth();
   const lawyerId = useMemo(() => {
+    if (user?.lawyerId) return user.lawyerId;
+    if (user?.email) {
+      const match = getLawyers().find((l) => l.email?.toLowerCase() === user.email?.toLowerCase());
+      if (match) return match.id;
+    }
     if (user?.id) return user.id;
     return getLawyers().find((l) => l.id === "l_001")?.id ?? "l_001";
   }, [user]);

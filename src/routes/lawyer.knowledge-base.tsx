@@ -15,6 +15,7 @@ import {
   subscribeToStore,
 } from "@/data/appStore";
 import { knowledgeService } from "@/services/knowledgeService";
+import { useAuth } from "@/context/useAuth";
 import type { KnowledgeItem, LawyerDocument, LegalCategory } from "@/types";
 import {
   MAX_ATTACHMENT_BYTES,
@@ -64,10 +65,17 @@ type KbTab = "global" | "mine";
 type SortOrder = "newest" | "oldest";
 
 export function LawyerKnowledgeBase() {
+  const { user } = useAuth();
   const [tab, setTab] = useState<KbTab>("global");
   const lawyersList = getLawyers();
-  const currentLawyer = lawyersList.find((l) => l.id === "l_001") || lawyersList[0];
-  const myDocs = useMyDocs(currentLawyer?.id ?? "l_001");
+  const currentLawyerId = user?.lawyerId || user?.id || "l_001";
+  const currentLawyer =
+    lawyersList.find(
+      (l) =>
+        l.id === currentLawyerId ||
+        (user?.email && l.email?.toLowerCase() === user.email.toLowerCase()),
+    ) || lawyersList[0];
+  const myDocs = useMyDocs(currentLawyer?.id ?? currentLawyerId);
 
   return (
     <div className="space-y-3 sm:space-y-4">

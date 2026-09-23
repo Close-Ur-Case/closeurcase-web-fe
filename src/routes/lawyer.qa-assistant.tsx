@@ -17,8 +17,7 @@ interface QAMessage {
   text: string;
 }
 
-/* Keyword-matched answers sourced from the selected case's own data — same mocked-AI
-   convention as the rest of the app (LexBot's KB, CASE_ARGUMENTS_MAP), no real LLM call. */
+/* Contextual answers sourced directly from the selected case docket as local fallback */
 function answerFromCase(question: string, c: LegalCase): string {
   const q = question.toLowerCase();
 

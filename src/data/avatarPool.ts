@@ -4,7 +4,7 @@
  * SAME person shows the EXACT SAME photo on every screen — landing page,
  * directory, dashboards, profiles, top app bar, case list, chat, etc.
  *
- * Keep this in sync with `src/data/mock.ts`: one entry per lawyer (plus an
+ * Registered photo registry: one entry per lawyer (plus an
  * "Adv. " alias) and one per citizen. Unknown names fall back to a small
  * hashed pool.
  */

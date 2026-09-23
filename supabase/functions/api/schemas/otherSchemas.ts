@@ -38,6 +38,14 @@ export const CaseQASchema = z
   })
   .openapi("CaseQARequest");
 
+export const LegalQASchema = z
+  .object({
+    question: z.string().min(1).openapi({ example: "How do I file an FIR for online financial fraud?" }),
+    context: z.string().optional().openapi({ example: "Telangana state jurisdiction" }),
+    category: z.string().optional().openapi({ example: "Cyber Crime" }),
+  })
+  .openapi("LegalQARequest");
+
 export const SummarizeDocSchema = z
   .object({
     documentText: z.string().optional().openapi({ example: "THIS LEASE DEED made this 12th day of January 2024..." }),
@@ -45,6 +53,13 @@ export const SummarizeDocSchema = z
     focusArea: z.string().optional().openapi({ example: "Termination & Penalty Clauses" }),
   })
   .openapi("SummarizeDocRequest");
+
+export const CaseAnalysisSchema = z
+  .object({
+    caseId: z.string().optional().openapi({ example: "CS-34410" }),
+    briefText: z.string().optional().openapi({ example: "Title verification and civil partition dispute regarding ancestral agricultural property." }),
+  })
+  .openapi("CaseAnalysisRequest");
 
 export const ContactInquirySchema = z
   .object({
@@ -59,7 +74,7 @@ export const ContactInquirySchema = z
 
 export const UpdateInquiryStatusSchema = z
   .object({
-    status: z.enum(["New", "In Review", "Resolved", "Archived"]).openapi({ example: "In Review" }),
+    status: z.enum(["New", "In Progress", "In Review", "Resolved", "Closed", "Archived"]).openapi({ example: "In Progress" }),
   })
   .openapi("UpdateInquiryStatusRequest");
 

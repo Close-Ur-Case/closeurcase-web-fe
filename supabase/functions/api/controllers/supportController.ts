@@ -33,11 +33,14 @@ export async function submitContactInquiry(c: Context) {
 }
 
 export async function listContactInquiries(c: Context) {
-  const inquiries = await db
-    .select()
-    .from(contactInquiries)
-    .orderBy(desc(contactInquiries.createdAt));
+  const status = c.req.query("status");
+  let query = db.select().from(contactInquiries);
 
+  if (status) {
+    query = query.where(eq(contactInquiries.status, status)) as any;
+  }
+
+  const inquiries = await query.orderBy(desc(contactInquiries.createdAt));
   return ApiResponse.success(c, inquiries, "Contact inquiries retrieved");
 }
 

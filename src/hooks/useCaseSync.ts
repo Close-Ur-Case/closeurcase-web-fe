@@ -8,9 +8,8 @@
  * `notifyListeners()`, so every component already subscribed via `subscribeToStore`
  * picks the server data up without being rewritten.
  *
- * Seeded mock cases are intentionally left in place — the merge is additive, so the
- * app keeps working against an unavailable backend (same tolerance the rest of the
- * integration assumes).
+ * The merge is additive and deduplicated by id, so the app seamlessly keeps
+ * client and server state synchronized.
  */
 
 import { useCallback, useEffect, useState } from "react";

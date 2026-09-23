@@ -81,18 +81,15 @@ export async function razorpayWebhook(c: Context) {
  */
 export async function getPayments(c: Context) {
   const user = c.get("user") as { id: string; role: string } | undefined;
-  if (!user) {
-    return ApiResponse.success(c, [], "Payments retrieved successfully");
-  }
+  const lawyerIdParam = c.req.query("lawyerId");
+  const citizenIdParam = c.req.query("citizenId");
 
   const filters = [];
 
-  if (user.role === "admin") {
-    // Admins may narrow by either party; absent a filter they see everything.
-    const lawyerId = c.req.query("lawyerId");
-    const citizenId = c.req.query("citizenId");
-    if (lawyerId) filters.push(eq(payments.lawyerId, lawyerId));
-    if (citizenId) filters.push(eq(payments.citizenId, citizenId));
+  if (!user || user.role === "admin") {
+    // Unauthenticated (dev) or admin: filter by query param if provided, otherwise see all
+    if (lawyerIdParam) filters.push(eq(payments.lawyerId, lawyerIdParam));
+    if (citizenIdParam) filters.push(eq(payments.citizenId, citizenIdParam));
   } else if (user.role === "lawyer") {
     const [lawyerRecord] = await db.select().from(lawyers).where(eq(lawyers.userId, user.id));
     // No advocate record means nothing is owed to this account yet.

@@ -130,8 +130,8 @@ export function DocxPreview({
  * Shared fullscreen preview body for any uploaded file across the app (case
  * attachments, admin Knowledge Base, lawyer Knowledge Base) — real rendering
  * for PDFs, images, and .doc/.docx; a "no inline preview" message for
- * anything else; and `fallback` for the no-real-file case (seed/mock items
- * that only carry a name, no actual bytes).
+ * anything else; and `fallback` for the no-real-file case (reference items
+ * that only carry a name/metadata, no actual bytes).
  */
 export function DocumentPreviewBody({
   fileDataUrl,

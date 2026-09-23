@@ -18,6 +18,12 @@ import type {
   TimelineEvent,
   Citizen,
   Lawyer,
+  CaseDetails,
+  EntityInfo,
+  HistoryOfHearing,
+  InterimOrder,
+  JudgmentOrder,
+  AIReport,
 } from "@/types";
 
 export interface ListCasesParams {
@@ -87,6 +93,23 @@ export const caseService = {
   },
 
   /**
+   * Update case details (title, CNR, documents, timeline, notes, status)
+   */
+  async updateCase<T = Record<string, unknown>>(
+    id: string,
+    payload: Partial<BackendUserCase> & Record<string, unknown>,
+  ): Promise<T> {
+    return apiClient.patch<T>(`/cases/user/${id}`, payload);
+  },
+
+  /**
+   * Permanently delete a case docket
+   */
+  async deleteCase<T = Record<string, unknown>>(id: string): Promise<T> {
+    return apiClient.delete<T>(`/cases/user/${id}`);
+  },
+
+  /**
    * Import an eCourts case by CNR number
    */
   async importCase<T = Record<string, unknown>>(payload: ImportCasePayload): Promise<T> {
@@ -149,6 +172,8 @@ export interface BackendUserCase {
   rejectionReason: string | null;
   isEmergency?: boolean;
   timeline?: BackendUserCaseTimelineEvent[];
+  notes?: Array<{ id: string; author: string; text: string; createdAt: string }>;
+  importedCase?: Record<string, unknown> | null;
   createdAt: string;
   updatedAt: string;
 }
@@ -184,7 +209,34 @@ export function mapBackendCaseToLegalCase(
   const createdDate = backend.createdAt ? backend.createdAt.slice(0, 10) : today;
   const updatedDate = backend.updatedAt ? backend.updatedAt.slice(0, 10) : today;
 
-  const files: CaseDocument[] = (backend.documents || []).map((d, i) => ({
+  // Unpack linked eCourts docket details if available
+  const rawImp = backend.importedCase?.rawData || backend.importedCase || {};
+  const imp = (typeof rawImp === "object" && rawImp !== null ? rawImp : {}) as Record<
+    string,
+    unknown
+  >;
+  const impCaseDetails = (imp.caseDetails || imp.case_details || {}) as Record<
+    string,
+    unknown
+  > as Partial<CaseDetails> & Record<string, unknown>;
+  const impEntityInfo = (imp.entityInfo || imp.entity_info || {}) as Record<
+    string,
+    unknown
+  > as Partial<EntityInfo>;
+  const impFilesObj = imp.files as { files?: Array<Record<string, unknown>> } | undefined;
+  const impFiles = Array.isArray(imp.files)
+    ? (imp.files as Array<Record<string, unknown>>)
+    : Array.isArray(impFilesObj?.files)
+      ? impFilesObj.files
+      : [];
+  const impDescriptions = (imp.descriptions || { enumFields: [], enumLookup: {} }) as {
+    enumFields: string[];
+    enumLookup: Record<string, Record<string, string>>;
+  };
+  const impAiAnalysis = (imp.caseAiAnalysis || imp.case_ai_analysis || null) as AIReport | null;
+
+  // Files: merge user documents and eCourts imported files
+  const baseFiles: CaseDocument[] = (backend.documents || []).map((d, i) => ({
     id: d.id || `doc_${i}`,
     name: d.name,
     size: d.size || "1.0 MB",
@@ -193,6 +245,24 @@ export function mapBackendCaseToLegalCase(
     fileMimeType: d.fileMimeType,
     uploadedBy: "citizen",
   }));
+
+  const extraFiles: CaseDocument[] = Array.isArray(impFiles)
+    ? impFiles.map((f, i) => ({
+        id: (f.id as string) || `imp_doc_${i}`,
+        name: (f.name as string) || (f.fileName as string) || `Court Document ${i + 1}`,
+        size: (f.size as string) || "1.5 MB",
+        uploadedAt: (f.uploadedAt as string) || createdDate,
+        fileDataUrl: (f.fileDataUrl as string) || (f.fileUrl as string) || (f.url as string),
+        fileMimeType: (f.fileMimeType as string) || "application/pdf",
+        uploadedBy: "citizen" as const,
+      }))
+    : [];
+
+  const filesMap = new Map<string, CaseDocument>();
+  [...baseFiles, ...extraFiles].forEach((f) => {
+    if (f.name) filesMap.set(f.name.toLowerCase(), f);
+  });
+  const files: CaseDocument[] = Array.from(filesMap.values());
 
   const timeline: TimelineEvent[] = (backend.timeline || []).map((t, i) => ({
     id: t.id || `t_${i}`,
@@ -208,6 +278,131 @@ export function mapBackendCaseToLegalCase(
     note: t.note,
   }));
 
+  const rawHearings = (impCaseDetails.historyOfCaseHearings || []) as Array<
+    Partial<HistoryOfHearing> & Record<string, unknown>
+  >;
+  const historyOfCaseHearings: HistoryOfHearing[] = Array.isArray(rawHearings)
+    ? rawHearings.map((h) => ({
+        judge: String(h.judge || ""),
+        businessOnDate: String(h.businessOnDate || h.hearingDate || createdDate),
+        hearingDate: h.hearingDate ? String(h.hearingDate) : undefined,
+        time: h.time ? String(h.time) : undefined,
+        purposeOfListing: String(h.purposeOfListing || h.purpose || "Hearing"),
+      }))
+    : [];
+
+  const rawInterimOrders = (impCaseDetails.interimOrders || []) as Array<
+    Partial<InterimOrder> & Record<string, unknown>
+  >;
+  const interimOrders: InterimOrder[] = Array.isArray(rawInterimOrders)
+    ? rawInterimOrders.map((o) => ({
+        orderDate: String(o.orderDate || createdDate),
+        description: String(o.description || "Court Order"),
+        orderUrl: o.orderUrl ? String(o.orderUrl) : o.url ? String(o.url) : undefined,
+      }))
+    : [];
+
+  const rawJudgmentOrders = (impCaseDetails.judgmentOrders || []) as Array<
+    Partial<JudgmentOrder> & Record<string, unknown>
+  >;
+  const judgmentOrders: JudgmentOrder[] = Array.isArray(rawJudgmentOrders)
+    ? rawJudgmentOrders.map((j) => ({
+        orderDate: String(j.orderDate || createdDate),
+        orderType: String(j.orderType || "Final Judgment"),
+        orderUrl: j.orderUrl ? String(j.orderUrl) : j.url ? String(j.url) : undefined,
+      }))
+    : [];
+
+  const petitioners: string[] =
+    Array.isArray(impCaseDetails.petitioners) && impCaseDetails.petitioners.length > 0
+      ? (impCaseDetails.petitioners as string[])
+      : [citizen?.name || "Petitioner"];
+
+  const petitionerAdvocates: string[] =
+    Array.isArray(impCaseDetails.petitionerAdvocates) &&
+    impCaseDetails.petitionerAdvocates.length > 0
+      ? (impCaseDetails.petitionerAdvocates as string[])
+      : lawyer?.name
+        ? [lawyer.name]
+        : [];
+
+  const respondents: string[] =
+    Array.isArray(impCaseDetails.respondents) && impCaseDetails.respondents.length > 0
+      ? (impCaseDetails.respondents as string[])
+      : ["Opposing Party"];
+
+  const respondentAdvocates: string[] = Array.isArray(impCaseDetails.respondentAdvocates)
+    ? (impCaseDetails.respondentAdvocates as string[])
+    : [];
+
+  const orderCount =
+    (typeof impCaseDetails.orderCount === "number" ? impCaseDetails.orderCount : undefined) ??
+    interimOrders.length + judgmentOrders.length;
+  const interimOrderCount =
+    (typeof impCaseDetails.interimOrderCount === "number"
+      ? impCaseDetails.interimOrderCount
+      : undefined) ?? interimOrders.length;
+  const judgmentCount =
+    (typeof impCaseDetails.judgmentCount === "number" ? impCaseDetails.judgmentCount : undefined) ??
+    judgmentOrders.length;
+  const hearingCount =
+    (typeof impCaseDetails.hearingCount === "number" ? impCaseDetails.hearingCount : undefined) ??
+    historyOfCaseHearings.length;
+
+  const caseDetails: CaseDetails = {
+    caseNumber: impCaseDetails.caseNumber || backend.id,
+    cnr: backend.cnr || impCaseDetails.cnr || undefined,
+    courtName: impCaseDetails.courtName || "",
+    caseType: impCaseDetails.caseType || backend.caseType || "Civil",
+    district: impCaseDetails.district,
+    state: impCaseDetails.state,
+    stateCode: impCaseDetails.stateCode,
+    districtCode: impCaseDetails.districtCode,
+    courtCode: impCaseDetails.courtCode ? String(impCaseDetails.courtCode) : undefined,
+    courtNo: impCaseDetails.courtNo,
+    caseTypeSub: impCaseDetails.caseTypeSub,
+    firDetails: impCaseDetails.firDetails,
+    historyOfCaseHearings,
+    purpose: impCaseDetails.purpose,
+    disposalType: impCaseDetails.disposalType,
+    disposalTypeRaw: impCaseDetails.disposalTypeRaw,
+    contestedStatus: impCaseDetails.contestedStatus,
+    lastHearingDate: impCaseDetails.lastHearingDate,
+    firstHearingDate: impCaseDetails.firstHearingDate,
+    nextHearingDate: impCaseDetails.nextHearingDate,
+    decisionDate: impCaseDetails.decisionDate,
+    caseDurationDays: impCaseDetails.caseDurationDays,
+    filingToFirstHearingDays: impCaseDetails.filingToFirstHearingDays,
+    filingNumber: impCaseDetails.filingNumber,
+    filingDate: impCaseDetails.filingDate || createdDate,
+    registrationNumber: impCaseDetails.registrationNumber,
+    registrationDate: impCaseDetails.registrationDate || createdDate,
+    judges: Array.isArray(impCaseDetails.judges) ? impCaseDetails.judges : [],
+    petitioners,
+    petitionerAdvocates,
+    respondents,
+    respondentAdvocates,
+    interimOrders,
+    judgmentOrders,
+    hasOrders: Boolean(impCaseDetails.hasOrders || orderCount > 0),
+    hasJudgments: Boolean(impCaseDetails.hasJudgments || judgmentCount > 0),
+    orderCount,
+    interimOrderCount,
+    judgmentCount,
+    hearingCount,
+    iaCount: impCaseDetails.iaCount ?? 0,
+    taggedMatters: Array.isArray(impCaseDetails.taggedMatters) ? impCaseDetails.taggedMatters : [],
+    caseCategoryFacetPath: impCaseDetails.caseCategoryFacetPath,
+  };
+
+  const entityInfo: EntityInfo = {
+    cnr: backend.cnr || impEntityInfo.cnr,
+    nextDateOfHearing: impEntityInfo.nextDateOfHearing,
+    lastDateOfHearing: impEntityInfo.lastDateOfHearing,
+    dateCreated: impEntityInfo.dateCreated || createdDate,
+    dateModified: impEntityInfo.dateModified || updatedDate,
+  };
+
   return {
     id: backend.id,
     title: backend.title,
@@ -218,7 +413,7 @@ export function mapBackendCaseToLegalCase(
     lawyerId: backend.lawyerId || undefined,
     lawyerName: lawyer?.name || (backend.lawyerId ? "Assigned Counsel" : undefined),
     status,
-    city: citizen?.city || "Hyderabad",
+    city: citizen?.city || impCaseDetails.district || "Hyderabad",
     createdAt: createdDate,
     updatedAt: updatedDate,
     timeline,
@@ -227,37 +422,9 @@ export function mapBackendCaseToLegalCase(
     practiceArea: backend.practiceArea,
     specialization: backend.specialization,
     files: { files },
-    // A user-filed case has no eCourts record behind it, so the court-side fields
-    // stay empty until the case is registered and synced back with a CNR. Only the
-    // fields `CaseDetails` actually declares are set here — the docket screens read
-    // this shape directly.
-    caseDetails: {
-      caseNumber: backend.id,
-      cnr: backend.cnr || undefined,
-      // Required by CaseDetails, but unknown until the case reaches a court.
-      courtName: "",
-      caseType: backend.caseType || "Civil",
-      filingDate: createdDate,
-      registrationDate: createdDate,
-      historyOfCaseHearings: [],
-      interimOrders: [],
-      judges: [],
-      petitioners: [citizen?.name || "Petitioner"],
-      petitionerAdvocates: lawyer?.name ? [lawyer.name] : [],
-      respondents: ["Opposing Party"],
-      respondentAdvocates: [],
-      hasOrders: false,
-      hasJudgments: false,
-      orderCount: 0,
-      interimOrderCount: 0,
-      judgmentCount: 0,
-      hearingCount: 0,
-      iaCount: 0,
-      taggedMatters: [],
-      judgmentOrders: [],
-    },
-    entityInfo: { dateCreated: createdDate, dateModified: updatedDate },
-    descriptions: { enumFields: [], enumLookup: {} },
-    caseAiAnalysis: null,
+    caseDetails,
+    entityInfo,
+    descriptions: impDescriptions,
+    caseAiAnalysis: impAiAnalysis,
   };
 }

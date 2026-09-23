@@ -8,12 +8,14 @@ import type { LegalCase } from "@/types";
 import { Briefcase, Clock, CalendarClock, CheckCircle2, ArrowRight } from "lucide-react";
 import { Card } from "@/components/m3";
 import { hasUpcomingHearing, nextHearingSortKey } from "@/components/app/caseDocketShared";
+import { useAuth } from "@/context/useAuth";
 
 export const Route = createFileRoute("/lawyer/")({
   component: LawyerDashboard,
 });
 
 export function LawyerDashboard() {
+  const { user } = useAuth();
   const [allCases, setAllCases] = useState<LegalCase[]>(getCases);
   const [lawyersList, setLawyersList] = useState(getLawyers);
 
@@ -25,12 +27,20 @@ export function LawyerDashboard() {
     return subscribeToStore(sync);
   }, []);
 
-  // Demo lawyer profile: Swathi Reddy (l_001)
-  const currentLawyer = lawyersList.find((l) => l.id === "l_001") || lawyersList[0];
+  // Dynamically resolve authenticated lawyer profile with fallback
+  const currentLawyerId = user?.lawyerId || user?.id || "l_001";
+  const currentLawyer =
+    lawyersList.find(
+      (l) =>
+        l.id === currentLawyerId ||
+        (user?.email && l.email?.toLowerCase() === user.email.toLowerCase()),
+    ) || lawyersList[0];
 
-  // Cases assigned to Swathi OR unassigned cases in her category
+  // Cases assigned to current lawyer OR matching their profile
   const myCases = allCases.filter(
-    (c) => c.lawyerId === "l_001" || c.lawyerName === currentLawyer?.name,
+    (c) =>
+      c.lawyerId === currentLawyerId ||
+      (currentLawyer && (c.lawyerId === currentLawyer.id || c.lawyerName === currentLawyer.name)),
   );
   const activeCases = myCases.filter((c) => c.status !== "Resolved" && c.status !== "Closed");
   const resolvedCases = myCases.filter((c) => c.status === "Resolved" || c.status === "Closed");

@@ -1,7 +1,6 @@
 import { Star, X } from "lucide-react";
 import { avatarUrlFor } from "@/data/avatarPool";
-import { lawyers as MOCK_LAWYERS, citizens as MOCK_CITIZENS } from "@/data/mock";
-import { getLawyers, planTierForCitizen } from "@/data/appStore";
+import { getLawyers, getCitizens, planTierForCitizen } from "@/data/appStore";
 import {
   lawyerPresence,
   lawyerPresenceColor,
@@ -84,21 +83,19 @@ function resolveLawyerPresence(name: string): LawyerPresence | null {
   return rec ? lawyerPresence(rec) : null;
 }
 
-// Built once from the real data so these lists never drift from mock.ts.
-const LAWYER_NAMES = new Set(MOCK_LAWYERS.map((l) => l.name.toLowerCase().trim()));
-const CITIZEN_NAMES = new Set(MOCK_CITIZENS.map((c) => c.name.toLowerCase().trim()));
-
 function isLawyerOrAdminName(name: string): boolean {
   const lower = name.toLowerCase().trim();
-  return (
+  if (
     lower.includes("admin") ||
     lower.includes("adv.") ||
     lower.includes("lawyer") ||
     lower.includes("counsel") ||
     lower.includes("attorney") ||
-    lower.includes("advocate") ||
-    LAWYER_NAMES.has(lower)
-  );
+    lower.includes("advocate")
+  ) {
+    return true;
+  }
+  return getLawyers().some((l) => l.name.toLowerCase().trim() === lower);
 }
 
 /**
@@ -119,7 +116,10 @@ function resolvePlanTier(name: string, role?: string, explicitTier?: string): Pl
   }
 
   const lower = name.toLowerCase().trim();
-  const isCitizen = role === "citizen" || CITIZEN_NAMES.has(lower) || lower.startsWith("u_");
+  const isCitizen =
+    role === "citizen" ||
+    lower.startsWith("u_") ||
+    getCitizens().some((c) => c.name.toLowerCase().trim() === lower);
   if (!isCitizen) return null;
 
   return planTierForCitizen(name) ?? "bronze";

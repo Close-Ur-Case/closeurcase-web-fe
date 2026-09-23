@@ -263,19 +263,20 @@ export async function submitRating(c: Context) {
 
 export async function toggleAvailability(c: Context) {
   const id = c.req.param("id")!;
-  const { availabilityStatus } = await c.req.json();
+  const body = await c.req.json().catch(() => ({}));
+  const status = body.availabilityStatus || body.availability || "Online";
 
   const [updated] = await db
     .update(lawyers)
     .set({
-      availabilityStatus: availabilityStatus || "Online",
+      availabilityStatus: status,
       updatedAt: new Date(),
     })
     .where(eq(lawyers.id, id))
     .returning();
 
   if (!updated) throw ApiError.notFound(`Lawyer '${id}' not found`);
-  return ApiResponse.success(c, updated, `Lawyer is now ${availabilityStatus}`);
+  return ApiResponse.success(c, updated, `Lawyer is now ${status}`);
 }
 
 export async function updateBankDetails(c: Context) {

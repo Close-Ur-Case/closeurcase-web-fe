@@ -276,6 +276,7 @@ export function MySubscriptions() {
         // `null` means the citizen closed the checkout — leave the plan alone.
         if (!result) return;
         if (result.payment) mergeRemotePayments([result.payment as Partial<Payment>]);
+        if (result.subscription) addSubscription(result.subscription);
       } else {
         // The free tier takes no payment, so it activates directly.
         await subscriptionService.createSubscription({

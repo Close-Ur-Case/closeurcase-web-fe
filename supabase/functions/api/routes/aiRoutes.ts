@@ -3,12 +3,16 @@ import {
   generateCounterArgument,
   caseQA,
   summarizeDocument,
+  legalQA,
+  caseAnalysis,
 } from "../controllers/aiController.ts";
 import { optionalAuth } from "../middlewares/auth.ts";
 import {
   GenerateCounterSchema,
   CaseQASchema,
   SummarizeDocSchema,
+  CaseAnalysisSchema,
+  LegalQASchema,
   SuccessResponseSchema,
 } from "../schemas/index.ts";
 
@@ -81,8 +85,100 @@ const summarizeDocumentRoute = createRoute({
   },
 });
 
+const summarizeRoute = createRoute({
+  method: "post",
+  path: "/summarize",
+  tags: ["AI Assistant"],
+  summary: "Generate executive summary and extracted risks of legal document (alias)",
+  request: {
+    body: {
+      content: {
+        "application/json": {
+          schema: SummarizeDocSchema,
+        },
+      },
+    },
+  },
+  responses: {
+    200: {
+      description: "Executive summary and extracted risks returned",
+      content: { "application/json": { schema: SuccessResponseSchema } },
+    },
+  },
+});
+
+const caseAnalysisRoute = createRoute({
+  method: "post",
+  path: "/case-analysis",
+  tags: ["AI Assistant"],
+  summary: "Comprehensive AI statutory analysis of case docket, strengths, risks, precedents & timeline",
+  request: {
+    body: {
+      content: {
+        "application/json": {
+          schema: CaseAnalysisSchema,
+        },
+      },
+    },
+  },
+  responses: {
+    200: {
+      description: "Case analysis report with strengths, risks, precedents, and timeline",
+      content: { "application/json": { schema: SuccessResponseSchema } },
+    },
+  },
+});
+
+const legalQARoute = createRoute({
+  method: "post",
+  path: "/legal-qa",
+  tags: ["AI Assistant"],
+  summary: "Ask AI general legal questions powered by Indian statutes, BNSS/BNS, and knowledge base",
+  request: {
+    body: {
+      content: {
+        "application/json": {
+          schema: LegalQASchema,
+        },
+      },
+    },
+  },
+  responses: {
+    200: {
+      description: "Statutory legal answer, citations, and follow-ups returned",
+      content: { "application/json": { schema: SuccessResponseSchema } },
+    },
+  },
+});
+
+const qaRoute = createRoute({
+  method: "post",
+  path: "/qa",
+  tags: ["AI Assistant"],
+  summary: "Ask AI general legal questions (alias)",
+  request: {
+    body: {
+      content: {
+        "application/json": {
+          schema: LegalQASchema,
+        },
+      },
+    },
+  },
+  responses: {
+    200: {
+      description: "Statutory legal answer, citations, and follow-ups returned",
+      content: { "application/json": { schema: SuccessResponseSchema } },
+    },
+  },
+});
+
 ai.openapi(generateCounterRoute, generateCounterArgument as any);
 ai.openapi(caseQARoute, caseQA as any);
 ai.openapi(summarizeDocumentRoute, summarizeDocument as any);
+ai.openapi(summarizeRoute, summarizeDocument as any);
+ai.openapi(caseAnalysisRoute, caseAnalysis as any);
+ai.openapi(legalQARoute, legalQA as any);
+ai.openapi(qaRoute, legalQA as any);
 
 export default ai;

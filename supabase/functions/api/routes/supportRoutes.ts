@@ -32,6 +32,11 @@ const listInquiriesRoute = createRoute({
   path: "/inquiries",
   tags: ["Support"],
   summary: "List customer contact inquiries (Admin)",
+  request: {
+    query: z.object({
+      status: z.enum(["New", "In Progress", "In Review", "Resolved", "Closed", "Archived"]).optional().openapi({ example: "New" }),
+    }),
+  },
   responses: {
     200: {
       description: "Inquiries list",
@@ -42,7 +47,7 @@ const listInquiriesRoute = createRoute({
 
 const updateInquiryRoute = createRoute({
   method: "patch",
-  path: "/inquiries/{id}",
+  path: "/inquiries/:id",
   tags: ["Support"],
   summary: "Update customer inquiry status (Admin)",
   request: {

@@ -1,5 +1,4 @@
 import type { CourtItem } from "@/types";
-import { INDIAN_COURTS_RAW } from "./indianCourtsRaw";
 
 const STATE_NAMES = [
   "Andhra Pradesh",
@@ -252,7 +251,5 @@ export function parseCourtItem(rawName: string, idx: number): CourtItem {
   };
 }
 
-/** All ~1,242 Indian Courts from `courts.ts` deduplicated and parsed into CourtItems */
-export const DEFAULT_PARSED_COURTS: CourtItem[] = Array.from(
-  new Set(INDIAN_COURTS_RAW.map((c) => c.trim()).filter(Boolean)),
-).map((courtName, idx) => parseCourtItem(courtName, idx));
+/** Default parsed courts - dynamically loaded from backend */
+export const DEFAULT_PARSED_COURTS: CourtItem[] = [];

@@ -43,6 +43,12 @@ const getNotificationsRoute = createRoute({
   tags: ["Notifications"],
   summary: "Get user in-app notification center alerts",
   security: [{ bearerAuth: [] }],
+  request: {
+    query: z.object({
+      role: z.string().optional().openapi({ example: "citizen" }),
+      limit: z.string().optional().openapi({ example: "50" }),
+    }),
+  },
   responses: {
     200: {
       description: "List of notifications",
@@ -76,6 +82,17 @@ const markAllAsReadRoute = createRoute({
   tags: ["Notifications"],
   summary: "Mark all user notifications as read",
   security: [{ bearerAuth: [] }],
+  request: {
+    body: {
+      content: {
+        "application/json": {
+          schema: z.object({
+            role: z.string().optional().openapi({ example: "citizen" }),
+          }),
+        },
+      },
+    },
+  },
   responses: {
     200: {
       description: "All notifications marked as read",

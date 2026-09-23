@@ -5,7 +5,7 @@ import {
   getPayments,
   razorpayWebhook,
 } from "../controllers/paymentController.ts";
-import { authenticateUser } from "../middlewares/auth.ts";
+import { authenticateUser, optionalAuth } from "../middlewares/auth.ts";
 import {
   CreatePaymentOrderSchema,
   VerifyPaymentSchema,
@@ -19,7 +19,7 @@ const payment = new OpenAPIHono();
 // handler), so it must stay reachable without one.
 payment.use("/create-order", authenticateUser);
 payment.use("/verify-payment", authenticateUser);
-payment.use("/", authenticateUser);
+payment.use("/", optionalAuth);
 
 const createOrderRoute = createRoute({
   method: "post",

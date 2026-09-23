@@ -2,12 +2,27 @@ import type { Context } from "hono";
 import { db } from "../config/db.ts";
 import { citizens } from "../models/users.ts";
 import { subscriptions } from "../models/subscriptions.ts";
-import { eq, desc } from "drizzle-orm";
+import { eq, desc, or, ilike } from "drizzle-orm";
 import { ApiResponse } from "../utils/apiResponse.ts";
 import { ApiError } from "../utils/apiError.ts";
 
 export async function getCitizens(c: Context) {
-  const result = await db.select().from(citizens).orderBy(desc(citizens.joinedAt));
+  const search = c.req.query("search")?.trim();
+  let query = db.select().from(citizens);
+
+  if (search) {
+    const pattern = `%${search}%`;
+    query = query.where(
+      or(
+        ilike(citizens.name, pattern),
+        ilike(citizens.email, pattern),
+        ilike(citizens.phone, pattern),
+        ilike(citizens.city, pattern)
+      )
+    ) as any;
+  }
+
+  const result = await query.orderBy(desc(citizens.joinedAt));
   return ApiResponse.success(c, result, "Citizens retrieved successfully");
 }
 

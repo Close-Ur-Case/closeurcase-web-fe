@@ -178,6 +178,7 @@ export class AuthService {
         .where(eq(citizens.id, existingCitizen.id));
 
       [citizenRecord] = await db.select().from(citizens).where(eq(citizens.id, existingCitizen.id));
+    } else {
       const citizenId = `u_${Date.now()}`;
       const citizenCity = city || "Hyderabad";
       [citizenRecord] = await db

@@ -159,9 +159,9 @@ export function CitizenLogin() {
   };
 
   const verifyOtp = async () => {
-    // Standard Supabase OTP is 6 digits; accept 6 digits (or 4-digit mock "0000")
+    // Standard Supabase OTP is 6 digits
     const cleanOtp = otp.trim();
-    if (cleanOtp.length !== 6 && cleanOtp !== "0000") {
+    if (cleanOtp.length !== 6) {
       setOtpError("Enter the 6-digit OTP code.");
       return;
     }

@@ -5,13 +5,21 @@ import { getCitizenSession } from "@/features/citizen/session";
 import { useAuth } from "@/context/useAuth";
 import { useCaseSync } from "@/hooks/useCaseSync";
 import { getCitizens } from "@/data/appStore";
+import { getStoredToken, getStoredUser } from "@/services/apiClient";
+import type { AuthUser } from "@/types/api";
 
 export const Route = createFileRoute("/citizen")({
   beforeLoad: () => {
     if (typeof window !== "undefined") {
       const session = getCitizenSession();
-      if (!session.authenticated) {
+      const token = getStoredToken();
+      const user = getStoredUser<AuthUser>();
+      const isAuthenticated = session.authenticated || Boolean(token) || Boolean(user);
+      if (!isAuthenticated) {
         throw redirect({ to: "/citizen-login" });
+      }
+      if (user && user.role && user.role !== "citizen") {
+        throw redirect({ to: user.role === "admin" ? "/admin" : "/lawyer" });
       }
     }
   },

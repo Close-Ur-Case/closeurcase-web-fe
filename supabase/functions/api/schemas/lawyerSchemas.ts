@@ -76,7 +76,8 @@ export const UpdateLawyerProfileSchema = z
 
 export const ToggleAvailabilitySchema = z
   .object({
-    availability: z.enum(["Online", "Offline", "In Consultation"]).openapi({ example: "Online" }),
+    availability: z.enum(["Online", "Offline", "In Consultation", "Busy"]).optional().openapi({ example: "Online" }),
+    availabilityStatus: z.enum(["Online", "Offline", "In Consultation", "Busy"]).optional().openapi({ example: "Online" }),
   })
   .openapi("ToggleAvailabilityRequest");
 

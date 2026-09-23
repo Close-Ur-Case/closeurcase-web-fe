@@ -33,4 +33,11 @@ export const videoCallService = {
     const path = caseId ? `/video-calls/history/${caseId}` : "/video-calls/history";
     return apiClient.get<VideoCallRecord[]>(path);
   },
+
+  /**
+   * List all video calls
+   */
+  async listCalls(): Promise<VideoCallRecord[]> {
+    return apiClient.get<VideoCallRecord[]>("/video-calls");
+  },
 };

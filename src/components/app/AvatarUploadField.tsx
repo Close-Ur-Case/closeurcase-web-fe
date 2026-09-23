@@ -9,6 +9,7 @@ import {
 } from "@/data/appStore";
 import type { UserRole } from "@/types";
 import type { LawyerPresence } from "@/lib/statusColors";
+import { storageService } from "@/services/storageService";
 
 const MAX_SIZE_BYTES = 5 * 1024 * 1024;
 
@@ -39,7 +40,7 @@ export function AvatarUploadField({
 
   useEffect(() => subscribeToStore(() => setPhotoUrl(getProfilePhoto(role))), [role]);
 
-  const handleFile = (file: File) => {
+  const handleFile = async (file: File) => {
     if (!file.type.startsWith("image/")) {
       setError("Please choose an image file.");
       return;
@@ -49,6 +50,20 @@ export function AvatarUploadField({
       return;
     }
     setError("");
+
+    try {
+      const res = await storageService.uploadFile(file, {
+        bucket: "profile-photos",
+        folder: role,
+      });
+      if (res?.fileUrl) {
+        setProfilePhoto(role, res.fileUrl);
+        return;
+      }
+    } catch {
+      // Graceful fallback to Data URL below
+    }
+
     const reader = new FileReader();
     reader.onload = () => {
       if (typeof reader.result === "string") setProfilePhoto(role, reader.result);

@@ -4,7 +4,12 @@
 
 import { useMutation } from "@tanstack/react-query";
 import { aiService } from "@/services/aiService";
-import type { GenerateCounterPayload, CaseQAPayload, SummarizeDocPayload } from "@/types/api";
+import type {
+  GenerateCounterPayload,
+  CaseQAPayload,
+  SummarizeDocPayload,
+  LegalQAPayload,
+} from "@/types/api";
 
 export function useGenerateCounterMutation() {
   return useMutation({
@@ -21,5 +26,11 @@ export function useCaseQAMutation() {
 export function useSummarizeDocMutation() {
   return useMutation({
     mutationFn: (payload: SummarizeDocPayload) => aiService.summarizeDocument(payload),
+  });
+}
+
+export function useLegalQAMutation() {
+  return useMutation({
+    mutationFn: (payload: LegalQAPayload) => aiService.legalQA(payload),
   });
 }

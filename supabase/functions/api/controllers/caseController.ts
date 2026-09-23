@@ -111,6 +111,19 @@ export async function assignLawyer(c: Context) {
   return ApiResponse.success(c, result, "Lawyer assigned to case successfully");
 }
 
+export async function updateUserCase(c: Context) {
+  const id = c.req.param("id")!;
+  const body = await c.req.json();
+  const result = await CaseService.updateUserCase(id, body);
+  return ApiResponse.success(c, result, "Case updated successfully");
+}
+
+export async function deleteUserCase(c: Context) {
+  const id = c.req.param("id")!;
+  const result = await CaseService.deleteUserCase(id);
+  return ApiResponse.success(c, result, "Case deleted successfully");
+}
+
 // Backward compatibility exports
 export const createCase = createUserCase;
 export const listCases = listUserCases;

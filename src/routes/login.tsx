@@ -18,9 +18,9 @@ export function Login() {
   const navigate = useNavigate();
   const lawyerLogin = useLawyerLogin();
   const adminLogin = useAdminLogin();
-  const [email, setEmail] = useState("lawyer@CloseUrCase.app");
+  const [email, setEmail] = useState("");
   const [emailTouched, setEmailTouched] = useState(false);
-  const [password, setPassword] = useState("••••••••");
+  const [password, setPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
   const [loginError, setLoginError] = useState<string | null>(null);
   const [permissionsAcknowledged, acknowledgePermissions] = usePermissionsGate();

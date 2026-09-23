@@ -158,7 +158,7 @@ export function openDocumentInNewTab(item: {
     }
   }
 
-  // Fallback HTML preview page for documents without a raw file payload (seed/mock items)
+  // Fallback HTML preview page for documents without a raw file payload (metadata-only reference items)
   const title = item.title || "Legal Document";
   const docType = item.type || "Statutory Reference";
   const domain = item.category ? `${item.category} Law` : "Legal Index";

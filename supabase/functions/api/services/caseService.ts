@@ -2,7 +2,7 @@ import { db } from "../config/db.ts";
 import { casesImported } from "../models/casesImported.ts";
 import { casesUser } from "../models/casesUser.ts";
 import { lookups } from "../models/lookups.ts";
-import { eq, desc, and, or, ilike, sql } from "drizzle-orm";
+import { eq, desc, and, or, ilike, sql, inArray } from "drizzle-orm";
 import { ApiError } from "../utils/apiError.ts";
 import { NotificationService } from "./notificationService.ts";
 import { LawyerCategoryService } from "./lawyerCategoryService.ts";
@@ -386,7 +386,21 @@ export class CaseService {
       query = query.where(and(...conditions)) as any;
     }
 
-    return await query.orderBy(desc(casesUser.createdAt)).limit(limit).offset(offset);
+    const rows = await query.orderBy(desc(casesUser.createdAt)).limit(limit).offset(offset);
+    const cnrs = Array.from(new Set(rows.map((r) => r.cnr).filter(Boolean)));
+    if (cnrs.length > 0) {
+      const importedList = await db
+        .select()
+        .from(casesImported)
+        .where(inArray(casesImported.cnr, cnrs as string[]));
+      const importedMap = new Map(importedList.map((imp) => [imp.cnr.toUpperCase(), imp]));
+      return rows.map((r) => ({
+        ...r,
+        importedCase: r.cnr ? importedMap.get(r.cnr.toUpperCase()) || null : null,
+      }));
+    }
+
+    return rows.map((r) => ({ ...r, importedCase: null }));
   }
 
   /**
@@ -499,5 +513,55 @@ export class CaseService {
       .returning();
 
     return updated;
+  }
+
+  static async updateUserCase(caseId: string, updates: any) {
+    const [existing] = await db.select().from(casesUser).where(eq(casesUser.id, caseId));
+    if (!existing) {
+      throw ApiError.notFound(`Case docket '${caseId}' not found`);
+    }
+
+    const updateFields: any = {
+      updatedAt: new Date(),
+    };
+
+    if (updates.title !== undefined) updateFields.title = updates.title;
+    if (updates.description !== undefined) updateFields.description = updates.description;
+    if (updates.cnr !== undefined) updateFields.cnr = this.normalizeCnr(updates.cnr);
+    if (updates.caseType !== undefined) updateFields.caseType = updates.caseType.toLowerCase();
+    if (updates.practiceArea !== undefined) updateFields.practiceArea = updates.practiceArea;
+    if (updates.specialization !== undefined) updateFields.specialization = updates.specialization;
+    if (updates.isEmergency !== undefined) updateFields.isEmergency = Boolean(updates.isEmergency);
+    if (updates.documents !== undefined) updateFields.documents = updates.documents;
+    if (updates.timeline !== undefined) updateFields.timeline = updates.timeline;
+    if (updates.notes !== undefined) updateFields.notes = updates.notes;
+    if (updates.status !== undefined || updates.caseStatus !== undefined) {
+      const st = (updates.status || updates.caseStatus).toLowerCase();
+      updateFields.caseStatus = st;
+      updateFields.lawyerCasestageId = st;
+    }
+
+    // Auto-seed imported case if new CNR provided
+    if (updateFields.cnr && updateFields.cnr !== existing.cnr) {
+      await this.importFromEcourts(updateFields.cnr);
+    }
+
+    const [updated] = await db
+      .update(casesUser)
+      .set(updateFields)
+      .where(eq(casesUser.id, caseId))
+      .returning();
+
+    return updated;
+  }
+
+  static async deleteUserCase(caseId: string) {
+    const [existing] = await db.select().from(casesUser).where(eq(casesUser.id, caseId));
+    if (!existing) {
+      throw ApiError.notFound(`Case docket '${caseId}' not found`);
+    }
+
+    await db.delete(casesUser).where(eq(casesUser.id, caseId));
+    return { id: caseId, deleted: true };
   }
 }

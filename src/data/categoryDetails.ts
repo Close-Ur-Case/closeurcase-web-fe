@@ -3,8 +3,8 @@ export interface CategoryDetail {
   commonMatters: string[];
 }
 
-/* Demo copy shown when a citizen picks a category in the Find a Lawyer
-   wizard — keyed by the category `id` from case_categories.json. */
+/* Descriptive copy shown when a citizen picks a category in the Find a Lawyer
+   wizard — keyed by the category `id` from master data. */
 export const CATEGORY_DETAILS: Record<string, CategoryDetail> = {
   criminal: {
     description:

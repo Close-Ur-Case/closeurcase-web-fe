@@ -15,7 +15,7 @@ export async function logCallSession(c: Context) {
 }
 
 export async function getCallHistory(c: Context) {
-  const caseId = c.req.param("caseId");
+  const caseId = c.req.param("caseId") || c.req.query("caseId");
   const history = await AgoraService.getCallHistory(caseId);
   return ApiResponse.success(c, history, "Call history retrieved successfully");
 }

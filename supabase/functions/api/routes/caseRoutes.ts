@@ -11,6 +11,8 @@ import {
   listUserCases,
   updateLawyerStage,
   assignLawyer,
+  updateUserCase,
+  deleteUserCase,
 } from "../controllers/caseController.ts";
 import {
   getCaseMessages,
@@ -20,6 +22,7 @@ import {
 import { optionalAuth } from "../middlewares/auth.ts";
 import {
   CreateUserCaseSchema,
+  UpdateUserCaseSchema,
   UpdateLawyerCaseStageSchema,
   ImportCaseSchema,
   AssignLawyerSchema,
@@ -232,6 +235,49 @@ const updateLawyerStageRoute = createRoute({
   },
 });
 
+const updateUserCaseRoute = createRoute({
+  method: "patch",
+  path: "/user/:id",
+  tags: ["Cases - User"],
+  summary: "Update user case fields (title, CNR, details, notes)",
+  request: {
+    params: z.object({
+      id: z.string().openapi({ example: "CUC-20260831154512" }),
+    }),
+    body: {
+      content: {
+        "application/json": {
+          schema: UpdateUserCaseSchema,
+        },
+      },
+    },
+  },
+  responses: {
+    200: {
+      description: "Case updated successfully",
+      content: { "application/json": { schema: SuccessResponseSchema } },
+    },
+  },
+});
+
+const deleteUserCaseRoute = createRoute({
+  method: "delete",
+  path: "/user/:id",
+  tags: ["Cases - User"],
+  summary: "Delete user case docket permanently",
+  request: {
+    params: z.object({
+      id: z.string().openapi({ example: "CUC-20260831154512" }),
+    }),
+  },
+  responses: {
+    200: {
+      description: "Case deleted successfully",
+      content: { "application/json": { schema: SuccessResponseSchema } },
+    },
+  },
+});
+
 // Root aliases for backward compatibility
 const listRootCasesRoute = createRoute({
   method: "get",
@@ -257,6 +303,27 @@ const getRootCaseRoute = createRoute({
   summary: "Get case by ID (alias for /user/:id)",
   request: { params: z.object({ id: z.string() }) },
   responses: { 200: { description: "Case docket", content: { "application/json": { schema: SuccessResponseSchema } } } },
+});
+
+const updateRootCaseRoute = createRoute({
+  method: "patch",
+  path: "/:id",
+  tags: ["Cases - User"],
+  summary: "Update case (alias for /user/:id)",
+  request: {
+    params: z.object({ id: z.string() }),
+    body: { content: { "application/json": { schema: UpdateUserCaseSchema } } },
+  },
+  responses: { 200: { description: "Case updated", content: { "application/json": { schema: SuccessResponseSchema } } } },
+});
+
+const deleteRootCaseRoute = createRoute({
+  method: "delete",
+  path: "/:id",
+  tags: ["Cases - User"],
+  summary: "Delete case (alias for /user/:id)",
+  request: { params: z.object({ id: z.string() }) },
+  responses: { 200: { description: "Case deleted", content: { "application/json": { schema: SuccessResponseSchema } } } },
 });
 
 const updateRootCaseStatusRoute = createRoute({
@@ -337,11 +404,15 @@ caseRouter.openapi(listUserCasesRoute, listUserCases as any);
 caseRouter.openapi(createUserCaseRoute, createUserCase as any);
 caseRouter.openapi(getUserCaseRoute, getUserCase as any);
 caseRouter.openapi(updateLawyerStageRoute, updateLawyerStage as any);
+caseRouter.openapi(updateUserCaseRoute, updateUserCase as any);
+caseRouter.openapi(deleteUserCaseRoute, deleteUserCase as any);
 
 caseRouter.openapi(listRootCasesRoute, listUserCases as any);
 caseRouter.openapi(createRootCaseRoute, createUserCase as any);
 caseRouter.openapi(getRootCaseRoute, getUserCase as any);
 caseRouter.openapi(updateRootCaseStatusRoute, updateLawyerStage as any);
+caseRouter.openapi(updateRootCaseRoute, updateUserCase as any);
+caseRouter.openapi(deleteRootCaseRoute, deleteUserCase as any);
 caseRouter.openapi(assignLawyerRoute, assignLawyer as any);
 
 caseRouter.openapi(getCaseMessagesRoute, getCaseMessages as any);

@@ -1,6 +1,7 @@
 import { OpenAPIHono, createRoute, z } from "@hono/zod-openapi";
 import {
   getKnowledgeBase,
+  getKnowledgeItemById,
   addKnowledgeItem,
   deleteKnowledgeItem,
 } from "../controllers/knowledgeController.ts";
@@ -29,6 +30,25 @@ const getKnowledgeBaseRoute = createRoute({
   responses: {
     200: {
       description: "Knowledge base articles list",
+      content: { "application/json": { schema: SuccessResponseSchema } },
+    },
+  },
+});
+
+const getKnowledgeItemByIdRoute = createRoute({
+  method: "get",
+  path: "/:id",
+  tags: ["Knowledge Base"],
+  summary: "Get specific knowledge article by ID",
+  middleware: [optionalAuth],
+  request: {
+    params: z.object({
+      id: z.string().openapi({ example: "kb_101" }),
+    }),
+  },
+  responses: {
+    200: {
+      description: "Knowledge article details",
       content: { "application/json": { schema: SuccessResponseSchema } },
     },
   },
@@ -74,14 +94,11 @@ const deleteKnowledgeItemRoute = createRoute({
   summary: "Delete knowledge article (Admin only)",
   middleware: [requireAdmin],
   security: [{ bearerAuth: [] }],
-  parameters: [
-    {
-      name: "id",
-      in: "path",
-      required: true,
-      schema: { type: "string", example: "kb_101" },
-    },
-  ],
+  request: {
+    params: z.object({
+      id: z.string().openapi({ example: "kb_101" }),
+    }),
+  },
   responses: {
     200: {
       description: "Article deleted",
@@ -91,6 +108,7 @@ const deleteKnowledgeItemRoute = createRoute({
 });
 
 knowledge.openapi(getKnowledgeBaseRoute, getKnowledgeBase as any);
+knowledge.openapi(getKnowledgeItemByIdRoute, getKnowledgeItemById as any);
 knowledge.openapi(addKnowledgeItemRoute, addKnowledgeItem as any);
 knowledge.openapi(deleteKnowledgeItemRoute, deleteKnowledgeItem as any);
 
