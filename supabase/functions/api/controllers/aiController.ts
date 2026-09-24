@@ -59,15 +59,18 @@ export async function caseQA(c: Context) {
   let answer = "";
 
   if (foundCase) {
+    const caseDisplayTitle = foundCase.petitioner
+      ? (foundCase.respondent ? `${foundCase.petitioner} vs ${foundCase.respondent}` : foundCase.petitioner)
+      : "Legal Matter";
     const q = question.toLowerCase();
     if (/status|stage|progress/.test(q)) {
       answer = `The current status of ${foundCase.id} is "${foundCase.caseStatus}".`;
     } else if (/summary|describe|what is this case/.test(q)) {
-      answer = foundCase.description || foundCase.title;
+      answer = foundCase.description || caseDisplayTitle;
     } else if (/category|type of case|law/.test(q)) {
       answer = `This is a ${foundCase.practiceArea} (${foundCase.specialization}) matter.`;
     } else {
-      answer = `Regarding case ${foundCase.title} (${foundCase.id}): Stage is "${foundCase.caseStatus}". Description: ${foundCase.description}`;
+      answer = `Regarding case ${caseDisplayTitle} (${foundCase.id}): Stage is "${foundCase.caseStatus}". Description: ${foundCase.description}`;
     }
   } else {
     // Try imported cases by CNR
@@ -250,7 +253,9 @@ export async function caseAnalysis(c: Context) {
   if (caseId) {
     const [foundCase] = await db.select().from(casesUser).where(eq(casesUser.id, caseId));
     if (foundCase) {
-      caseTitle = foundCase.title;
+      caseTitle = foundCase.petitioner
+        ? (foundCase.respondent ? `${foundCase.petitioner} vs ${foundCase.respondent}` : foundCase.petitioner)
+        : "Legal Matter";
       caseDescription = foundCase.description || caseDescription;
       category = foundCase.practiceArea || category;
     }

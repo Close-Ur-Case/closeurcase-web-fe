@@ -79,6 +79,13 @@ export const authService = {
     });
 
     const token = res?.session?.accessToken || res?.session?.access_token || res?.token;
+    const isEmailSignup = Boolean(
+      payload.email ||
+      (payload.identifier && payload.identifier.includes("@")) ||
+      (res?.user?.email && !res?.user?.phone),
+    );
+    const signupMethod: "email" | "phone" = isEmailSignup ? "email" : "phone";
+
     const user: AuthUser = {
       id: res?.user?.id || `u_${Date.now()}`,
       role: "citizen",
@@ -88,6 +95,7 @@ export const authService = {
       city: res?.citizen?.city || res?.user?.city || payload.city,
       // Must be the citizen record id, not the auth UUID — case scoping filters on it.
       citizenId: res?.citizen?.id || res?.user?.citizenId,
+      signupMethod,
     };
 
     if (token) {
@@ -185,16 +193,28 @@ export const authService = {
   async getCurrentUser(): Promise<AuthUser | null> {
     try {
       const res = await apiClient.get<Record<string, unknown>>("/auth/me");
+      const resObj = (res || {}) as Record<string, unknown>;
       const rawUser =
-        (res?.user as AuthUser | undefined) ||
-        (res?.id && res?.role ? (res as unknown as AuthUser) : null);
+        (resObj.user as AuthUser | undefined) ||
+        (resObj.id && resObj.role ? (resObj as unknown as AuthUser) : null);
       if (rawUser) {
         const existing = getStoredUser<AuthUser>();
+        const citizenObj = resObj.citizen as { id?: string } | undefined;
+        const lawyerObj = resObj.lawyer as { id?: string } | undefined;
+        const serverCitizenId =
+          typeof resObj.citizenId === "string"
+            ? resObj.citizenId
+            : citizenObj?.id || rawUser.citizenId;
+        const serverLawyerId =
+          typeof resObj.lawyerId === "string" ? resObj.lawyerId : lawyerObj?.id || rawUser.lawyerId;
+
         const merged: AuthUser = {
           ...existing,
           ...rawUser,
-          id: rawUser.id || existing?.id,
+          id: rawUser.id || existing?.id || "",
           role: (rawUser.role || existing?.role || "citizen") as AuthUser["role"],
+          citizenId: serverCitizenId || existing?.citizenId,
+          lawyerId: serverLawyerId || existing?.lawyerId,
           email: rawUser.email || existing?.email,
           name:
             rawUser.name ||

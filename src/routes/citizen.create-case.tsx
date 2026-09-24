@@ -37,13 +37,17 @@ import {
 import {
   addCase,
   addSubscription,
+  getCases,
+  saveCases,
   getLawyers,
   generateCloseUrCaseId,
   subscribeToStore,
   mergeRemotePayments,
+  getSubscriptions,
 } from "@/data/appStore";
 import { caseService } from "@/services/caseService";
 import { storageService } from "@/services/storageService";
+import { subscriptionService } from "@/services/subscriptionService";
 import { useRazorpayCheckout } from "@/hooks/useRazorpayCheckout";
 import { useAuth } from "@/context/useAuth";
 import { SUBSCRIPTION_PLANS } from "@/data/subscriptionPlans";
@@ -60,6 +64,7 @@ import type {
   Lawyer,
   SubscriptionPlanId,
   Payment,
+  Subscription,
 } from "@/types";
 import {
   Button,
@@ -127,6 +132,27 @@ export function FindLawyerWizard() {
   const initialAreaParam = searchParams.area;
   const initialSpecParam = searchParams.specialization;
   const initialServiceParam = searchParams.service;
+
+  const [subscriptions, setSubscriptions] = useState<Subscription[]>(() =>
+    getSubscriptions(currentCitizenId),
+  );
+  const [draftRestored, setDraftRestored] = useState(false);
+
+  useEffect(() => {
+    subscriptionService.listSubscriptions(currentCitizenId).then((items) => {
+      if (Array.isArray(items) && items.length > 0) {
+        setSubscriptions(items as unknown as Subscription[]);
+      }
+    });
+  }, [currentCitizenId]);
+
+  useEffect(
+    () => subscribeToStore(() => setSubscriptions(getSubscriptions(currentCitizenId))),
+    [currentCitizenId],
+  );
+
+  const activeSubscription = subscriptions.find((s) => s.status === "Active");
+  const hasActiveSubscription = Boolean(activeSubscription);
 
   const matchedAreaObj = useMemo(() => {
     if (initialAreaParam) {
@@ -293,8 +319,128 @@ export function FindLawyerWizard() {
     return null;
   })();
 
+  // Restore saved draft case data if returning from subscription checkout or previous session
+  useEffect(() => {
+    const rawDraft =
+      typeof window !== "undefined" ? sessionStorage.getItem("cuc_case_draft") : null;
+    if (!rawDraft) return;
+
+    try {
+      const draft = JSON.parse(rawDraft);
+      if (draft.clientName) setClientName(draft.clientName);
+      if (draft.respondentName) setRespondentName(draft.respondentName);
+      if (draft.path) setPath(draft.path);
+      if (draft.cnr) setCnr(draft.cnr);
+      if (draft.existingCaseStatus) setExistingCaseStatus(draft.existingCaseStatus);
+      if (draft.description) setDescription(draft.description);
+      if (draft.knowsCaseType !== undefined && draft.knowsCaseType !== null) {
+        setKnowsCaseType(draft.knowsCaseType);
+      }
+      if (draft.selectedPracticeArea) setSelectedPracticeArea(draft.selectedPracticeArea);
+      if (draft.selectedSpecialization) setSelectedSpecialization(draft.selectedSpecialization);
+      if (Array.isArray(draft.selectedLegalServices)) {
+        setSelectedLegalServices(draft.selectedLegalServices);
+      }
+      if (draft.predictedCategory) setPredictedCategory(draft.predictedCategory);
+      if (draft.isAiAnalyzed !== undefined) setIsAiAnalyzed(draft.isAiAnalyzed);
+      if (draft.assignMode) setAssignMode(draft.assignMode);
+      if (draft.selectedLawyerId) setSelectedLawyerId(draft.selectedLawyerId);
+      if (draft.step) setStep(draft.step);
+
+      if (Array.isArray(draft.images) && draft.images.length > 0) {
+        Promise.all(
+          draft.images.map(async (item: { name: string; type: string; dataUrl: string }) => {
+            const res = await fetch(item.dataUrl);
+            const blob = await res.blob();
+            return new File([blob], item.name, { type: item.type });
+          }),
+        )
+          .then((restored) => {
+            if (restored.length > 0) setImages(restored);
+          })
+          .catch((e) => console.warn("[Case Filing] Failed to restore draft images:", e));
+      }
+
+      if (Array.isArray(draft.documents) && draft.documents.length > 0) {
+        Promise.all(
+          draft.documents.map(async (item: { name: string; type: string; dataUrl: string }) => {
+            const res = await fetch(item.dataUrl);
+            const blob = await res.blob();
+            return new File([blob], item.name, { type: item.type });
+          }),
+        )
+          .then((restored) => {
+            if (restored.length > 0) setDocuments(restored);
+          })
+          .catch((e) => console.warn("[Case Filing] Failed to restore draft docs:", e));
+      }
+
+      setDraftRestored(true);
+    } catch (e) {
+      console.warn("[Case Filing] Draft restore notice:", e);
+    }
+  }, []);
+
+  async function handleSubscribeClick() {
+    try {
+      let serializedImages: { name: string; type: string; dataUrl: string }[] = [];
+      let serializedDocs: { name: string; type: string; dataUrl: string }[] = [];
+      try {
+        serializedImages = await Promise.all(
+          images.map(async (file) => ({
+            name: file.name,
+            type: file.type,
+            dataUrl: await readFileAsDataUrl(file),
+          })),
+        );
+        serializedDocs = await Promise.all(
+          documents.map(async (file) => ({
+            name: file.name,
+            type: file.type,
+            dataUrl: await readFileAsDataUrl(file),
+          })),
+        );
+      } catch (fileErr) {
+        console.warn("[Case Filing] Attachment serialization notice:", fileErr);
+      }
+
+      const draft = {
+        step: "assign" as Step,
+        path,
+        clientName,
+        respondentName,
+        cnr,
+        existingCaseStatus,
+        description,
+        knowsCaseType,
+        selectedPracticeArea,
+        selectedSpecialization,
+        selectedLegalServices,
+        predictedCategory,
+        isAiAnalyzed,
+        assignMode: "admin" as AssignMode,
+        selectedLawyerId,
+        images: serializedImages,
+        documents: serializedDocs,
+        savedAt: Date.now(),
+      };
+
+      if (typeof window !== "undefined") {
+        sessionStorage.setItem("cuc_case_draft", JSON.stringify(draft));
+        sessionStorage.setItem("cuc_return_after_payment", "/citizen/create-case");
+      }
+    } catch (err) {
+      console.error("[Case Filing] Could not save draft before navigation:", err);
+    }
+
+    navigate({
+      to: "/citizen/subscriptions",
+      search: { returnTo: "/citizen/create-case" },
+    });
+  }
+
   const canContinueAssign =
-    (assignMode === "admin" && subscriptionPlan !== null) ||
+    (assignMode === "admin" && hasActiveSubscription) ||
     (assignMode === "browse" && selectedLawyerId !== "");
 
   const [practiceAreaTree, setPracticeAreaTree] =
@@ -376,11 +522,13 @@ export function FindLawyerWizard() {
   const selectedLawyer: Lawyer | undefined = sortedLawyers.find((l) => l.id === selectedLawyerId);
   const selectedPlan = SUBSCRIPTION_PLANS.find((p) => p.id === subscriptionPlan);
   const totalFee =
-    assignMode === "admin" && selectedPlan
-      ? selectedPlan.price
-      : assignMode === "browse" && selectedLawyer
-        ? (selectedLawyer.consultationFee ?? FEE)
-        : FEE;
+    assignMode === "admin" && hasActiveSubscription
+      ? 0
+      : assignMode === "admin" && selectedPlan
+        ? selectedPlan.price
+        : assignMode === "browse" && selectedLawyer
+          ? (selectedLawyer.consultationFee ?? FEE)
+          : FEE;
 
   function handleRecordVoiceNote() {
     if (isRecording) {
@@ -560,7 +708,9 @@ export function FindLawyerWizard() {
                   status: "Submitted" as CaseStatus,
                   at: today,
                   time,
-                  note: "Auto-assign requested — pending admin allocation",
+                  note: activeSubscription
+                    ? `Auto-assign requested under active subscription (${activeSubscription.planLabel}) — pending admin allocation`
+                    : "Auto-assign requested — pending admin allocation",
                 },
           ];
 
@@ -618,11 +768,14 @@ export function FindLawyerWizard() {
 
       // Dispatch to backend API
       caseService
-        .createUserCase({
+        .createUserCase<{ id?: string }>({
+          id,
           citizenId: currentCitizenId,
           lawyerId: lawyer?.id,
           caseType: path === "existing" ? (isExistingClosed ? "closed" : "pending") : "new",
           cnr: path === "existing" && cnr.trim() ? cnr.trim() : undefined,
+          petitioner: clientName.trim() || "Petitioner",
+          respondent: respondentName.trim() || undefined,
           title,
           description: caseDescription,
           practiceArea: predictedCategory ?? "Civil",
@@ -636,6 +789,14 @@ export function FindLawyerWizard() {
             fileUrl: d.fileDataUrl || "",
             size: d.size,
           })),
+        })
+        .then((res) => {
+          if (res?.id && res.id !== newCase.id) {
+            const current = getCases().map((c) =>
+              c.id === newCase.id ? { ...c, id: res.id! } : c,
+            );
+            saveCases(current);
+          }
         })
         .catch((err: unknown) => {
           console.warn("[Backend Case Sync] Notice:", err);
@@ -665,6 +826,10 @@ export function FindLawyerWizard() {
       setAdminAssignRequested(assignMode === "admin");
       setIsPaying(false);
       setStep("done");
+      if (typeof window !== "undefined") {
+        sessionStorage.removeItem("cuc_case_draft");
+        sessionStorage.removeItem("cuc_return_after_payment");
+      }
     }, 1200);
   }
 
@@ -710,6 +875,27 @@ export function FindLawyerWizard() {
             })}
           </ol>
         </Card>
+
+        {draftRestored && (
+          <div className="flex items-center justify-between gap-2 rounded-xl border border-indigo-500/30 bg-indigo-500/10 px-3.5 py-2 text-xs text-foreground shadow-2xs">
+            <div className="flex items-center gap-2">
+              <Sparkles className="h-4 w-4 text-indigo-500 shrink-0" />
+              <span>Restored your draft case details from previous session.</span>
+            </div>
+            <button
+              type="button"
+              onClick={() => {
+                if (typeof window !== "undefined") {
+                  sessionStorage.removeItem("cuc_case_draft");
+                }
+                setDraftRestored(false);
+              }}
+              className="text-[11px] font-bold text-muted-foreground hover:text-foreground underline shrink-0 cursor-pointer"
+            >
+              Dismiss
+            </button>
+          </div>
+        )}
       </div>
 
       <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain px-3 py-3 pb-24 sm:px-6 sm:py-4 sm:pb-4 md:px-10 md:py-4">
@@ -1515,107 +1701,76 @@ export function FindLawyerWizard() {
             {assignMode === "admin" && (
               <Card
                 variant="elevated"
-                className="p-5 sm:p-7 space-y-5 rounded-2xl border border-border/80 shadow-sm"
+                className="p-5 sm:p-7 space-y-4 rounded-2xl border border-indigo-500/30 bg-gradient-to-br from-indigo-500/5 via-background to-purple-500/5 shadow-sm"
               >
-                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-border/60 pb-3">
-                  <div>
-                    <h3 className="text-base font-extrabold text-foreground flex items-center gap-2">
-                      <Sparkles className="h-4 w-4 text-indigo-500" />
-                      Select Subscription Plan
-                    </h3>
-                    <p className="text-xs text-muted-foreground mt-0.5">
-                      Our legal admin team matches and assigns your advocate instantly upon
-                      selection.
-                    </p>
-                  </div>
-                </div>
+                {!hasActiveSubscription ? (
+                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+                    <div className="space-y-1">
+                      <div className="flex items-center gap-2">
+                        <span className="flex h-2 w-2 rounded-full bg-amber-500 animate-pulse" />
+                        <span className="text-[10px] font-black uppercase tracking-wider text-amber-600 dark:text-amber-400 bg-amber-500/10 px-2.5 py-0.5 rounded-full border border-amber-500/20">
+                          Subscription Required
+                        </span>
+                      </div>
+                      <h3 className="text-base font-extrabold text-foreground flex items-center gap-2 mt-1">
+                        <Sparkles className="h-4 w-4 text-indigo-500" />
+                        Auto-Assign Advocate
+                      </h3>
+                      <p className="text-xs text-muted-foreground max-w-xl leading-relaxed">
+                        Auto-assign is an exclusive service for subscribed members. Our legal admin
+                        team matches and assigns the best verified specialist advocate for your
+                        case.
+                      </p>
+                    </div>
 
-                <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-                  {SUBSCRIPTION_PLANS.map((plan) => {
-                    const isYearly = plan.id === "yearly" || plan.badge;
-                    const isSelected = subscriptionPlan === plan.id;
-                    return (
-                      <Card
-                        key={plan.id}
-                        variant="outlined"
-                        onClick={() => setSubscriptionPlan(plan.id)}
-                        className={`relative overflow-hidden p-5 cursor-pointer transition-all duration-300 rounded-2xl flex flex-col justify-between ${
-                          isSelected
-                            ? isYearly
-                              ? "border-emerald-500 ring-2 ring-emerald-500/30 bg-gradient-to-br from-emerald-500/10 via-teal-500/5 to-transparent shadow-lg shadow-emerald-500/10"
-                              : "border-indigo-500 ring-2 ring-indigo-500/30 bg-gradient-to-br from-indigo-500/10 via-purple-500/5 to-transparent shadow-lg shadow-indigo-500/10"
-                            : "border-border bg-card hover:border-primary/40 hover:shadow-md"
-                        }`}
+                    <div className="shrink-0 flex items-center">
+                      <Button
+                        id="auto-assign-subscribe-btn"
+                        icon={<Sparkles className="h-4 w-4" />}
+                        onClick={handleSubscribeClick}
+                        className="bg-indigo-600 hover:bg-indigo-700 text-white font-extrabold px-6 py-2.5 rounded-xl shadow-md cursor-pointer"
                       >
-                        {/* Top Badge Pill */}
-                        {plan.badge && (
-                          <div className="absolute top-0 right-0">
-                            <span className="inline-block bg-gradient-to-r from-emerald-600 to-teal-500 text-white text-[9px] font-black tracking-widest px-3 py-1 rounded-bl-xl shadow-xs uppercase">
-                              🔥 {plan.badge}
-                            </span>
-                          </div>
-                        )}
+                        Subscribe
+                      </Button>
+                    </div>
+                  </div>
+                ) : (
+                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                    <div className="space-y-1">
+                      <div className="flex items-center gap-2">
+                        <CheckCircle2 className="h-4 w-4 text-emerald-500" />
+                        <span className="text-[10px] font-black uppercase tracking-wider text-emerald-600 dark:text-emerald-400 bg-emerald-500/15 px-2.5 py-0.5 rounded-full border border-emerald-500/25">
+                          Active VIP Membership: {activeSubscription?.planLabel}
+                        </span>
+                      </div>
+                      <h3 className="text-base font-extrabold text-foreground mt-1">
+                        Auto-Assignment Ready
+                      </h3>
+                      <p className="text-xs text-muted-foreground max-w-xl leading-relaxed">
+                        Your dossier will be reviewed and assigned to the top matching specialist
+                        advocate by our legal admin team under your active plan at no extra charge.
+                      </p>
+                    </div>
 
-                        <div>
-                          <div className="flex items-center justify-between gap-2">
-                            <span
-                              className={`inline-flex items-center gap-1 rounded-full px-2.5 py-0.5 text-[10px] font-extrabold tracking-wide uppercase ${
-                                isYearly
-                                  ? "bg-emerald-500/15 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20"
-                                  : "bg-indigo-500/15 text-indigo-600 dark:text-indigo-400 border border-indigo-500/20"
-                              }`}
-                            >
-                              {isYearly ? "ANNUAL PASS" : "FLEXIBLE PLAN"}
-                            </span>
-                            {isSelected && (
-                              <CheckCircle2
-                                className={`h-5 w-5 shrink-0 ${
-                                  isYearly ? "text-emerald-500" : "text-indigo-500"
-                                }`}
-                              />
-                            )}
-                          </div>
+                    <div className="shrink-0">
+                      <span className="inline-flex items-center gap-1.5 rounded-xl bg-emerald-500/15 px-3 py-1.5 text-xs font-black text-emerald-600 dark:text-emerald-400 border border-emerald-500/30">
+                        <ShieldCheck className="h-4 w-4" /> Plan Verified
+                      </span>
+                    </div>
+                  </div>
+                )}
 
-                          <div className="mt-3">
-                            <div className="text-sm font-extrabold text-foreground">
-                              {plan.label}
-                            </div>
-                            <div className="mt-1 flex items-baseline gap-1">
-                              <span className="text-2xl font-black text-foreground">
-                                ₹{plan.price}
-                              </span>
-                              <span className="text-xs font-semibold text-muted-foreground">
-                                {plan.cadence}
-                              </span>
-                              {isYearly && (
-                                <span className="ml-1 text-[10px] font-bold text-emerald-600 dark:text-emerald-400 bg-emerald-500/10 px-1.5 py-0.5 rounded">
-                                  ~₹416/mo
-                                </span>
-                              )}
-                            </div>
-                          </div>
-
-                          <p className="mt-2 text-xs text-muted-foreground leading-relaxed">
-                            {plan.description}
-                          </p>
-                        </div>
-
-                        <div className="mt-4 pt-3 border-t border-border/40 flex items-center justify-between text-[11px] font-semibold text-foreground/80">
-                          <span className="flex items-center gap-1.5">
-                            <ShieldCheck
-                              className={`h-3.5 w-3.5 ${
-                                isYearly ? "text-emerald-500" : "text-indigo-500"
-                              }`}
-                            />
-                            Priority Admin Dispatch
-                          </span>
-                          <span className="text-primary hover:underline font-bold">
-                            {isSelected ? "Selected" : "Select"}
-                          </span>
-                        </div>
-                      </Card>
-                    );
-                  })}
+                <div className="pt-3 border-t border-border/60 flex flex-wrap items-center gap-4 text-[11px] text-muted-foreground">
+                  <span className="flex items-center gap-1.5">
+                    <ShieldCheck className="h-3.5 w-3.5 text-emerald-500" />
+                    Priority Admin Matching
+                  </span>
+                  <span>•</span>
+                  <span>
+                    {!hasActiveSubscription
+                      ? "Case draft data will be saved automatically when you click Subscribe"
+                      : "Zero additional consultation fee for subscribed auto-assignment"}
+                  </span>
                 </div>
               </Card>
             )}
@@ -1629,7 +1784,9 @@ export function FindLawyerWizard() {
                 Back
               </Button>
               <Button disabled={!canContinueAssign} onClick={() => setStep("payment")}>
-                Continue to Payment
+                {assignMode === "admin" && hasActiveSubscription
+                  ? "Continue to Review & Submit"
+                  : "Continue to Payment"}
               </Button>
             </div>
           </div>
@@ -1762,9 +1919,11 @@ export function FindLawyerWizard() {
                         Selected Plan / Billing
                       </div>
                       <div className="text-xs font-extrabold text-foreground mt-0.5">
-                        {assignMode === "admin" && selectedPlan
-                          ? `${selectedPlan.label} (${selectedPlan.cadence})`
-                          : "Pay As You Go (Per Case Consultation)"}
+                        {assignMode === "admin" && activeSubscription
+                          ? `${activeSubscription.planLabel} (Active Subscription Pass)`
+                          : assignMode === "admin" && selectedPlan
+                            ? `${selectedPlan.label} (${selectedPlan.cadence})`
+                            : "Pay As You Go (Per Case Consultation)"}
                       </div>
                     </div>
                   </div>
@@ -1799,7 +1958,11 @@ export function FindLawyerWizard() {
               <div className="rounded-xl border border-primary/30 bg-gradient-to-br from-primary/10 via-primary/5 to-transparent p-4 space-y-2 text-xs">
                 <div className="flex items-center justify-between text-muted-foreground">
                   <span>Base Legal Service / Plan Fee</span>
-                  <span className="font-semibold text-foreground">₹{totalFee}</span>
+                  <span className="font-semibold text-foreground">
+                    {assignMode === "admin" && hasActiveSubscription
+                      ? "Covered by Subscription"
+                      : `₹${totalFee}`}
+                  </span>
                 </div>
                 <div className="flex items-center justify-between text-muted-foreground">
                   <span>Priority Admin Matching & Dispatch</span>
@@ -1818,12 +1981,22 @@ export function FindLawyerWizard() {
                       Total Payable Amount
                     </div>
                     <div className="text-[10px] text-muted-foreground">
-                      Instant confirmation upon payment
+                      {totalFee === 0
+                        ? "Covered by your active Auto-Assign membership"
+                        : "Instant confirmation upon payment"}
                     </div>
                   </div>
                   <div className="flex items-center gap-0.5 text-xl font-black text-primary">
-                    <IndianRupee className="h-5 w-5" />
-                    <span>{totalFee}</span>
+                    {totalFee > 0 ? (
+                      <>
+                        <IndianRupee className="h-5 w-5" />
+                        <span>{totalFee}</span>
+                      </>
+                    ) : (
+                      <span className="text-emerald-600 dark:text-emerald-400 text-sm font-extrabold">
+                        ₹0 (Included)
+                      </span>
+                    )}
                   </div>
                 </div>
               </div>
@@ -1859,6 +2032,11 @@ export function FindLawyerWizard() {
                         className="h-3.5 w-3.5"
                       />
                       Registering Case…
+                    </span>
+                  ) : totalFee === 0 ? (
+                    <span className="flex items-center justify-center gap-1.5">
+                      <Sparkles className="h-3.5 w-3.5" />
+                      Confirm & Register Case
                     </span>
                   ) : (
                     <span className="flex items-center justify-center gap-1.5">

@@ -102,9 +102,21 @@ export async function updateMe(c: Context) {
 
   if (!citizenId) throw ApiError.notFound("Citizen profile not found");
 
+  const updateData: Record<string, any> = { updatedAt: new Date() };
+  if (patch.name !== undefined || patch.fullName !== undefined) {
+    updateData.name = patch.name || patch.fullName;
+  }
+  if (patch.city !== undefined) updateData.city = patch.city;
+  if (patch.currentLocation !== undefined) updateData.currentLocation = patch.currentLocation;
+  if (patch.phone !== undefined) updateData.phone = patch.phone;
+  if (patch.email !== undefined) updateData.email = patch.email;
+  if (patch.avatarUrl !== undefined) updateData.avatarUrl = patch.avatarUrl;
+  if (patch.state !== undefined) updateData.state = patch.state;
+  if (patch.address !== undefined) updateData.address = patch.address;
+
   const [updated] = await db
     .update(citizens)
-    .set({ ...patch, updatedAt: new Date() })
+    .set(updateData)
     .where(eq(citizens.id, citizenId))
     .returning();
 

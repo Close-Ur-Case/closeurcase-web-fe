@@ -103,7 +103,7 @@ export function generateCloseUrCaseId(): string {
   const stamp =
     `${d.getFullYear()}${pad(d.getMonth() + 1)}${pad(d.getDate())}` +
     `${pad(d.getHours())}${pad(d.getMinutes())}${pad(d.getSeconds())}`;
-  return `CUC ID - ${stamp}`;
+  return `CUC-${stamp}`;
 }
 
 export function getCases(): LegalCase[] {
@@ -121,7 +121,27 @@ export function mergeRemoteCases(remoteCases: LegalCase[]): void {
   let hasChanges = false;
 
   remoteCases.forEach((remote) => {
-    const existing = currentMap.get(remote.id);
+    let existing = currentMap.get(remote.id);
+
+    // If not found by exact ID, check if an existing local case has a legacy or prefixed ID
+    // e.g. "CUC ID - 2026..." matching "CUC-2026..." or matching same title and citizenId
+    if (!existing) {
+      for (const [key, val] of currentMap.entries()) {
+        const normalizedKey = key.replace(/^CUC ID - /, "CUC-");
+        if (
+          normalizedKey === remote.id ||
+          (val.title?.trim() === remote.title?.trim() &&
+            val.citizenId &&
+            val.citizenId === remote.citizenId)
+        ) {
+          existing = val;
+          currentMap.delete(key);
+          hasChanges = true;
+          break;
+        }
+      }
+    }
+
     if (existing) {
       const updatedStatus = remote.status || existing.status;
       const updatedTimeline =
@@ -132,6 +152,7 @@ export function mergeRemoteCases(remoteCases: LegalCase[]): void {
           : existing.files;
 
       if (
+        existing.id !== remote.id ||
         existing.status !== updatedStatus ||
         existing.timeline.length !== updatedTimeline.length ||
         (existing.files?.files?.length ?? 0) !== (updatedFiles?.files?.length ?? 0)
@@ -142,6 +163,7 @@ export function mergeRemoteCases(remoteCases: LegalCase[]): void {
       currentMap.set(remote.id, {
         ...existing,
         ...remote,
+        id: remote.id,
         status: updatedStatus,
         timeline: updatedTimeline,
         files: updatedFiles,
@@ -157,6 +179,52 @@ export function mergeRemoteCases(remoteCases: LegalCase[]): void {
   if (hasChanges) {
     saveCases(Array.from(currentMap.values()));
   }
+}
+
+/**
+ * Reconciles citizen cases against authoritative server results, pruning
+ * zombie/stale cases deleted from DB or created with temporary local IDs.
+ */
+export function syncRemoteCitizenCases(
+  citizenIdentifier: {
+    citizenId?: string | null;
+    userId?: string | null;
+    citizenEmail?: string | null;
+  },
+  remoteCases: LegalCase[],
+): void {
+  const current = getCases();
+  const remoteIds = new Set(remoteCases.map((r) => r.id));
+  const targetCitizenId = citizenIdentifier.citizenId;
+  const targetUserId = citizenIdentifier.userId;
+  const emailPrefix = citizenIdentifier.citizenEmail
+    ? citizenIdentifier.citizenEmail.split("@")[0].toLowerCase()
+    : null;
+
+  // Filter current store: keep cases for other users, prune stale ones for this citizen
+  const keptOtherCases = current.filter((c) => {
+    // If it's one of the remote cases by ID, we'll merge the fresh remote version below
+    if (remoteIds.has(c.id)) return false;
+
+    // Check if it belongs to this citizen
+    const matchesCitizen =
+      (targetCitizenId && c.citizenId === targetCitizenId) ||
+      (targetUserId && c.citizenId === targetUserId) ||
+      (emailPrefix &&
+        typeof c.citizenName === "string" &&
+        c.citizenName.toLowerCase() === emailPrefix);
+
+    if (matchesCitizen) {
+      // It claims to belong to this citizen, but the server didn't return it.
+      // Purge it so the server remains the single source of truth.
+      return false;
+    }
+
+    return true;
+  });
+
+  const merged = [...remoteCases, ...keptOtherCases];
+  saveCases(merged);
 }
 
 export function addCase(c: LegalCase) {

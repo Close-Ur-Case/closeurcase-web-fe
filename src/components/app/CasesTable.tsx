@@ -92,7 +92,7 @@ function docDisplayTitle(doc: CaseDocument): string {
  * through the wizard's Existing Case path, or imported from eCourts) —
  * everything else was freshly filed through CloseUrCase itself. */
 export function caseTypeOf(c: LegalCase): "New" | "Existing" {
-  return c.caseDetails.cnr ? "Existing" : "New";
+  return c?.caseDetails?.cnr ? "Existing" : "New";
 }
 
 function CaseTypeBadge({ caseItem }: { caseItem: LegalCase }) {
@@ -221,8 +221,8 @@ export function CasesTable({ cases, role }: { cases: LegalCase[]; role: "lawyer"
     setEditingCase(c);
     setPartyNames(c.title || "");
     setPartyNameError("");
-    setCaseNo(c.caseDetails.caseNumber || "");
-    setCnr(c.caseDetails.cnr || "");
+    setCaseNo(c.caseDetails?.caseNumber || "");
+    setCnr(c.caseDetails?.cnr || "");
     setCnrError("");
     setCaseStatus(c.status || "Submitted");
     setJourney(getCourtHistory(c));
@@ -246,11 +246,11 @@ export function CasesTable({ cases, role }: { cases: LegalCase[]; role: "lawyer"
 
     const dbMatch = allCases.find((c) => {
       if (c.id === editingCase?.id) return false;
-      return (c.caseDetails.cnr || "").toLowerCase() === query.toLowerCase();
+      return (c.caseDetails?.cnr || "").toLowerCase() === query.toLowerCase();
     });
     if (dbMatch) {
       setPartyNames(dbMatch.title);
-      setCaseNo(dbMatch.caseDetails.caseNumber || "");
+      setCaseNo(dbMatch.caseDetails?.caseNumber || "");
       setJourney(getCourtHistory(dbMatch));
       setCnrImportResult({ status: "found", source: "database", title: dbMatch.title });
       return;
@@ -280,7 +280,7 @@ export function CasesTable({ cases, role }: { cases: LegalCase[]; role: "lawyer"
               title: ecourtMatch.title,
               source: "ecourt" as const,
               caseDetails: {
-                ...c.caseDetails,
+                ...(c.caseDetails || {}),
                 caseNumber: ecourtMatch.caseNumber,
                 cnr: query,
                 historyOfCaseHearings: hearings,
@@ -359,7 +359,7 @@ export function CasesTable({ cases, role }: { cases: LegalCase[]; role: "lawyer"
           ...c,
           title: trimmedTitle,
           caseDetails: {
-            ...c.caseDetails,
+            ...(c.caseDetails || {}),
             caseNumber: trimmedCaseNo,
             cnr: trimmedCnr,
             historyOfCaseHearings,
@@ -504,7 +504,9 @@ export function CasesTable({ cases, role }: { cases: LegalCase[]; role: "lawyer"
           {pageCases.map((c) => {
             const entry = getNextEntry(c);
             const isPendingDecision = isLawyer && c.status === "Submitted";
-            const attachmentCount = c.files?.files?.length ?? 0;
+            const attachmentCount = Array.isArray(c.files)
+              ? c.files.length
+              : (c.files?.files?.length ?? 0);
             const formattedTitle = formatCaseVsTitle(c);
             const titleVsParts = formattedTitle.split(/\s+vs\s+/i);
 
@@ -549,15 +551,11 @@ export function CasesTable({ cases, role }: { cases: LegalCase[]; role: "lawyer"
                   <div className="flex flex-wrap items-center gap-1.5 text-[11px]">
                     <span className="inline-flex items-center gap-1 rounded-lg border border-primary/20 bg-primary/10 px-2.5 py-1 font-mono text-[11px] font-bold text-primary shadow-2xs">
                       <Hash className="h-3 w-3" />
-                      {c.id}
+                      {c.caseDetails?.caseNumber && c.caseDetails.caseNumber !== c.id
+                        ? c.caseDetails.caseNumber
+                        : c.id}
                     </span>
-                    {c.caseDetails.caseNumber && (
-                      <span className="inline-flex items-center gap-1 rounded-lg border border-border/50 bg-background/80 px-2.5 py-1 font-mono text-[11px] font-medium text-foreground/90 shadow-2xs">
-                        <FileText className="h-3 w-3 text-muted-foreground" />
-                        CASE: {c.caseDetails.caseNumber}
-                      </span>
-                    )}
-                    {c.caseDetails.courtName && (
+                    {c.caseDetails?.courtName && (
                       <span
                         className="inline-flex max-w-[220px] items-center gap-1 truncate rounded-lg border border-border/50 bg-background/80 px-2.5 py-1 text-[11px] text-muted-foreground shadow-2xs sm:max-w-xs"
                         title={c.caseDetails.courtName}
@@ -570,12 +568,12 @@ export function CasesTable({ cases, role }: { cases: LegalCase[]; role: "lawyer"
                       CNR:{" "}
                       <span
                         className={
-                          c.caseDetails.cnr
+                          c.caseDetails?.cnr
                             ? "font-bold text-foreground"
                             : "font-normal text-muted-foreground/60"
                         }
                       >
-                        {c.caseDetails.cnr || "N/A"}
+                        {c.caseDetails?.cnr || "N/A"}
                       </span>
                     </span>
                     {c.citizenName && (

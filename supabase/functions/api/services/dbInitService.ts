@@ -41,6 +41,7 @@ export class DbInitService {
           status VARCHAR(32) DEFAULT 'Active' NOT NULL,
           joined_at VARCHAR(32) NOT NULL,
           last_login_at VARCHAR(64),
+          avatar_url TEXT,
           created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW() NOT NULL,
           updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW() NOT NULL
       );
@@ -50,6 +51,7 @@ export class DbInitService {
       ALTER TABLE public.citizens ADD COLUMN IF NOT EXISTS state VARCHAR(128);
       ALTER TABLE public.citizens ADD COLUMN IF NOT EXISTS pincode VARCHAR(16);
       ALTER TABLE public.citizens ADD COLUMN IF NOT EXISTS emergency_contact VARCHAR(32);
+      ALTER TABLE public.citizens ADD COLUMN IF NOT EXISTS avatar_url TEXT;
 
       CREATE TABLE IF NOT EXISTS public.lawyers (
           id VARCHAR(64) PRIMARY KEY,
@@ -136,7 +138,8 @@ export class DbInitService {
           lawyer_id VARCHAR(64) REFERENCES public.lawyers(id) ON DELETE SET NULL,
           case_type VARCHAR(32) REFERENCES public.lookups(id) NOT NULL,
           cnr VARCHAR(32) REFERENCES public.cases_imported(cnr) ON DELETE SET NULL,
-          title VARCHAR(255) NOT NULL,
+          petitioner VARCHAR(255) NOT NULL,
+          respondent VARCHAR(255),
           description TEXT NOT NULL,
           documents JSONB DEFAULT '[]'::jsonb NOT NULL,
           practice_area VARCHAR(128) NOT NULL,
@@ -421,6 +424,9 @@ export class DbInitService {
       ALTER TABLE public.cases_user DROP COLUMN IF EXISTS state_id;
       ALTER TABLE public.cases_user DROP COLUMN IF EXISTS district_id;
       ALTER TABLE public.cases_user DROP COLUMN IF EXISTS city;
+      ALTER TABLE public.cases_user ADD COLUMN IF NOT EXISTS petitioner VARCHAR(255);
+      ALTER TABLE public.cases_user ADD COLUMN IF NOT EXISTS respondent VARCHAR(255);
+      ALTER TABLE public.cases_user DROP COLUMN IF EXISTS title;
       ALTER TABLE public.cities ADD COLUMN IF NOT EXISTS state_id VARCHAR(64) REFERENCES public.states(id) ON DELETE SET NULL;
       ALTER TABLE public.cities ADD COLUMN IF NOT EXISTS district_id VARCHAR(64) REFERENCES public.districts(id) ON DELETE SET NULL;
       ALTER TABLE public.courts ADD COLUMN IF NOT EXISTS state_id VARCHAR(64) REFERENCES public.states(id) ON DELETE SET NULL;
@@ -902,9 +908,9 @@ export class DbInitService {
       ON CONFLICT (cnr) DO NOTHING;
 
       -- Cases User (Citizen Bookings & Submissions)
-      INSERT INTO public.cases_user (id, citizen_id, lawyer_id, case_type, cnr, title, description, documents, practice_area, specialization, legal_services, case_status, lawyer_casestage_id, rejection_reason, is_emergency, timeline) VALUES
-      ('CUC-20260831154512', 'u_001', 'l_001', 'new', NULL, 'Sai Teja Reddy vs. ABC Developers Pvt Ltd', 'Delay in apartment handover and violation of RERA sanctioned plan in Kondapur project.', '[]'::jsonb, 'cat_1', 'spec_1_1', '["srv_1_1_1", "srv_1_1_2"]'::jsonb, 'filinginprogress', 'filinginprogress', NULL, false, '[{"id":"tl_1","status":"submitted","at":"2026-08-31T15:45:12Z","note":"Case submitted by citizen"},{"id":"tl_2","status":"accepted","at":"2026-09-01T11:30:00Z","note":"Assigned to Adv. Swathi Reddy"},{"id":"tl_3","status":"filinginprogress","at":"2026-09-03T14:15:00Z","note":"Drafting petition"}]'::jsonb),
-      ('CUC-20260902112040', 'u_002', 'l_002', 'pending', 'DLND020047882015', 'Lakshmi Prasanna vs. State of AP & Ors', 'Anticipatory bail petition in connection with commercial dispute.', '[]'::jsonb, 'cat_6', 'spec_6_3', '["srv_6_3_2"]'::jsonb, 'accepted', 'accepted', NULL, true, '[{"id":"tl_4","status":"submitted","at":"2026-09-02T11:20:40Z","note":"Emergency case created"},{"id":"tl_5","status":"accepted","at":"2026-09-02T13:00:00Z","note":"Advocate accepted brief"}]'::jsonb)
+      INSERT INTO public.cases_user (id, citizen_id, lawyer_id, case_type, cnr, petitioner, respondent, description, documents, practice_area, specialization, legal_services, case_status, lawyer_casestage_id, rejection_reason, is_emergency, timeline) VALUES
+      ('CUC-20260831154512', 'u_001', 'l_001', 'new', NULL, 'Sai Teja Reddy', 'ABC Developers Pvt Ltd', 'Delay in apartment handover and violation of RERA sanctioned plan in Kondapur project.', '[]'::jsonb, 'cat_1', 'spec_1_1', '["srv_1_1_1", "srv_1_1_2"]'::jsonb, 'filinginprogress', 'filinginprogress', NULL, false, '[{"id":"tl_1","status":"submitted","at":"2026-08-31T15:45:12Z","note":"Case submitted by citizen"},{"id":"tl_2","status":"accepted","at":"2026-09-01T11:30:00Z","note":"Assigned to Adv. Swathi Reddy"},{"id":"tl_3","status":"filinginprogress","at":"2026-09-03T14:15:00Z","note":"Drafting petition"}]'::jsonb),
+      ('CUC-20260902112040', 'u_002', 'l_002', 'pending', 'DLND020047882015', 'Lakshmi Prasanna', 'State of AP & Ors', 'Anticipatory bail petition in connection with commercial dispute.', '[]'::jsonb, 'cat_6', 'spec_6_3', '["srv_6_3_2"]'::jsonb, 'accepted', 'accepted', NULL, true, '[{"id":"tl_4","status":"submitted","at":"2026-09-02T11:20:40Z","note":"Emergency case created"},{"id":"tl_5","status":"accepted","at":"2026-09-02T13:00:00Z","note":"Advocate accepted brief"}]'::jsonb)
       ON CONFLICT (id) DO NOTHING;
 
       -- Subscriptions

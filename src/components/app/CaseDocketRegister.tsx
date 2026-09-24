@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo } from "react";
+import { useState, useEffect, useMemo, useCallback } from "react";
 import { createPortal } from "react-dom";
 import {
   Search,
@@ -31,10 +31,23 @@ import {
 import { FilterPanelButton, type FilterSection } from "@/components/app/FilterPanelButton";
 import { ExpandableFilterChips } from "@/components/app/ExpandableFilterChips";
 import { DocumentPreviewBody } from "@/components/app/DocumentPreview";
-import { openDocumentInNewTab } from "@/lib/files";
 import { PageHeader } from "@/components/app/PageHeader";
-import { getCases, subscribeToStore, updateCaseStatus } from "@/data/appStore";
-import { caseService } from "@/services/caseService";
+import { openDocumentInNewTab } from "@/lib/files";
+import { useAuth } from "@/context/useAuth";
+import {
+  getCases,
+  getCitizens,
+  getLawyers,
+  mergeRemoteCases,
+  syncRemoteCitizenCases,
+  subscribeToStore,
+  updateCaseStatus,
+} from "@/data/appStore";
+import {
+  caseService,
+  mapBackendCaseToLegalCase,
+  type BackendUserCase,
+} from "@/services/caseService";
 import type { LegalCase, CaseDocument } from "@/types";
 import { CasesTable, caseTypeOf } from "@/components/app/CasesTable";
 import {
@@ -93,15 +106,67 @@ export function CaseDocketRegister({
   // the admin Users page's multi-select-with-counts filter pattern.
   const [panelFilters, setPanelFilters] = useState<Record<string, string[]>>({});
 
+  const { user } = useAuth();
   const isLawyer = role === "lawyer";
+
+  const currentCitizenId = user?.citizenId;
+  const currentUserId = user?.id;
+  const citizenName = user?.name?.toLowerCase();
+  const citizenEmail = user?.email?.toLowerCase();
+
+  const isCitizenCase = useCallback(
+    (c: LegalCase) => {
+      if (!c) return false;
+      if (currentCitizenId && c.citizenId === currentCitizenId) return true;
+      if (currentUserId && c.citizenId === currentUserId) return true;
+      // Fallback only if both citizenId and userId are missing on current user
+      if (
+        !currentCitizenId &&
+        !currentUserId &&
+        citizenName &&
+        typeof c.citizenName === "string" &&
+        c.citizenName.toLowerCase() === citizenName
+      )
+        return true;
+      return false;
+    },
+    [currentCitizenId, currentUserId, citizenName],
+  );
+
+  // Directly fetch fresh citizen cases from backend API on mount or user identity change
+  useEffect(() => {
+    if (!isLawyer) {
+      const targetCitizenId = currentCitizenId || currentUserId;
+      caseService
+        .listUserCases<BackendUserCase>(targetCitizenId ? { citizenId: targetCitizenId } : {})
+        .then((backendCases) => {
+          if (Array.isArray(backendCases)) {
+            const citizens = getCitizens();
+            const lawyers = getLawyers();
+            const mapped = backendCases.map((c) => mapBackendCaseToLegalCase(c, citizens, lawyers));
+            syncRemoteCitizenCases(
+              { citizenId: currentCitizenId, userId: currentUserId, citizenEmail },
+              mapped,
+            );
+            setCases(mapped);
+          }
+        })
+        .catch((err) => console.warn("[CaseDocketRegister] Backend sync notice:", err));
+    }
+  }, [isLawyer, currentCitizenId, currentUserId, citizenEmail]);
 
   useEffect(() => {
     const sync = () => {
-      setCases(getCases());
+      const all = getCases();
+      if (!isLawyer) {
+        setCases(all.filter(isCitizenCase));
+      } else {
+        setCases(all);
+      }
     };
     sync();
     return subscribeToStore(sync);
-  }, []);
+  }, [isLawyer, isCitizenCase]);
 
   const clientOptions = useMemo(
     () => Array.from(new Set(cases.map((c) => c.citizenName).filter(Boolean))).sort(),
@@ -122,13 +187,14 @@ export function CaseDocketRegister({
 
         if (clientFilter !== "All" && c.citizenName !== clientFilter) return false;
       } else {
+        if (!isCitizenCase(c)) return false;
         const matchFilter = activeFilter === "all" || filterKey === activeFilter;
         if (!matchFilter) return false;
       }
 
       if (searchTerm) {
         const hay =
-          `${c.title} ${c.caseDetails.caseNumber ?? ""} ${c.caseDetails.cnr ?? ""}`.toLowerCase();
+          `${c.title ?? ""} ${c.caseDetails?.caseNumber ?? ""} ${c.caseDetails?.cnr ?? ""}`.toLowerCase();
         if (!hay.includes(searchTerm.toLowerCase())) return false;
       }
 
@@ -162,6 +228,7 @@ export function CaseDocketRegister({
     panelFilters,
     clientFilter,
     isLawyer,
+    isCitizenCase,
   ]);
 
   const caseTypeCounts = countBy(cases, caseTypeOf);
@@ -188,9 +255,10 @@ export function CaseDocketRegister({
     },
   ];
 
-  // Split into pending requests vs active cases
+  // Split into pending requests vs active cases (for lawyers)
   const pendingRequests = filteredCases.filter((c) => c.status === "Submitted");
   const activeCases = filteredCases.filter((c) => c.status !== "Submitted");
+  const displayCases = isLawyer ? activeCases : filteredCases;
 
   function handleApprove(c: LegalCase) {
     updateCaseStatus(c.id, "Assigned", "Lawyer approved and accepted the case");
@@ -312,7 +380,7 @@ export function CaseDocketRegister({
         />
       )}
 
-      <CasesTable cases={activeCases} role={role} />
+      <CasesTable cases={displayCases} role={role} />
     </div>
   );
 }
@@ -761,15 +829,11 @@ function PendingRequestCard({
           </span>
         </div>
         <div className="flex flex-wrap items-center gap-x-2 gap-y-1 text-[11px] text-muted-foreground">
-          <span className="font-mono font-semibold text-primary">{c.id}</span>
-          {c.caseDetails.caseNumber && (
-            <>
-              <span aria-hidden>•</span>
-              <span className="font-mono font-semibold text-foreground/80">
-                CASE NO - {c.caseDetails.caseNumber}
-              </span>
-            </>
-          )}
+          <span className="font-mono font-semibold text-primary">
+            {c.caseDetails?.caseNumber && c.caseDetails.caseNumber !== c.id
+              ? c.caseDetails.caseNumber
+              : c.id}
+          </span>
         </div>
       </div>
 
@@ -779,7 +843,7 @@ function PendingRequestCard({
           <User className="h-3 w-3 shrink-0" />
           {c.citizenName}
         </span>
-        {c.caseDetails.courtName && (
+        {c.caseDetails?.courtName && (
           <span className="inline-flex items-center gap-1">
             <Landmark className="h-3 w-3 shrink-0" />
             <span className="line-clamp-1">{c.caseDetails.courtName}</span>

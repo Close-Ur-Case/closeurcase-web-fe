@@ -25,6 +25,7 @@ export const citizens = pgTable("citizens", {
   pincode: varchar("pincode", { length: 16 }),
   emergencyContact: varchar("emergency_contact", { length: 32 }),
   status: varchar("status", { length: 32 }).default("Active").notNull(),
+  avatarUrl: text("avatar_url"),
   joinedAt: varchar("joined_at", { length: 32 }).notNull(),
   lastLoginAt: varchar("last_login_at", { length: 64 }),
   createdAt: timestamp("created_at").defaultNow().notNull(),

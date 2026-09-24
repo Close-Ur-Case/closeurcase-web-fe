@@ -1,6 +1,10 @@
 import type { Context } from "hono";
 import { CaseService } from "../services/caseService.ts";
 import { ApiResponse } from "../utils/apiResponse.ts";
+import { db } from "../config/db.ts";
+import { citizens } from "../models/users.ts";
+import { eq, or } from "drizzle-orm";
+import { ApiError } from "../utils/apiError.ts";
 
 // ============================================================================
 // Lookup Controllers
@@ -64,12 +68,25 @@ export async function createUserCase(c: Context) {
 
 export async function getUserCase(c: Context) {
   const id = c.req.param("id")!;
+  const user = c.get("user");
   const result = await CaseService.getUserCaseById(id);
+
+  if (user && user.role === "citizen") {
+    const [citizen] = await db
+      .select({ id: citizens.id })
+      .from(citizens)
+      .where(or(eq(citizens.userId, user.id), eq(citizens.id, user.id)));
+    const myCitizenId = citizen?.id || user.id;
+    if (result.citizenId && result.citizenId !== myCitizenId && result.citizenId !== user.id) {
+      throw ApiError.forbidden("Access denied: You can only view your own cases");
+    }
+  }
+
   return ApiResponse.success(c, result, "Case retrieved successfully");
 }
 
 export async function listUserCases(c: Context) {
-  const citizenId = c.req.query("citizenId");
+  const citizenIdParam = c.req.query("citizenId");
   const lawyerId = c.req.query("lawyerId");
   const status = c.req.query("status");
   const caseType = c.req.query("caseType");
@@ -77,8 +94,25 @@ export async function listUserCases(c: Context) {
   const limit = Number(c.req.query("limit") || "50");
   const offset = Number(c.req.query("offset") || "0");
 
+  const user = c.get("user");
+  let effectiveCitizenId = citizenIdParam;
+  let citizenUserId: string | undefined = undefined;
+
+  if (user && user.role === "citizen") {
+    citizenUserId = user.id;
+    const [citizen] = await db
+      .select({ id: citizens.id })
+      .from(citizens)
+      .where(or(eq(citizens.userId, user.id), eq(citizens.id, user.id)));
+    effectiveCitizenId = citizen?.id || user.id;
+  } else if (!user && !citizenIdParam && !lawyerId) {
+    // Unauthenticated requests without explicit target scoping return empty list
+    return ApiResponse.success(c, [], "Cases retrieved successfully");
+  }
+
   const result = await CaseService.listUserCases({
-    citizenId,
+    citizenId: effectiveCitizenId,
+    citizenUserId,
     lawyerId,
     status,
     caseType,
@@ -113,6 +147,18 @@ export async function assignLawyer(c: Context) {
 
 export async function updateUserCase(c: Context) {
   const id = c.req.param("id")!;
+  const user = c.get("user");
+  if (user && user.role === "citizen") {
+    const existing = await CaseService.getUserCaseById(id);
+    const [citizen] = await db
+      .select({ id: citizens.id })
+      .from(citizens)
+      .where(or(eq(citizens.userId, user.id), eq(citizens.id, user.id)));
+    const myCitizenId = citizen?.id || user.id;
+    if (existing.citizenId && existing.citizenId !== myCitizenId && existing.citizenId !== user.id) {
+      throw ApiError.forbidden("Access denied: You can only update your own cases");
+    }
+  }
   const body = await c.req.json();
   const result = await CaseService.updateUserCase(id, body);
   return ApiResponse.success(c, result, "Case updated successfully");
@@ -120,6 +166,18 @@ export async function updateUserCase(c: Context) {
 
 export async function deleteUserCase(c: Context) {
   const id = c.req.param("id")!;
+  const user = c.get("user");
+  if (user && user.role === "citizen") {
+    const existing = await CaseService.getUserCaseById(id);
+    const [citizen] = await db
+      .select({ id: citizens.id })
+      .from(citizens)
+      .where(or(eq(citizens.userId, user.id), eq(citizens.id, user.id)));
+    const myCitizenId = citizen?.id || user.id;
+    if (existing.citizenId && existing.citizenId !== myCitizenId && existing.citizenId !== user.id) {
+      throw ApiError.forbidden("Access denied: You can only delete your own cases");
+    }
+  }
   const result = await CaseService.deleteUserCase(id);
   return ApiResponse.success(c, result, "Case deleted successfully");
 }

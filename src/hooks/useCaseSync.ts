@@ -19,7 +19,7 @@ import {
   type BackendUserCase,
   type ListCasesParams,
 } from "@/services/caseService";
-import { getCitizens, getLawyers, mergeRemoteCases } from "@/data/appStore";
+import { getCitizens, getLawyers, mergeRemoteCases, syncRemoteCitizenCases } from "@/data/appStore";
 import { useAuth } from "@/context/useAuth";
 
 export interface CaseSyncState {
@@ -51,14 +51,25 @@ function useScopedParams(): ListCasesParams | null {
   return null;
 }
 
-function mergeBackendCases(backendCases: BackendUserCase[]): number {
-  if (!Array.isArray(backendCases) || backendCases.length === 0) return 0;
+function mergeBackendCases(
+  backendCases: BackendUserCase[],
+  citizenScope?: {
+    citizenId?: string | null;
+    userId?: string | null;
+    citizenEmail?: string | null;
+  },
+): number {
+  if (!Array.isArray(backendCases)) return 0;
   // Resolved fresh per sync so names reflect whatever the citizen/lawyer
   // stores have merged in by now.
   const citizens = getCitizens();
   const lawyers = getLawyers();
   const mapped = backendCases.map((c) => mapBackendCaseToLegalCase(c, citizens, lawyers));
-  mergeRemoteCases(mapped);
+  if (citizenScope?.citizenId || citizenScope?.userId || citizenScope?.citizenEmail) {
+    syncRemoteCitizenCases(citizenScope, mapped);
+  } else {
+    mergeRemoteCases(mapped);
+  }
   return mapped.length;
 }
 
@@ -67,6 +78,7 @@ function mergeBackendCases(backendCases: BackendUserCase[]): number {
  * role layout — every list screen under it reads through `subscribeToStore`.
  */
 export function useCaseSync(): CaseSyncState {
+  const { user, role } = useAuth();
   const params = useScopedParams();
   const [isSyncing, setIsSyncing] = useState(false);
   const [error, setError] = useState<Error | null>(null);
@@ -84,11 +96,20 @@ export function useCaseSync(): CaseSyncState {
     setIsSyncing(true);
     setError(null);
 
+    const citizenScope =
+      role === "citizen"
+        ? {
+            citizenId: user?.citizenId,
+            userId: user?.id,
+            citizenEmail: user?.email,
+          }
+        : undefined;
+
     caseService
       .listUserCases<BackendUserCase>(scoped)
       .then((backendCases) => {
         if (cancelled) return;
-        mergeBackendCases(backendCases);
+        mergeBackendCases(backendCases, citizenScope);
         setLastSyncedAt(Date.now());
       })
       .catch((err: unknown) => {

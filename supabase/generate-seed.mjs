@@ -342,9 +342,19 @@ for (const c of mock.cases) {
   const spec = (Array.isArray(c.specializations) && c.specializations[0]) || c.category || "General";
   const notes = c.notes || [];
 
+  const petitioner =
+    (Array.isArray(c.caseDetails?.petitioners) && c.caseDetails.petitioners[0]) ||
+    c.citizenName ||
+    (c.title ? c.title.split(/\s+vs\.?\s+|\s+—\s+|\s+-\s+/i)[0]?.trim() : null) ||
+    "Petitioner";
+  const respondent =
+    (Array.isArray(c.caseDetails?.respondents) && c.caseDetails.respondents[0]) ||
+    (c.title && /\s+vs\.?\s+|\s+—\s+|\s+-\s+/i.test(c.title) ? c.title.split(/\s+vs\.?\s+|\s+—\s+|\s+-\s+/i)[1]?.trim() : null) ||
+    null;
+
   sql += `
 INSERT INTO public.cases_user (
-  id, citizen_id, lawyer_id, case_type, cnr, title, description,
+  id, citizen_id, lawyer_id, case_type, cnr, petitioner, respondent, description,
   documents, practice_area, specialization, legal_services,
   case_status, lawyer_casestage_id, rejection_reason, is_emergency, timeline, notes
 )
@@ -354,8 +364,9 @@ VALUES (
   ${escapeSql(lawyerId)},
   ${escapeSql(caseType)},
   ${escapeSql(cnr)},
-  ${escapeSql(c.title)},
-  ${escapeSql(c.description || c.title)},
+  ${escapeSql(petitioner)},
+  ${escapeSql(respondent)},
+  ${escapeSql(c.description || c.title || "Legal matter")},
   ${escapeJson(c.documents || [])},
   ${escapeSql(c.category || "Criminal Defense")},
   ${escapeSql(spec)},
@@ -374,6 +385,7 @@ ON CONFLICT (id) DO UPDATE SET
   timeline = EXCLUDED.timeline,
   notes = EXCLUDED.notes;
 `;
+}
 }
 
 sql += `\n-- 5. SEED SUBSCRIPTIONS\n`;

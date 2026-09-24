@@ -323,12 +323,15 @@ export interface CourtHistoryRow extends HistoryOfHearing {
  * hearing history, sorted ascending by hearing (falling back to business)
  * date. */
 export function getCourtHistory(c: LegalCase): CourtHistoryRow[] {
-  const list: CourtHistoryRow[] = c.caseDetails.historyOfCaseHearings.map((h, i) => ({
+  const hearings = c?.caseDetails?.historyOfCaseHearings || [];
+  const list: CourtHistoryRow[] = hearings.map((h, i) => ({
     ...h,
     id: `h_${i}`,
   }));
   return list.sort((a, b) =>
-    (a.hearingDate ?? a.businessOnDate).localeCompare(b.hearingDate ?? b.businessOnDate),
+    (a.hearingDate ?? a.businessOnDate ?? "").localeCompare(
+      b.hearingDate ?? b.businessOnDate ?? "",
+    ),
   );
 }
 
@@ -348,7 +351,9 @@ export function nextHearingSortKey(c: LegalCase) {
 /** Whether a case has at least one hearing still to come — the actual signal for
  * a dashboard "Upcoming Hearings" widget, independent of the case's status label. */
 export function hasUpcomingHearing(c: LegalCase, today: string): boolean {
-  return c.caseDetails.historyOfCaseHearings.some((h) => h.hearingDate && h.hearingDate >= today);
+  return (c?.caseDetails?.historyOfCaseHearings || []).some(
+    (h) => h.hearingDate && h.hearingDate >= today,
+  );
 }
 
 export function getStatusStyle(colorKey: StatusMetaItem["color"]) {

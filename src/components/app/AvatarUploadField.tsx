@@ -19,6 +19,7 @@ export function AvatarUploadField({
   defaultPhotoUrl,
   centered = false,
   status,
+  onPhotoChange,
 }: {
   role: UserRole;
   name: string;
@@ -33,12 +34,15 @@ export function AvatarUploadField({
    * vertical unit instead of a short horizontal strip floating above empty
    * space. */
   centered?: boolean;
+  onPhotoChange?: (url: string) => void;
 }) {
   const inputRef = useRef<HTMLInputElement>(null);
-  const [photoUrl, setPhotoUrl] = useState(() => getProfilePhoto(role));
+  const [photoUrl, setPhotoUrl] = useState(() => getProfilePhoto(role) || defaultPhotoUrl);
   const [error, setError] = useState("");
 
-  useEffect(() => subscribeToStore(() => setPhotoUrl(getProfilePhoto(role))), [role]);
+  useEffect(() => {
+    subscribeToStore(() => setPhotoUrl(getProfilePhoto(role) || defaultPhotoUrl));
+  }, [role, defaultPhotoUrl]);
 
   const handleFile = async (file: File) => {
     if (!file.type.startsWith("image/")) {
@@ -58,6 +62,8 @@ export function AvatarUploadField({
       });
       if (res?.fileUrl) {
         setProfilePhoto(role, res.fileUrl);
+        setPhotoUrl(res.fileUrl);
+        onPhotoChange?.(res.fileUrl);
         return;
       }
     } catch {
@@ -66,7 +72,11 @@ export function AvatarUploadField({
 
     const reader = new FileReader();
     reader.onload = () => {
-      if (typeof reader.result === "string") setProfilePhoto(role, reader.result);
+      if (typeof reader.result === "string") {
+        setProfilePhoto(role, reader.result);
+        setPhotoUrl(reader.result);
+        onPhotoChange?.(reader.result);
+      }
     };
     reader.readAsDataURL(file);
   };
@@ -108,7 +118,11 @@ export function AvatarUploadField({
             {photoUrl && (
               <button
                 type="button"
-                onClick={() => clearProfilePhoto(role)}
+                onClick={() => {
+                  clearProfilePhoto(role);
+                  setPhotoUrl(undefined);
+                  onPhotoChange?.("");
+                }}
                 className="flex cursor-pointer items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-semibold text-destructive transition-colors hover:bg-destructive/10"
               >
                 <Trash2 className="h-3.5 w-3.5" />
@@ -140,7 +154,11 @@ export function AvatarUploadField({
           {photoUrl && (
             <button
               type="button"
-              onClick={() => clearProfilePhoto(role)}
+              onClick={() => {
+                clearProfilePhoto(role);
+                setPhotoUrl(undefined);
+                onPhotoChange?.("");
+              }}
               className="flex cursor-pointer items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-semibold text-destructive transition-colors hover:bg-destructive/10"
             >
               <Trash2 className="h-3.5 w-3.5" />

@@ -16,6 +16,7 @@ import {
 } from "lucide-react";
 import { getCases, subscribeToStore } from "@/data/appStore";
 import { useCaseDetailSync } from "@/hooks/useCaseSync";
+import { useAuth } from "@/context/useAuth";
 import { Button } from "@/components/m3";
 import { PageHeader } from "@/components/app/PageHeader";
 import type { LegalCase } from "@/types";
@@ -69,6 +70,7 @@ function StatTile({ label, value }: { label: string; value: string | number }) {
 
 export function CitizenCaseDetailPage() {
   const { id } = Route.useParams();
+  const { user } = useAuth();
   const [cases, setCases] = useState<LegalCase[]>(getCases);
   // Re-syncs this case's full docket; the merge notifies the store subscription below.
   const { isSyncing } = useCaseDetailSync(id);
@@ -78,6 +80,20 @@ export function CitizenCaseDetailPage() {
   }, []);
 
   const c = cases.find((x) => x.id === id);
+
+  const currentCitizenId = user?.citizenId;
+  const currentUserId = user?.id;
+  const citizenName = user?.name?.toLowerCase();
+  const citizenEmail = user?.email?.toLowerCase();
+
+  const isMine =
+    c &&
+    ((currentCitizenId && c.citizenId === currentCitizenId) ||
+      (currentUserId && (c.citizenId === currentUserId || c.id?.includes(currentUserId))) ||
+      (citizenName && c.citizenName && c.citizenName.toLowerCase() === citizenName) ||
+      (citizenEmail &&
+        c.citizenName &&
+        c.citizenName.toLowerCase() === citizenEmail.split("@")[0]));
 
   // A case that only exists server-side isn't "not found" until its fetch settles.
   if (!c && isSyncing) {
@@ -89,7 +105,7 @@ export function CitizenCaseDetailPage() {
     );
   }
 
-  if (!c) {
+  if (!c || (!isMine && (currentCitizenId || currentUserId))) {
     return (
       <div className="space-y-4">
         <PageHeader title="Case not found" />

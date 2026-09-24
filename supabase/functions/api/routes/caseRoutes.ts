@@ -152,7 +152,7 @@ const listUserCasesRoute = createRoute({
   method: "get",
   path: "/user",
   tags: ["Cases - User"],
-  summary: "List user cases with filters",
+  summary: "List user cases with filters (citizen sessions are strictly scoped to their own cases)",
   security: [{ bearerAuth: [] }],
   request: {
     query: z.object({
@@ -165,7 +165,7 @@ const listUserCasesRoute = createRoute({
   },
   responses: {
     200: {
-      description: "List of user cases",
+      description: "List of user cases scoped to current user",
       content: { "application/json": { schema: SuccessResponseSchema } },
     },
   },

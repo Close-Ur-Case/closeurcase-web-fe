@@ -84,6 +84,7 @@ export interface AuthUser {
   city?: string;
   citizenId?: string;
   lawyerId?: string;
+  signupMethod?: "email" | "phone";
   [key: string]: unknown;
 }
 
@@ -115,11 +116,14 @@ export interface CaseDocumentItem {
 }
 
 export interface CreateUserCasePayload {
+  id?: string;
   citizenId?: string;
   lawyerId?: string;
   caseType: "new" | "pending" | "closed" | string;
   cnr?: string;
-  title: string;
+  petitioner: string;
+  respondent?: string;
+  title?: string;
   description: string;
   documents?: CaseDocumentItem[];
   practiceArea: string;
@@ -256,6 +260,7 @@ export interface CitizenProfile {
   stateId?: string | null;
   districtId?: string | null;
   status?: string;
+  avatarUrl?: string | null;
   joinedAt?: string;
   lastLoginAt?: string | null;
   createdAt?: string;
@@ -264,8 +269,14 @@ export interface CitizenProfile {
 
 export interface UpdateCitizenMePayload {
   fullName?: string;
+  name?: string;
   city?: string;
   state?: string;
+  currentLocation?: string;
+  avatarUrl?: string | null;
+  phone?: string;
+  email?: string;
+  address?: string;
 }
 
 export interface UpdateCitizenPayload {

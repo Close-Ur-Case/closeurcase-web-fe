@@ -66,14 +66,8 @@ export function CaseListCard({ caseItem }: { caseItem: LegalCase }) {
         <div className="flex flex-wrap items-center gap-1.5 text-[11px]">
           <span className="inline-flex items-center gap-1 rounded-lg border border-primary/20 bg-primary/10 px-2.5 py-1 font-mono text-[11px] font-bold text-primary shadow-2xs">
             <Hash className="h-3 w-3" />
-            {caseItem.id}
+            {caseRef && caseRef !== caseItem.id ? caseRef : caseItem.id}
           </span>
-          {caseRef && (
-            <span className="inline-flex items-center gap-1 rounded-lg border border-border/50 bg-background/80 px-2.5 py-1 font-mono text-[11px] font-medium text-foreground/90 shadow-2xs">
-              <FileText className="h-3 w-3 text-muted-foreground" />
-              CASE: {caseRef}
-            </span>
-          )}
           {caseItem.caseDetails.courtName && (
             <span
               className="inline-flex max-w-[220px] items-center gap-1 truncate rounded-lg border border-border/50 bg-background/80 px-2.5 py-1 text-[11px] text-muted-foreground shadow-2xs sm:max-w-xs"

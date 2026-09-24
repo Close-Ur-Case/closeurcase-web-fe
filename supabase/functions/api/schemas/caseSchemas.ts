@@ -2,11 +2,14 @@ import { z } from "@hono/zod-openapi";
 
 export const CreateUserCaseSchema = z
   .object({
+    id: z.string().optional().openapi({ example: "CUC-20260831154512" }),
     citizenId: z.string().optional().openapi({ example: "u_001" }),
     lawyerId: z.string().optional().openapi({ example: "l_001" }),
     caseType: z.string().openapi({ example: "new", description: "Case type from case_types lookup: new, pending, closed" }),
     cnr: z.string().optional().transform((v) => (v ? v.trim().toUpperCase() : undefined)).openapi({ example: "DLND020047882015" }),
-    title: z.string().min(1).openapi({ example: "Property Handover Dispute" }),
+    petitioner: z.string().optional().openapi({ example: "Sai Teja Reddy" }),
+    respondent: z.string().optional().openapi({ example: "ABC Developers Pvt Ltd" }),
+    title: z.string().optional().openapi({ example: "Property Handover Dispute" }),
     description: z.string().min(1).openapi({ example: "Builder delay in handover under RERA Section 18." }),
     documents: z
       .array(

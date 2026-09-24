@@ -288,13 +288,27 @@ export class CaseService {
       rawLegalServices
     );
 
+    const petitioner = (
+      caseData.petitioner ||
+      (caseData.title ? caseData.title.split(/\s+vs\.?\s+/i)[0]?.trim() : "") ||
+      "Petitioner"
+    ).trim();
+
+    const respondent =
+      caseData.respondent !== undefined
+        ? caseData.respondent ? caseData.respondent.trim() : null
+        : caseData.title && caseData.title.includes(" vs")
+          ? caseData.title.split(/\s+vs\.?\s+/i)[1]?.trim() || null
+          : null;
+
     const newCase = {
       id,
       citizenId: caseData.citizenId,
       lawyerId: caseData.lawyerId || null,
       caseType,
       cnr: cnr || null,
-      title: caseData.title,
+      petitioner,
+      respondent,
       description: caseData.description,
       documents: Array.isArray(caseData.documents) ? caseData.documents : [],
       practiceArea: normalizedPracticeArea,
@@ -311,6 +325,10 @@ export class CaseService {
 
     const [created] = await db.insert(casesUser).values(newCase).returning();
 
+    const caseDisplayTitle = created.petitioner
+      ? created.respondent ? `${created.petitioner} vs ${created.respondent}` : created.petitioner
+      : "Legal Matter";
+
     // Send notifications
     try {
       if (caseData.lawyerId) {
@@ -318,14 +336,17 @@ export class CaseService {
           userId: caseData.lawyerId,
           role: "lawyer",
           title: "New Case Assigned",
-          body: `New ${caseData.isEmergency ? "EMERGENCY " : ""}case '${caseData.title}' has been submitted for your review.`,
+          body: `New ${caseData.isEmergency ? "EMERGENCY " : ""}case '${caseDisplayTitle}' has been submitted for your review.`,
         });
       }
     } catch (e) {
       console.warn("Failed to dispatch case creation notification:", e);
     }
 
-    return created;
+    return {
+      ...created,
+      title: caseDisplayTitle,
+    };
   }
 
   static async getUserCaseById(id: string) {
@@ -344,14 +365,20 @@ export class CaseService {
       importedRecord = imp || null;
     }
 
+    const caseTitle = foundCase.petitioner
+      ? foundCase.respondent ? `${foundCase.petitioner} vs ${foundCase.respondent}` : foundCase.petitioner
+      : "Legal Matter";
+
     return {
       ...foundCase,
+      title: caseTitle,
       importedCase: importedRecord,
     };
   }
 
   static async listUserCases(filters: {
     citizenId?: string;
+    citizenUserId?: string;
     lawyerId?: string;
     status?: string;
     caseType?: string;
@@ -359,10 +386,14 @@ export class CaseService {
     limit?: number;
     offset?: number;
   } = {}) {
-    const { citizenId, lawyerId, status, caseType, search, limit = 50, offset = 0 } = filters;
+    const { citizenId, citizenUserId, lawyerId, status, caseType, search, limit = 50, offset = 0 } = filters;
     const conditions: any[] = [];
 
-    if (citizenId) conditions.push(eq(casesUser.citizenId, citizenId));
+    if (citizenId && citizenUserId && citizenId !== citizenUserId) {
+      conditions.push(or(eq(casesUser.citizenId, citizenId), eq(casesUser.citizenId, citizenUserId)));
+    } else if (citizenId) {
+      conditions.push(eq(casesUser.citizenId, citizenId));
+    }
     if (lawyerId) conditions.push(eq(casesUser.lawyerId, lawyerId));
     if (status) conditions.push(eq(casesUser.caseStatus, status));
     if (caseType) conditions.push(eq(casesUser.caseType, caseType.toLowerCase()));
@@ -372,7 +403,8 @@ export class CaseService {
       const upperTerm = term.toUpperCase();
       conditions.push(
         or(
-          ilike(casesUser.title, `%${term}%`),
+          ilike(casesUser.petitioner, `%${term}%`),
+          ilike(casesUser.respondent, `%${term}%`),
           ilike(casesUser.description, `%${term}%`),
           ilike(casesUser.id, `%${term}%`),
           ilike(casesUser.cnr, `%${upperTerm}%`),
@@ -388,19 +420,26 @@ export class CaseService {
 
     const rows = await query.orderBy(desc(casesUser.createdAt)).limit(limit).offset(offset);
     const cnrs = Array.from(new Set(rows.map((r) => r.cnr).filter(Boolean)));
+    const formatRow = (r: any, imp: any) => ({
+      ...r,
+      title: r.petitioner
+        ? r.respondent ? `${r.petitioner} vs ${r.respondent}` : r.petitioner
+        : "Legal Matter",
+      importedCase: imp,
+    });
+
     if (cnrs.length > 0) {
       const importedList = await db
         .select()
         .from(casesImported)
         .where(inArray(casesImported.cnr, cnrs as string[]));
       const importedMap = new Map(importedList.map((imp) => [imp.cnr.toUpperCase(), imp]));
-      return rows.map((r) => ({
-        ...r,
-        importedCase: r.cnr ? importedMap.get(r.cnr.toUpperCase()) || null : null,
-      }));
+      return rows.map((r) =>
+        formatRow(r, r.cnr ? importedMap.get(r.cnr.toUpperCase()) || null : null)
+      );
     }
 
-    return rows.map((r) => ({ ...r, importedCase: null }));
+    return rows.map((r) => formatRow(r, null));
   }
 
   /**
@@ -472,13 +511,17 @@ export class CaseService {
       .where(eq(casesUser.id, caseId))
       .returning();
 
+    const caseDisplayTitle = existing.petitioner
+      ? existing.respondent ? `${existing.petitioner} vs ${existing.respondent}` : existing.petitioner
+      : "Legal Matter";
+
     // Notify citizen of stage transition
     try {
       await NotificationService.createInAppNotification({
         userId: existing.citizenId,
         role: "citizen",
         title: `Case Update: ${stageRecord.label}`,
-        body: `Your case '${existing.title}' status was updated to '${stageRecord.label}'.`,
+        body: `Your case '${caseDisplayTitle}' status was updated to '${stageRecord.label}'.`,
       });
     } catch (e) {
       console.warn("Failed to dispatch stage notification:", e);
@@ -525,7 +568,14 @@ export class CaseService {
       updatedAt: new Date(),
     };
 
-    if (updates.title !== undefined) updateFields.title = updates.title;
+    if (updates.petitioner !== undefined) updateFields.petitioner = updates.petitioner;
+    if (updates.respondent !== undefined) updateFields.respondent = updates.respondent;
+    if (updates.title !== undefined && updates.petitioner === undefined) {
+      updateFields.petitioner = updates.title.split(/\s+vs\.?\s+/i)[0]?.trim() || updates.title;
+      if (updates.title.includes(" vs")) {
+        updateFields.respondent = updates.title.split(/\s+vs\.?\s+/i)[1]?.trim();
+      }
+    }
     if (updates.description !== undefined) updateFields.description = updates.description;
     if (updates.cnr !== undefined) updateFields.cnr = this.normalizeCnr(updates.cnr);
     if (updates.caseType !== undefined) updateFields.caseType = updates.caseType.toLowerCase();

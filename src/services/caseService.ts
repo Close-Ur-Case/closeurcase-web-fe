@@ -161,7 +161,9 @@ export interface BackendUserCase {
   lawyerId: string | null;
   caseType: string;
   cnr: string | null;
-  title: string;
+  petitioner?: string;
+  respondent?: string | null;
+  title?: string;
   description: string;
   documents?: BackendUserCaseDocument[];
   practiceArea: string;
@@ -316,7 +318,9 @@ export function mapBackendCaseToLegalCase(
   const petitioners: string[] =
     Array.isArray(impCaseDetails.petitioners) && impCaseDetails.petitioners.length > 0
       ? (impCaseDetails.petitioners as string[])
-      : [citizen?.name || "Petitioner"];
+      : backend.petitioner
+        ? [backend.petitioner]
+        : [citizen?.name || "Petitioner"];
 
   const petitionerAdvocates: string[] =
     Array.isArray(impCaseDetails.petitionerAdvocates) &&
@@ -329,7 +333,9 @@ export function mapBackendCaseToLegalCase(
   const respondents: string[] =
     Array.isArray(impCaseDetails.respondents) && impCaseDetails.respondents.length > 0
       ? (impCaseDetails.respondents as string[])
-      : ["Opposing Party"];
+      : backend.respondent
+        ? [backend.respondent]
+        : ["Opposing Party"];
 
   const respondentAdvocates: string[] = Array.isArray(impCaseDetails.respondentAdvocates)
     ? (impCaseDetails.respondentAdvocates as string[])
@@ -403,13 +409,19 @@ export function mapBackendCaseToLegalCase(
     dateModified: impEntityInfo.dateModified || updatedDate,
   };
 
+  const computedTitle =
+    backend.title ||
+    (backend.petitioner
+      ? `${backend.petitioner}${backend.respondent ? ` vs ${backend.respondent}` : ""}`
+      : "Untitled Case");
+
   return {
     id: backend.id,
-    title: backend.title,
+    title: computedTitle,
     description: backend.description,
     category,
     citizenId: backend.citizenId,
-    citizenName: citizen?.name || "Citizen User",
+    citizenName: citizen?.name || backend.petitioner || "Citizen User",
     lawyerId: backend.lawyerId || undefined,
     lawyerName: lawyer?.name || (backend.lawyerId ? "Assigned Counsel" : undefined),
     status,

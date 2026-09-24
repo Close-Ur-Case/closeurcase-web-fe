@@ -1,4 +1,4 @@
-import { createFileRoute } from "@tanstack/react-router";
+import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { useEffect, useState, type CSSProperties } from "react";
 import {
   CheckCircle2,
@@ -144,8 +144,15 @@ const CITIZEN_ID = "u_001";
 
 type HistoryTab = "Subscription" | "Consultation";
 
+interface CitizenSubscriptionsSearchParams {
+  returnTo?: string;
+}
+
 export const Route = createFileRoute("/citizen/subscriptions")({
   head: () => ({ meta: [{ title: "My Subscriptions — CloseUrCase" }] }),
+  validateSearch: (s: Record<string, unknown>): CitizenSubscriptionsSearchParams => ({
+    returnTo: typeof s.returnTo === "string" ? s.returnTo : undefined,
+  }),
   component: MySubscriptions,
 });
 
@@ -188,6 +195,12 @@ const CONSULTATION_STATUS_STYLE: Record<Payment["status"], string> = {
 };
 
 export function MySubscriptions() {
+  const navigate = useNavigate();
+  const searchParams = Route.useSearch();
+  const returnTarget =
+    searchParams.returnTo ||
+    (typeof window !== "undefined" ? sessionStorage.getItem("cuc_return_after_payment") : null);
+
   const { user } = useAuth();
   // Payments and subscriptions reference the citizen *record* id ("u_001"),
   // not the Supabase auth UUID that `user.id` holds.
@@ -289,6 +302,17 @@ export function MySubscriptions() {
 
       const updated = await subscriptionService.listSubscriptions(citizenId);
       setSubscriptions(updated as unknown as Subscription[]);
+
+      const target =
+        searchParams.returnTo ||
+        (typeof window !== "undefined" ? sessionStorage.getItem("cuc_return_after_payment") : null);
+      if (target) {
+        if (typeof window !== "undefined") {
+          sessionStorage.removeItem("cuc_return_after_payment");
+        }
+        navigate({ to: target });
+        return;
+      }
     } catch (err) {
       const message = err instanceof Error ? err.message : "Could not activate this plan.";
       setSubscribeError(message);
@@ -321,6 +345,35 @@ export function MySubscriptions() {
         title="My Subscriptions"
         description="Manage your Auto-Assign plan, view active VIP perks, and track your billing history."
       />
+
+      {returnTarget && (
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 rounded-2xl border border-indigo-500/30 bg-gradient-to-r from-indigo-500/10 via-purple-500/5 to-transparent p-4 text-xs shadow-sm">
+          <div className="flex items-center gap-2.5">
+            <Sparkles className="h-5 w-5 text-indigo-500 shrink-0" />
+            <div>
+              <div className="font-extrabold text-foreground text-sm">
+                Activate Subscription for Auto-Assign
+              </div>
+              <div className="text-muted-foreground text-[11px] mt-0.5">
+                Your draft case details are safely stored. Choose a plan to activate
+                auto-assignment, and you'll be redirected back to finish filing.
+              </div>
+            </div>
+          </div>
+          <Button
+            variant="outlined"
+            onClick={() => {
+              if (typeof window !== "undefined") {
+                sessionStorage.removeItem("cuc_return_after_payment");
+              }
+              navigate({ to: returnTarget });
+            }}
+            className="shrink-0 text-xs font-bold"
+          >
+            Return to Case Filing
+          </Button>
+        </div>
+      )}
 
       {subscribeError && (
         <div className="flex items-start gap-2.5 rounded-lg border border-destructive/30 bg-destructive/10 p-3 text-xs text-destructive">

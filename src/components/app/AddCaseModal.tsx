@@ -129,6 +129,9 @@ export function AddCaseModal({
     const linkedCitizen = citizens.find(
       (c) => c.name.toLowerCase() === clientName.trim().toLowerCase(),
     );
+    const vsParts = title.split(/\s+vs\.?\s+|\s+—\s+|\s+-\s+/i);
+    const petitioner = clientName.trim() || vsParts[0]?.trim() || "Petitioner";
+    const respondent = vsParts.length > 1 ? vsParts.slice(1).join(" vs ").trim() : undefined;
 
     const legalCase: LegalCase = editingCase
       ? {
@@ -144,6 +147,14 @@ export function AddCaseModal({
             cnr: cnrNumber.trim() || undefined,
             filingDate: filingDate || undefined,
             purpose: stage.trim() || undefined,
+            petitioners: editingCase.caseDetails.petitioners?.length
+              ? editingCase.caseDetails.petitioners
+              : [petitioner],
+            respondents: editingCase.caseDetails.respondents?.length
+              ? editingCase.caseDetails.respondents
+              : respondent
+                ? [respondent]
+                : [],
           },
           status,
           city: city.trim() || editingCase.city,
@@ -173,9 +184,9 @@ export function AddCaseModal({
             historyOfCaseHearings: [],
             interimOrders: [],
             judges: [],
-            petitioners: [],
+            petitioners: [petitioner],
             petitionerAdvocates: [],
-            respondents: [],
+            respondents: respondent ? [respondent] : [],
             respondentAdvocates: [],
             hasOrders: false,
             hasJudgments: false,
@@ -207,9 +218,12 @@ export function AddCaseModal({
     // Sync with backend API
     caseService
       .createUserCase({
+        id: legalCase.id,
         lawyerId,
         caseType: cnrNumber ? "pending" : "new",
         cnr: cnrNumber ? cnrNumber.trim() : undefined,
+        petitioner,
+        respondent,
         title,
         description: `Case Title: ${title}. Stage: ${stage || "Filing"}. Court: ${courtName || "Unassigned"}`,
         practiceArea: category,

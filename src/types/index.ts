@@ -30,6 +30,7 @@ export interface Citizen {
   phone: string;
   city: string;
   currentLocation?: string;
+  avatarUrl?: string;
   joinedAt: string;
   lastLoginAt: string;
   status: "Active" | "Inactive";

@@ -29,6 +29,7 @@ export interface ProfileFormFields {
   phone: string;
   city: string;
   currentLocation?: string;
+  avatarUrl?: string;
 }
 
 export function ProfileForm({
@@ -36,6 +37,8 @@ export function ProfileForm({
   defaults,
   defaultPhotoUrl,
   wide = true,
+  disableEmail = false,
+  disablePhone = false,
   extraField,
   onSave,
 }: {
@@ -47,9 +50,12 @@ export function ProfileForm({
     city: string;
     currentLocation?: string;
     aadhar?: string;
+    avatarUrl?: string;
   };
   defaultPhotoUrl?: string;
   wide?: boolean;
+  disableEmail?: boolean;
+  disablePhone?: boolean;
   extraField?: (fields: ProfileFormFields) => React.ReactNode;
   onSave?: (fields: ProfileFormFields) => void;
 }) {
@@ -61,6 +67,7 @@ export function ProfileForm({
   const [currentLocation, setCurrentLocation] = useState(
     defaults.currentLocation || `${DEFAULT_CITY.name}, ${DEFAULT_CITY.state}`,
   );
+  const [avatarUrl, setAvatarUrl] = useState(defaults.avatarUrl || defaultPhotoUrl);
   const [isLocating, setIsLocating] = useState(false);
   const [aadhar, setAadhar] = useState(defaults.aadhar ?? "");
 
@@ -69,10 +76,28 @@ export function ProfileForm({
   const [phoneTouched, setPhoneTouched] = useState(false);
 
   const nameRes = validateName(name);
-  const phoneRes = validatePhone(phone);
-  const emailRes = validateEmail(email);
+  const phoneRes = disableEmail && !phone.trim() ? { isValid: true } : validatePhone(phone);
+  const emailRes = disablePhone && !email.trim() ? { isValid: true } : validateEmail(email);
 
   const isFormValid = nameRes.isValid && phoneRes.isValid && emailRes.isValid;
+
+  const applyNewLocation = (newLoc: string) => {
+    setCurrentLocation(newLoc);
+    setIsLocating(false);
+    // Auto-save refreshed location immediately
+    if (onSave) {
+      onSave({
+        name,
+        email,
+        phone,
+        city,
+        currentLocation: newLoc,
+        avatarUrl,
+      });
+      setSaved(true);
+      setTimeout(() => setSaved(false), 2500);
+    }
+  };
 
   const handleRefreshLocation = () => {
     setIsLocating(true);
@@ -81,22 +106,20 @@ export function ProfileForm({
         (pos) => {
           const { latitude, longitude } = pos.coords;
           const nearest = nearestServiceCity(latitude, longitude);
-          setCurrentLocation(`${nearest.name}, ${nearest.state}`);
-          setIsLocating(false);
+          const newLoc = `${nearest.name}, ${nearest.state}`;
+          applyNewLocation(newLoc);
         },
         () => {
-          setCurrentLocation((prev) =>
-            prev.includes("Visakhapatnam")
-              ? "Hyderabad, Telangana"
-              : "Visakhapatnam, Andhra Pradesh",
-          );
-          setIsLocating(false);
+          const fallbackLoc = currentLocation.includes("Visakhapatnam")
+            ? "Hyderabad, Telangana"
+            : "Visakhapatnam, Andhra Pradesh";
+          applyNewLocation(fallbackLoc);
         },
         { timeout: 5000, maximumAge: 0 },
       );
     } else {
-      setCurrentLocation(`${DEFAULT_CITY.name}, ${DEFAULT_CITY.state}`);
-      setIsLocating(false);
+      const defaultLoc = `${DEFAULT_CITY.name}, ${DEFAULT_CITY.state}`;
+      applyNewLocation(defaultLoc);
     }
   };
 
@@ -163,7 +186,14 @@ export function ProfileForm({
     </div>
   );
 
-  const currentFields: ProfileFormFields = { name, email, phone, city, currentLocation };
+  const currentFields: ProfileFormFields = {
+    name,
+    email,
+    phone,
+    city,
+    currentLocation,
+    avatarUrl,
+  };
   const infoCard = extraField ? extraField(currentFields) : defaultAadhaarCard;
 
   const handleSubmit = (e: React.FormEvent) => {
@@ -186,8 +216,21 @@ export function ProfileForm({
             <AvatarUploadField
               role={role}
               name={defaults.name}
-              defaultPhotoUrl={defaultPhotoUrl}
+              defaultPhotoUrl={avatarUrl || defaultPhotoUrl}
               centered
+              onPhotoChange={(newPhoto) => {
+                setAvatarUrl(newPhoto);
+                onSave?.({
+                  name,
+                  email,
+                  phone,
+                  city,
+                  currentLocation,
+                  avatarUrl: newPhoto,
+                });
+                setSaved(true);
+                setTimeout(() => setSaved(false), 2500);
+              }}
             />
           </div>
           <div className="space-y-2 text-center sm:text-left min-w-0 flex-1">
@@ -253,16 +296,20 @@ export function ProfileForm({
                 label="Email Address"
                 type="email"
                 value={email}
+                disabled={disableEmail}
+                supportingText={disableEmail ? "Signed up with Email (Primary Login)" : undefined}
                 onChange={(v) => {
-                  setEmail(v);
-                  setEmailTouched(true);
+                  if (!disableEmail) {
+                    setEmail(v);
+                    setEmailTouched(true);
+                  }
                 }}
                 placeholder="email@example.com"
                 leadingIcon={<Mail className="h-4 w-4 text-primary/70" />}
-                error={Boolean(emailTouched && !emailRes.isValid)}
+                error={Boolean(!disableEmail && emailTouched && !emailRes.isValid)}
                 className="w-full"
               />
-              {emailTouched && !emailRes.isValid && (
+              {!disableEmail && emailTouched && !emailRes.isValid && (
                 <p className="flex items-center gap-1 text-[11px] font-medium text-destructive">
                   <AlertCircle className="h-3 w-3 shrink-0" />
                   <span>{emailRes.error}</span>
@@ -275,16 +322,20 @@ export function ProfileForm({
                 label="Phone Number"
                 type="tel"
                 value={phone}
+                disabled={disablePhone}
+                supportingText={disablePhone ? "Signed up with Mobile (Primary Login)" : undefined}
                 onChange={(v) => {
-                  setPhone(sanitizePhone(v));
-                  setPhoneTouched(true);
+                  if (!disablePhone) {
+                    setPhone(sanitizePhone(v));
+                    setPhoneTouched(true);
+                  }
                 }}
                 placeholder="10-digit mobile number"
                 leadingIcon={<PhoneIcon className="h-4 w-4 text-primary/70" />}
-                error={Boolean(phoneTouched && !phoneRes.isValid)}
+                error={Boolean(!disablePhone && phoneTouched && !phoneRes.isValid)}
                 className="w-full"
               />
-              {phoneTouched && !phoneRes.isValid && (
+              {!disablePhone && phoneTouched && !phoneRes.isValid && (
                 <p className="flex items-center gap-1 text-[11px] font-medium text-destructive">
                   <AlertCircle className="h-3 w-3 shrink-0" />
                   <span>{phoneRes.error}</span>

@@ -1,6 +1,7 @@
 import { createFileRoute, useNavigate, useRouter } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
 import { getCases, subscribeToStore } from "@/data/appStore";
+import { useAuth } from "@/context/useAuth";
 import type { LegalCase } from "@/types";
 import { CaseChat } from "@/components/app/CaseChat";
 
@@ -12,6 +13,7 @@ function CitizenChatRoute() {
   const { id } = Route.useParams();
   const navigate = useNavigate();
   const router = useRouter();
+  const { user } = useAuth();
   const [allCases, setAllCases] = useState<LegalCase[]>(getCases);
 
   useEffect(() => {
@@ -19,7 +21,21 @@ function CitizenChatRoute() {
     return subscribeToStore(sync);
   }, []);
 
-  const caseItem = allCases.find((c) => c.id === id);
+  const currentCitizenId = user?.citizenId;
+  const currentUserId = user?.id;
+  const citizenName = user?.name?.toLowerCase();
+  const citizenEmail = user?.email?.toLowerCase();
+
+  const caseItem = allCases.find((c) => {
+    if (c.id !== id) return false;
+    if (currentCitizenId && c.citizenId === currentCitizenId) return true;
+    if (currentUserId && (c.citizenId === currentUserId || c.id?.includes(currentUserId)))
+      return true;
+    if (citizenName && c.citizenName && c.citizenName.toLowerCase() === citizenName) return true;
+    if (citizenEmail && c.citizenName && c.citizenName.toLowerCase() === citizenEmail.split("@")[0])
+      return true;
+    return !currentCitizenId && !currentUserId;
+  });
 
   if (!caseItem) {
     return (

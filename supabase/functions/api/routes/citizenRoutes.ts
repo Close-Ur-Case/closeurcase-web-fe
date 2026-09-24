@@ -39,8 +39,14 @@ const updateMeRoute = createRoute({
         "application/json": {
           schema: z.object({
             fullName: z.string().optional().openapi({ example: "Vijay Sariyam" }),
+            name: z.string().optional().openapi({ example: "Vijay Sariyam" }),
             city: z.string().optional().openapi({ example: "Hyderabad" }),
             state: z.string().optional().openapi({ example: "Telangana" }),
+            currentLocation: z.string().optional().openapi({ example: "Visakhapatnam, Andhra Pradesh" }),
+            phone: z.string().optional().openapi({ example: "+919876543210" }),
+            email: z.string().email().optional().openapi({ example: "citizen@example.com" }),
+            avatarUrl: z.string().optional().openapi({ example: "https://zxsizwzjktorqjlzzchg.supabase.co/storage/v1/object/public/profile-photos/citizen/avatar.jpg" }),
+            address: z.string().optional().openapi({ example: "Banjara Hills, Hyderabad" }),
           }),
         },
       },

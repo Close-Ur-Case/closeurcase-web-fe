@@ -9,6 +9,7 @@ import type { LegalCase } from "@/types";
 import { useCitizenLanguage } from "@/features/citizen/i18n/CitizenLanguageContext";
 import { Card } from "@/components/m3";
 import { hasUpcomingHearing, nextHearingSortKey } from "@/components/app/caseDocketShared";
+import { useAuth } from "@/context/useAuth";
 
 export const Route = createFileRoute("/citizen/")({
   component: CitizenDashboard,
@@ -16,12 +17,36 @@ export const Route = createFileRoute("/citizen/")({
 
 function CitizenDashboard() {
   const { translate } = useCitizenLanguage();
-  const [allCases, setAllCases] = useState<LegalCase[]>(getCases);
+  const { user } = useAuth();
+  const [allCases, setAllCases] = useState<LegalCase[]>([]);
 
   useEffect(() => {
-    const sync = () => setAllCases(getCases());
+    const sync = () => {
+      const all = getCases();
+      const citizenId = user?.citizenId;
+      const userId = user?.id;
+      const citizenEmail = user?.email?.toLowerCase();
+      const citizenName = user?.name?.toLowerCase();
+
+      const scoped = all.filter((c) => {
+        if (!c) return false;
+        if (citizenId && c.citizenId === citizenId) return true;
+        if (userId && (c.citizenId === userId || c.id?.includes(userId))) return true;
+        if (citizenName && c.citizenName && c.citizenName.toLowerCase() === citizenName)
+          return true;
+        if (
+          citizenEmail &&
+          c.citizenName &&
+          c.citizenName.toLowerCase() === citizenEmail.split("@")[0]
+        )
+          return true;
+        return false;
+      });
+      setAllCases(scoped);
+    };
+    sync();
     return subscribeToStore(sync);
-  }, []);
+  }, [user?.citizenId, user?.id, user?.email, user?.name]);
 
   const activeCases = allCases.filter((c) => c.status !== "Resolved" && c.status !== "Closed");
   const resolvedCases = allCases.filter((c) => c.status === "Resolved" || c.status === "Closed");
