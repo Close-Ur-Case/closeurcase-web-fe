@@ -78,7 +78,7 @@ export const authService = {
       skipAuth: true,
     });
 
-    const token = res?.session?.access_token || res?.token;
+    const token = res?.session?.accessToken || res?.session?.access_token || res?.token;
     const user: AuthUser = {
       id: res?.user?.id || `u_${Date.now()}`,
       role: "citizen",

@@ -17,9 +17,9 @@ export const env = {
     Deno.env.get("SUPABASE_DB_URL") ||
     "postgresql://postgres:mEzRsjRsQmek4mqn@db.zxsizwzjktorqjlzzchg.supabase.co:5432/postgres",
 
-  RAZORPAY_KEY_ID: Deno.env.get("RAZORPAY_KEY_ID") || "rzp_test_placeholder",
-  RAZORPAY_KEY_SECRET: Deno.env.get("RAZORPAY_KEY_SECRET") || "placeholder_secret",
-  RAZORPAY_WEBHOOK_SECRET: Deno.env.get("RAZORPAY_WEBHOOK_SECRET") || "placeholder_webhook_secret",
+  RAZORPAY_KEY_ID: Deno.env.get("RAZORPAY_KEY_ID") || "rzp_test_Tfpfx2vStqwoAA",
+  RAZORPAY_KEY_SECRET: Deno.env.get("RAZORPAY_KEY_SECRET") || "chdjmoKLnyZ80UlqDrqKYe65",
+  RAZORPAY_WEBHOOK_SECRET: Deno.env.get("RAZORPAY_WEBHOOK_SECRET") || "cuc_webhook_secret_2026",
 
   AGORA_APP_ID: Deno.env.get("AGORA_APP_ID") || "placeholder_agora_app_id",
   AGORA_APP_CERTIFICATE: Deno.env.get("AGORA_APP_CERTIFICATE") || "placeholder_agora_certificate",
