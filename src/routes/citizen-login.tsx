@@ -1,4 +1,4 @@
-import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
+import { createFileRoute, Link, useNavigate, redirect } from "@tanstack/react-router";
 import { useEffect, useState, useRef } from "react";
 import { AuthLayout } from "@/layouts/AuthLayout";
 import { Phone, Mail, ArrowLeft, ChevronRight, Tag, User, RotateCw } from "lucide-react";
@@ -19,6 +19,8 @@ import {
   validateEmail,
 } from "@/lib/validations";
 import { useSendCitizenOtp, useVerifyCitizenOtp } from "@/hooks/queries/useAuth";
+import { getStoredToken, getStoredUser } from "@/services/apiClient";
+import type { AuthUser } from "@/types/api";
 
 interface SearchParams {
   area?: string;
@@ -27,6 +29,29 @@ interface SearchParams {
 }
 
 export const Route = createFileRoute("/citizen-login")({
+  beforeLoad: ({ search }: { search: SearchParams }) => {
+    if (typeof window !== "undefined") {
+      const session = getCitizenSession();
+      const token = getStoredToken();
+      const user = getStoredUser<AuthUser>();
+      const isAuthenticated = session.authenticated || Boolean(token) || Boolean(user);
+      if (isAuthenticated) {
+        if (user && user.role === "admin") throw redirect({ to: "/admin" });
+        if (user && user.role === "lawyer") throw redirect({ to: "/lawyer" });
+        if (search.area || search.specialization || search.service) {
+          throw redirect({
+            to: "/citizen/create-case",
+            search: {
+              area: search.area,
+              specialization: search.specialization,
+              service: search.service,
+            },
+          });
+        }
+        throw redirect({ to: "/citizen" });
+      }
+    }
+  },
   head: () => ({ meta: [{ title: "Citizen sign in — CloseUrCase" }] }),
 
   validateSearch: (s: Record<string, unknown>): SearchParams => ({
@@ -65,6 +90,8 @@ export function CitizenLogin() {
           to: "/citizen/create-case",
           search: { area, specialization, service },
         });
+      } else {
+        navigate({ to: "/citizen" });
       }
     }
   }, [area, specialization, service, navigate]);

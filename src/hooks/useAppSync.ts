@@ -38,10 +38,12 @@ import {
   mergeRemoteWithdrawals,
 } from "@/data/appStore";
 import type {
+  AppNotification,
   Lawyer,
   Citizen,
   KnowledgeItem,
   Payment,
+  Subscription,
   WithdrawalRequest,
   VideoCall,
 } from "@/types";
@@ -62,7 +64,7 @@ export function useAppSync() {
       .getNotifications({ role: role || undefined })
       .then((notifs) => {
         if (Array.isArray(notifs) && notifs.length > 0) {
-          mergeRemoteNotifications(notifs);
+          mergeRemoteNotifications(notifs as unknown as AppNotification[]);
         }
       })
       .catch((err) => console.warn("[AppSync] Notifications notice:", err));
@@ -117,7 +119,7 @@ export function useAppSync() {
       .listSubscriptions()
       .then((subs) => {
         if (Array.isArray(subs) && subs.length > 0) {
-          mergeRemoteSubscriptions(subs);
+          mergeRemoteSubscriptions(subs as unknown as Partial<Subscription>[]);
         }
       })
       .catch((err) => console.warn("[AppSync] Subscriptions notice:", err));

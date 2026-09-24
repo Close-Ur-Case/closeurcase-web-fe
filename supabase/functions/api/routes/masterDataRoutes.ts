@@ -152,6 +152,7 @@ const createTaxonomyRoute = createRoute({
   path: "/:type",
   tags: ["Master Data"],
   summary: "Admin add new taxonomy record (categories, cities, courts, etc.)",
+  security: [{ bearerAuth: [] }],
   request: {
     params: z.object({
       type: z.enum(["categories", "cities", "districts", "courts", "states", "court-levels", "languages"]),
@@ -177,6 +178,7 @@ const updateTaxonomyRoute = createRoute({
   path: "/:type/:id",
   tags: ["Master Data"],
   summary: "Admin update taxonomy item",
+  security: [{ bearerAuth: [] }],
   request: {
     params: z.object({
       type: z.string(),
@@ -203,6 +205,7 @@ const deleteTaxonomyRoute = createRoute({
   path: "/:type/:id",
   tags: ["Master Data"],
   summary: "Admin delete taxonomy item",
+  security: [{ bearerAuth: [] }],
   request: {
     params: z.object({
       type: z.string(),

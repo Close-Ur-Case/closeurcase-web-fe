@@ -5,7 +5,13 @@
  * ZERO-MOCK PRODUCTION STATE: Pure backend API calls with authentic tokens and sessions.
  */
 
-import { apiClient, setStoredToken, setStoredUser, clearAuthStorage } from "./apiClient";
+import {
+  apiClient,
+  setStoredToken,
+  setStoredUser,
+  getStoredUser,
+  clearAuthStorage,
+} from "./apiClient";
 import type {
   SendOtpPayload,
   VerifyOtpPayload,
@@ -178,14 +184,34 @@ export const authService = {
    */
   async getCurrentUser(): Promise<AuthUser | null> {
     try {
-      const res = await apiClient.get<{ user?: AuthUser }>("/auth/me");
-      if (res?.user) {
-        setStoredUser(res.user);
-        return res.user;
+      const res = await apiClient.get<Record<string, unknown>>("/auth/me");
+      const rawUser =
+        (res?.user as AuthUser | undefined) ||
+        (res?.id && res?.role ? (res as unknown as AuthUser) : null);
+      if (rawUser) {
+        const existing = getStoredUser<AuthUser>();
+        const merged: AuthUser = {
+          ...existing,
+          ...rawUser,
+          id: rawUser.id || existing?.id,
+          role: (rawUser.role || existing?.role || "citizen") as AuthUser["role"],
+          email: rawUser.email || existing?.email,
+          name:
+            rawUser.name ||
+            existing?.name ||
+            (rawUser.role === "admin"
+              ? "Platform Admin"
+              : rawUser.role === "lawyer"
+                ? "Advocate"
+                : "Citizen User"),
+          phone: rawUser.phone || existing?.phone,
+        };
+        setStoredUser(merged);
+        return merged;
       }
-      return null;
+      return getStoredUser<AuthUser>();
     } catch {
-      return null;
+      return getStoredUser<AuthUser>();
     }
   },
 

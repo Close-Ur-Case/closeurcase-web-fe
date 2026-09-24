@@ -29,6 +29,7 @@ const listSubscriptionsRoute = createRoute({
   path: "/",
   tags: ["Subscriptions"],
   summary: "List active and past citizen subscriptions",
+  security: [{ bearerAuth: [] }],
   request: {
     query: z.object({
       citizenId: z.string().optional(),
@@ -47,6 +48,7 @@ const createSubscriptionRoute = createRoute({
   path: "/",
   tags: ["Subscriptions"],
   summary: "Subscribe citizen to an Auto-Assign Legal plan",
+  security: [{ bearerAuth: [] }],
   request: {
     body: {
       content: {
@@ -69,6 +71,7 @@ const cancelSubscriptionRoute = createRoute({
   path: "/:id/cancel",
   tags: ["Subscriptions"],
   summary: "Cancel recurring subscription plan",
+  security: [{ bearerAuth: [] }],
   request: {
     params: z.object({
       id: z.string().openapi({ example: "sub_101" }),

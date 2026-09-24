@@ -379,8 +379,8 @@ export function DashboardLayout({
                 onItemClick={() => setMobileMenuOpen(false)}
               />
 
-              {(role === "lawyer" || role === "citizen") && (
-                <div className="shrink-0 border-t border-[var(--md-sys-color-outline-variant)] p-2">
+              <div className="shrink-0 border-t border-[var(--md-sys-color-outline-variant)] p-2 space-y-1">
+                {(role === "lawyer" || role === "citizen") && (
                   <button
                     onClick={() => {
                       setMobileMenuOpen(false);
@@ -391,8 +391,19 @@ export function DashboardLayout({
                     <Bot className="h-[18px] w-[18px] shrink-0" />
                     Legal Bot
                   </button>
-                </div>
-              )}
+                )}
+                <button
+                  onClick={() => {
+                    setMobileMenuOpen(false);
+                    logout();
+                    navigate({ to: role === "citizen" ? "/citizen-login" : "/login" });
+                  }}
+                  className="flex w-full cursor-pointer items-center gap-3 rounded-[var(--md-sys-shape-corner-full)] px-3.5 py-2.5 text-sm text-[var(--md-sys-color-error)] transition-colors hover:bg-[var(--md-sys-color-error)]/8"
+                >
+                  <LogOut className="h-[18px] w-[18px] shrink-0" />
+                  Sign out
+                </button>
+              </div>
             </div>
           </div>
         )}

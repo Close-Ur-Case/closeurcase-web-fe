@@ -146,10 +146,6 @@ export async function request<T = unknown>(
       (errorDetails.length > 0 ? errorDetails[0]?.message : undefined) ||
       `Request failed with status ${res.status}`;
 
-    if (res.status === 401 && !skipAuth) {
-      window.dispatchEvent(new CustomEvent("cuc:unauthorized"));
-    }
-
     throw new ApiError(errorMessage, res.status, json?.errors);
   }
 

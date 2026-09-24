@@ -77,6 +77,7 @@ const updateLawyerProfileRoute = createRoute({
   path: "/:id",
   tags: ["Lawyers"],
   summary: "Update advocate profile details",
+  security: [{ bearerAuth: [] }],
   request: {
     params: z.object({
       id: z.string().openapi({ example: "l_001" }),
@@ -102,6 +103,7 @@ const updateLawyerStatusRoute = createRoute({
   path: "/:id/status",
   tags: ["Lawyers"],
   summary: "Update lawyer active/inactive status",
+  security: [{ bearerAuth: [] }],
   request: {
     params: z.object({
       id: z.string().openapi({ example: "l_001" }),
@@ -129,6 +131,7 @@ const moderateLawyerRoute = createRoute({
   path: "/:id/moderate",
   tags: ["Admin"],
   summary: "Superadmin approve or reject advocate verification credentials",
+  security: [{ bearerAuth: [] }],
   request: {
     params: z.object({
       id: z.string().openapi({ example: "l_001" }),
@@ -154,6 +157,7 @@ const toggleAvailabilityRoute = createRoute({
   path: "/:id/availability",
   tags: ["Lawyers"],
   summary: "Toggle online availability for instant consultation calls",
+  security: [{ bearerAuth: [] }],
   request: {
     params: z.object({
       id: z.string().openapi({ example: "l_001" }),
@@ -179,6 +183,7 @@ const updateBankDetailsRoute = createRoute({
   path: "/:id/bank-details",
   tags: ["Lawyers"],
   summary: "Save advocate bank account details for settlement payouts",
+  security: [{ bearerAuth: [] }],
   request: {
     params: z.object({
       id: z.string().openapi({ example: "l_001" }),
@@ -204,6 +209,7 @@ const submitRatingRoute = createRoute({
   path: "/:id/ratings",
   tags: ["Lawyers"],
   summary: "Submit citizen review and star rating for completed consultation",
+  security: [{ bearerAuth: [] }],
   request: {
     params: z.object({
       id: z.string().openapi({ example: "l_001" }),
@@ -247,6 +253,7 @@ const setLawyerLanguagesRoute = createRoute({
   path: "/:id/languages",
   tags: ["Lawyers"],
   summary: "Synchronize advocate linked languages with master data table",
+  security: [{ bearerAuth: [] }],
   request: {
     params: z.object({
       id: z.string().openapi({ example: "l_001", description: "Lawyer ID" }),

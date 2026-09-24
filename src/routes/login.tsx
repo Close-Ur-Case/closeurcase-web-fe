@@ -1,4 +1,4 @@
-import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
+import { createFileRoute, Link, useNavigate, redirect } from "@tanstack/react-router";
 import { useState } from "react";
 import { AuthLayout } from "@/layouts/AuthLayout";
 import { PermissionsGate } from "@/components/app/PermissionsGate";
@@ -6,10 +6,23 @@ import { usePermissionsGate } from "@/features/permissions/usePermissionsGate";
 import { Eye, EyeOff, Lock, Mail, AlertCircle, Loader2 } from "lucide-react";
 import { TextField, IconButton, Button } from "@/components/m3";
 import { useLawyerLogin, useAdminLogin } from "@/hooks/queries/useAuth";
+import { getStoredToken, getStoredUser } from "@/services/apiClient";
+import type { AuthUser } from "@/types/api";
 
 import { validateEmail } from "@/lib/validations";
 
 export const Route = createFileRoute("/login")({
+  beforeLoad: () => {
+    if (typeof window !== "undefined") {
+      const token = getStoredToken();
+      const user = getStoredUser<AuthUser>();
+      if (token || user) {
+        if (user?.role === "admin") throw redirect({ to: "/admin" });
+        if (user?.role === "lawyer") throw redirect({ to: "/lawyer" });
+        if (user?.role === "citizen") throw redirect({ to: "/citizen" });
+      }
+    }
+  },
   head: () => ({ meta: [{ title: "Lawyer & Admin sign in — CloseUrCase" }] }),
   component: Login,
 });

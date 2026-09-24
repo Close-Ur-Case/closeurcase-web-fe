@@ -24,6 +24,7 @@ const generateCounterRoute = createRoute({
   path: "/generate-counter",
   tags: ["AI Assistant"],
   summary: "Generate statutory & precedent-backed legal counter-argument",
+  security: [{ bearerAuth: [] }],
   request: {
     body: {
       content: {
@@ -46,6 +47,7 @@ const caseQARoute = createRoute({
   path: "/case-qa",
   tags: ["AI Assistant"],
   summary: "Ask AI questions regarding case docket, orders, and hearings timeline",
+  security: [{ bearerAuth: [] }],
   request: {
     body: {
       content: {
@@ -68,6 +70,7 @@ const summarizeDocumentRoute = createRoute({
   path: "/summarize-document",
   tags: ["AI Assistant"],
   summary: "Generate executive summary, key clauses, and liability risks of legal document",
+  security: [{ bearerAuth: [] }],
   request: {
     body: {
       content: {
@@ -90,6 +93,7 @@ const summarizeRoute = createRoute({
   path: "/summarize",
   tags: ["AI Assistant"],
   summary: "Generate executive summary and extracted risks of legal document (alias)",
+  security: [{ bearerAuth: [] }],
   request: {
     body: {
       content: {
@@ -112,6 +116,7 @@ const caseAnalysisRoute = createRoute({
   path: "/case-analysis",
   tags: ["AI Assistant"],
   summary: "Comprehensive AI statutory analysis of case docket, strengths, risks, precedents & timeline",
+  security: [{ bearerAuth: [] }],
   request: {
     body: {
       content: {
@@ -134,6 +139,7 @@ const legalQARoute = createRoute({
   path: "/legal-qa",
   tags: ["AI Assistant"],
   summary: "Ask AI general legal questions powered by Indian statutes, BNSS/BNS, and knowledge base",
+  security: [{ bearerAuth: [] }],
   request: {
     body: {
       content: {
@@ -156,6 +162,7 @@ const qaRoute = createRoute({
   path: "/qa",
   tags: ["AI Assistant"],
   summary: "Ask AI general legal questions (alias)",
+  security: [{ bearerAuth: [] }],
   request: {
     body: {
       content: {

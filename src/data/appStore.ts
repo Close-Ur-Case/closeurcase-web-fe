@@ -10,6 +10,7 @@ import type {
   Lawyer,
   LawyerDocument,
   LegalCase,
+  LegalCategory,
   Payment,
   Subscription,
   UserRole,
@@ -23,6 +24,7 @@ import type {
   StateItem,
   CourtLevelItem,
 } from "@/types";
+export type { StateItem, CourtLevelItem };
 const LAWYERS_KEY = "cuc_lawyers_v11";
 const CITIZENS_KEY = "cuc_citizens_v4";
 const NOTIFICATIONS_KEY = "cuc_notifications_v3";
@@ -899,9 +901,10 @@ export function mergeRemoteKnowledgeItems(remote: Partial<KnowledgeItem>[]): voi
       ...definedOnly(r),
       id: r.id,
       title: r.title ?? existing?.title ?? "Legal Document",
-      category: r.category ?? existing?.category ?? "General",
+      type: r.type ?? existing?.type ?? "Act",
+      category: (r.category as LegalCategory) ?? existing?.category ?? "Criminal",
       fileName: r.fileName ?? existing?.fileName ?? "doc.pdf",
-      fileSize: r.fileSize ?? existing?.fileSize ?? "1.0 MB",
+      size: (r as { fileSize?: string }).fileSize ?? r.size ?? existing?.size ?? "1.0 MB",
       uploadedAt: r.uploadedAt ?? existing?.uploadedAt ?? new Date().toISOString().slice(0, 10),
       summary: r.summary ?? existing?.summary ?? "",
       tags: r.tags ?? existing?.tags ?? [],

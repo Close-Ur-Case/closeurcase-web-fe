@@ -179,8 +179,11 @@ export interface MasterCourt {
   name: string;
   code?: string;
   level?: string;
+  courtLevel?: string;
   state?: string;
   city?: string;
+  district?: string;
+  active?: boolean;
 }
 
 export interface MasterCity {

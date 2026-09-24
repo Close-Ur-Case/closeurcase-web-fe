@@ -21,6 +21,7 @@ const listWithdrawalsRoute = createRoute({
   path: "/",
   tags: ["Withdrawals"],
   summary: "List lawyer payout settlement requests",
+  security: [{ bearerAuth: [] }],
   request: {
     query: z.object({
       lawyerId: z.string().optional(),
@@ -39,6 +40,7 @@ const requestWithdrawalRoute = createRoute({
   path: "/",
   tags: ["Withdrawals"],
   summary: "Submit lawyer earnings withdrawal request",
+  security: [{ bearerAuth: [] }],
   request: {
     body: {
       content: {
@@ -61,6 +63,7 @@ const getWithdrawalSummaryRoute = createRoute({
   path: "/summary",
   tags: ["Withdrawals"],
   summary: "Get lawyer earnings balance, pending payouts and lifetime withdrawals",
+  security: [{ bearerAuth: [] }],
   request: {
     query: z.object({
       lawyerId: z.string().openapi({ example: "l_001" }),
@@ -79,6 +82,7 @@ const approveWithdrawalRoute = createRoute({
   path: "/:id/approve",
   tags: ["Withdrawals"],
   summary: "Admin approve lawyer earnings withdrawal",
+  security: [{ bearerAuth: [] }],
   request: {
     params: z.object({
       id: z.string().openapi({ example: "w_101" }),
@@ -97,6 +101,7 @@ const rejectWithdrawalRoute = createRoute({
   path: "/:id/reject",
   tags: ["Withdrawals"],
   summary: "Admin reject lawyer earnings withdrawal with reason",
+  security: [{ bearerAuth: [] }],
   request: {
     params: z.object({
       id: z.string().openapi({ example: "w_101" }),

@@ -32,6 +32,7 @@ const listInquiriesRoute = createRoute({
   path: "/inquiries",
   tags: ["Support"],
   summary: "List customer contact inquiries (Admin)",
+  security: [{ bearerAuth: [] }],
   request: {
     query: z.object({
       status: z.enum(["New", "In Progress", "In Review", "Resolved", "Closed", "Archived"]).optional().openapi({ example: "New" }),
@@ -50,6 +51,7 @@ const updateInquiryRoute = createRoute({
   path: "/inquiries/:id",
   tags: ["Support"],
   summary: "Update customer inquiry status (Admin)",
+  security: [{ bearerAuth: [] }],
   request: {
     params: z.object({
       id: z.string().openapi({ example: "inq_1789980000000" }),

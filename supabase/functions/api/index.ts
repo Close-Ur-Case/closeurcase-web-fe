@@ -24,6 +24,15 @@ app.use(
 // Inner router to support both local root paths and Supabase Edge Function /api prefix
 const mainRouter = new OpenAPIHono();
 
+// Register Bearer Authentication Security Scheme in OpenAPI components
+mainRouter.openAPIRegistry.registerComponent("securitySchemes", "bearerAuth", {
+  type: "http",
+  scheme: "bearer",
+  bearerFormat: "JWT",
+  description:
+    "Enter your Supabase JWT or Service Role access token (Format: Bearer <token> or just the token string).",
+});
+
 // Mount standard V1 API routes
 mainRouter.route("/v1", apiRoutes);
 
@@ -46,6 +55,7 @@ mainRouter.doc("/swagger.json", {
       description: "Supabase Cloud Edge Function (Production)",
     },
   ],
+  security: [{ bearerAuth: [] }],
 });
 
 mainRouter.doc("/openapi.json", {
@@ -53,15 +63,20 @@ mainRouter.doc("/openapi.json", {
   info: {
     title: "CloseUrCase Supabase Edge API",
     version: "1.0.0",
+    description:
+      "Production-ready REST API for CloseUrCase Platform running natively on Deno and Supabase Edge Functions with Zod + @hono/zod-openapi.",
   },
-});
-
-mainRouter.doc("/swagger.json", {
-  openapi: "3.0.0",
-  info: {
-    title: "CloseUrCase Supabase Edge API",
-    version: "1.0.0",
-  },
+  servers: [
+    {
+      url: "http://localhost:8000",
+      description: "Local Development Server",
+    },
+    {
+      url: "https://zxsizwzjktorqjlzzchg.supabase.co/functions/v1/api",
+      description: "Supabase Cloud Edge Function (Production)",
+    },
+  ],
+  security: [{ bearerAuth: [] }],
 });
 
 // Swagger UI Documentation viewer

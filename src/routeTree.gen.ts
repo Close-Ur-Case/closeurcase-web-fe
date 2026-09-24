@@ -10,12 +10,10 @@
 
 import { Route as rootRouteImport } from './routes/__root'
 import { Route as IndexRouteImport } from './routes/index'
-import { Route as AboutRouteImport } from './routes/about'
 import { Route as AdminRouteImport } from './routes/admin'
 import { Route as ApiDocsRouteImport } from './routes/api-docs'
 import { Route as CitizenRouteImport } from './routes/citizen'
 import { Route as CitizenLoginRouteImport } from './routes/citizen-login'
-import { Route as ContactRouteImport } from './routes/contact'
 import { Route as LawyerRouteImport } from './routes/lawyer'
 import { Route as LawyerRegisterRouteImport } from './routes/lawyer-register'
 import { Route as LoginRouteImport } from './routes/login'
@@ -56,11 +54,6 @@ const IndexRoute = IndexRouteImport.update({
   path: '/',
   getParentRoute: () => rootRouteImport,
 } as any)
-const AboutRoute = AboutRouteImport.update({
-  id: '/about',
-  path: '/about',
-  getParentRoute: () => rootRouteImport,
-} as any)
 const AdminRoute = AdminRouteImport.update({
   id: '/admin',
   path: '/admin',
@@ -79,11 +72,6 @@ const CitizenRoute = CitizenRouteImport.update({
 const CitizenLoginRoute = CitizenLoginRouteImport.update({
   id: '/citizen-login',
   path: '/citizen-login',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const ContactRoute = ContactRouteImport.update({
-  id: '/contact',
-  path: '/contact',
   getParentRoute: () => rootRouteImport,
 } as any)
 const LawyerRoute = LawyerRouteImport.update({
@@ -259,12 +247,10 @@ const LawyerChatIdRoute = LawyerChatIdRouteImport.update({
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
-  '/about': typeof AboutRoute
   '/admin': typeof AdminRouteWithChildren
   '/api-docs': typeof ApiDocsRoute
   '/citizen': typeof CitizenRouteWithChildren
   '/citizen-login': typeof CitizenLoginRoute
-  '/contact': typeof ContactRoute
   '/lawyer': typeof LawyerRouteWithChildren
   '/lawyer-register': typeof LawyerRegisterRoute
   '/login': typeof LoginRoute
@@ -302,10 +288,8 @@ export interface FileRoutesByFullPath {
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
-  '/about': typeof AboutRoute
   '/api-docs': typeof ApiDocsRoute
   '/citizen-login': typeof CitizenLoginRoute
-  '/contact': typeof ContactRoute
   '/lawyer-register': typeof LawyerRegisterRoute
   '/login': typeof LoginRoute
   '/register': typeof RegisterRoute
@@ -342,12 +326,10 @@ export interface FileRoutesByTo {
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
-  '/about': typeof AboutRoute
   '/admin': typeof AdminRouteWithChildren
   '/api-docs': typeof ApiDocsRoute
   '/citizen': typeof CitizenRouteWithChildren
   '/citizen-login': typeof CitizenLoginRoute
-  '/contact': typeof ContactRoute
   '/lawyer': typeof LawyerRouteWithChildren
   '/lawyer-register': typeof LawyerRegisterRoute
   '/login': typeof LoginRoute
@@ -387,12 +369,10 @@ export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
   fullPaths:
     | '/'
-    | '/about'
     | '/admin'
     | '/api-docs'
     | '/citizen'
     | '/citizen-login'
-    | '/contact'
     | '/lawyer'
     | '/lawyer-register'
     | '/login'
@@ -430,10 +410,8 @@ export interface FileRouteTypes {
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
-    | '/about'
     | '/api-docs'
     | '/citizen-login'
-    | '/contact'
     | '/lawyer-register'
     | '/login'
     | '/register'
@@ -469,12 +447,10 @@ export interface FileRouteTypes {
   id:
     | '__root__'
     | '/'
-    | '/about'
     | '/admin'
     | '/api-docs'
     | '/citizen'
     | '/citizen-login'
-    | '/contact'
     | '/lawyer'
     | '/lawyer-register'
     | '/login'
@@ -513,12 +489,10 @@ export interface FileRouteTypes {
 }
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
-  AboutRoute: typeof AboutRoute
   AdminRoute: typeof AdminRouteWithChildren
   ApiDocsRoute: typeof ApiDocsRoute
   CitizenRoute: typeof CitizenRouteWithChildren
   CitizenLoginRoute: typeof CitizenLoginRoute
-  ContactRoute: typeof ContactRoute
   LawyerRoute: typeof LawyerRouteWithChildren
   LawyerRegisterRoute: typeof LawyerRegisterRoute
   LoginRoute: typeof LoginRoute
@@ -532,13 +506,6 @@ declare module '@tanstack/react-router' {
       path: '/'
       fullPath: '/'
       preLoaderRoute: typeof IndexRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/about': {
-      id: '/about'
-      path: '/about'
-      fullPath: '/about'
-      preLoaderRoute: typeof AboutRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/admin': {
@@ -567,13 +534,6 @@ declare module '@tanstack/react-router' {
       path: '/citizen-login'
       fullPath: '/citizen-login'
       preLoaderRoute: typeof CitizenLoginRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/contact': {
-      id: '/contact'
-      path: '/contact'
-      fullPath: '/contact'
-      preLoaderRoute: typeof ContactRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/lawyer': {
@@ -915,12 +875,10 @@ const LawyerRouteWithChildren =
 
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
-  AboutRoute: AboutRoute,
   AdminRoute: AdminRouteWithChildren,
   ApiDocsRoute: ApiDocsRoute,
   CitizenRoute: CitizenRouteWithChildren,
   CitizenLoginRoute: CitizenLoginRoute,
-  ContactRoute: ContactRoute,
   LawyerRoute: LawyerRouteWithChildren,
   LawyerRegisterRoute: LawyerRegisterRoute,
   LoginRoute: LoginRoute,

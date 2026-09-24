@@ -108,6 +108,7 @@ export interface Subscription {
   status: "Active" | "Cancelled" | "Expired";
   /** The case this subscription was purchased for, if any. */
   caseId?: string;
+  expiresAt?: string;
 }
 
 /** "commission" covers the platform's cut of lawyer consultations and case
@@ -187,14 +188,22 @@ export interface CaseNote {
 }
 
 export interface AIReport {
+  id?: string;
   caseId: string;
+  generatedAt?: string;
   summary: string;
-  relevantActs: string[];
-  applicableSections: { section: string; description: string }[];
-  arguments: string[];
-  counterArguments: string[];
-  recommendations: string[];
-  confidenceScore: number;
+  relevantActs?: string[];
+  applicableSections?: { section: string; description: string }[];
+  arguments?: string[];
+  counterArguments?: string[];
+  recommendations?: string[];
+  confidenceScore?: number;
+  strengthScore?: number;
+  strengths?: string[];
+  weaknesses?: string[];
+  recommendedActions?: string[];
+  relevantPrecedents?: string[];
+  suggestedTimeline?: { step: string; targetDays: string }[];
 }
 
 /** One row of an eCourts case's "Case History" table — mirrors
@@ -362,7 +371,7 @@ export interface AppNotification {
   role?: UserRole | "all";
 }
 
-export type VideoCallStatus = "completed" | "missed" | "cancelled";
+export type VideoCallStatus = "scheduled" | "completed" | "missed" | "cancelled" | "Scheduled";
 
 /** A past video consultation between a citizen and a lawyer. */
 export interface VideoCall {
@@ -386,6 +395,10 @@ export interface KnowledgeItem {
   category: LegalCategory;
   uploadedAt: string;
   size: string;
+  fileSize?: string;
+  summary?: string;
+  tags?: string[];
+  status?: string;
   /** Data URL of the actual uploaded file, when a real file was selected on upload. */
   fileDataUrl?: string;
   fileName?: string;

@@ -69,19 +69,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setUserState(updatedUser);
   }, []);
 
-  // Listen to unauthorized event dispatched from apiClient
+  // Re-verify session in background on boot if token exists, without logging out on failure
   useEffect(() => {
-    const handleUnauthorized = () => {
-      logout();
-    };
-    window.addEventListener("cuc:unauthorized", handleUnauthorized);
-    return () => window.removeEventListener("cuc:unauthorized", handleUnauthorized);
-  }, [logout]);
-
-  // Optionally verify session on boot if token exists
-  useEffect(() => {
-    if (token && !user) {
-      setIsLoading(true);
+    if (token) {
       authService
         .getCurrentUser()
         .then((fetchedUser) => {
@@ -89,15 +79,16 @@ export function AuthProvider({ children }: { children: ReactNode }) {
             setUserState(fetchedUser);
           }
         })
-        .catch(() => {
-          // If token expired/invalid, clear
-          logout();
+        .catch((err) => {
+          // Never automatically log out on background validation error
+          // Session remains intact in localStorage and user only logs out on manual Sign out
+          console.warn("[AuthContext] Background session check warning:", err);
         })
         .finally(() => {
           setIsLoading(false);
         });
     }
-  }, [token, user, logout]);
+  }, [token]);
 
   return (
     <AuthContext.Provider

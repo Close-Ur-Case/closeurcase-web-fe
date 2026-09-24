@@ -6,7 +6,10 @@ import { useEffect, useMemo } from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { masterDataService } from "@/services/masterDataService";
 import { mergeRemoteCaseCategories } from "@/data/appStore";
-import { getLawyerPracticeAreas, type LawyerPracticeArea } from "@/components/app/lawyerPracticeAreas";
+import {
+  getLawyerPracticeAreas,
+  type LawyerPracticeArea,
+} from "@/components/app/lawyerPracticeAreas";
 import type { MasterCategory } from "@/types/api";
 
 export function useCategoriesQuery() {

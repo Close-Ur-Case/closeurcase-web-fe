@@ -153,6 +153,7 @@ const listUserCasesRoute = createRoute({
   path: "/user",
   tags: ["Cases - User"],
   summary: "List user cases with filters",
+  security: [{ bearerAuth: [] }],
   request: {
     query: z.object({
       citizenId: z.string().optional(),
@@ -175,6 +176,7 @@ const createUserCaseRoute = createRoute({
   path: "/user",
   tags: ["Cases - User"],
   summary: "Book a lawyer & submit case details and documents",
+  security: [{ bearerAuth: [] }],
   request: {
     body: {
       content: {
@@ -197,6 +199,7 @@ const getUserCaseRoute = createRoute({
   path: "/user/:id",
   tags: ["Cases - User"],
   summary: "Get user case docket by ID",
+  security: [{ bearerAuth: [] }],
   request: {
     params: z.object({
       id: z.string().openapi({ example: "CUC-20260831154512" }),
@@ -215,6 +218,7 @@ const updateLawyerStageRoute = createRoute({
   path: "/user/:id/stage",
   tags: ["Cases - User"],
   summary: "Lawyer updates case stage from lawyer_casestages lookup",
+  security: [{ bearerAuth: [] }],
   request: {
     params: z.object({
       id: z.string().openapi({ example: "CUC-20260831154512" }),
@@ -240,6 +244,7 @@ const updateUserCaseRoute = createRoute({
   path: "/user/:id",
   tags: ["Cases - User"],
   summary: "Update user case fields (title, CNR, details, notes)",
+  security: [{ bearerAuth: [] }],
   request: {
     params: z.object({
       id: z.string().openapi({ example: "CUC-20260831154512" }),
@@ -265,6 +270,7 @@ const deleteUserCaseRoute = createRoute({
   path: "/user/:id",
   tags: ["Cases - User"],
   summary: "Delete user case docket permanently",
+  security: [{ bearerAuth: [] }],
   request: {
     params: z.object({
       id: z.string().openapi({ example: "CUC-20260831154512" }),
@@ -284,6 +290,7 @@ const listRootCasesRoute = createRoute({
   path: "/",
   tags: ["Cases - User"],
   summary: "List cases (alias for /user)",
+  security: [{ bearerAuth: [] }],
   responses: { 200: { description: "List of cases", content: { "application/json": { schema: SuccessResponseSchema } } } },
 });
 
@@ -292,6 +299,7 @@ const createRootCaseRoute = createRoute({
   path: "/",
   tags: ["Cases - User"],
   summary: "Create case (alias for /user)",
+  security: [{ bearerAuth: [] }],
   request: { body: { content: { "application/json": { schema: CreateUserCaseSchema } } } },
   responses: { 201: { description: "Case created", content: { "application/json": { schema: SuccessResponseSchema } } } },
 });
@@ -301,6 +309,7 @@ const getRootCaseRoute = createRoute({
   path: "/:id",
   tags: ["Cases - User"],
   summary: "Get case by ID (alias for /user/:id)",
+  security: [{ bearerAuth: [] }],
   request: { params: z.object({ id: z.string() }) },
   responses: { 200: { description: "Case docket", content: { "application/json": { schema: SuccessResponseSchema } } } },
 });
@@ -310,6 +319,7 @@ const updateRootCaseRoute = createRoute({
   path: "/:id",
   tags: ["Cases - User"],
   summary: "Update case (alias for /user/:id)",
+  security: [{ bearerAuth: [] }],
   request: {
     params: z.object({ id: z.string() }),
     body: { content: { "application/json": { schema: UpdateUserCaseSchema } } },
@@ -322,6 +332,7 @@ const deleteRootCaseRoute = createRoute({
   path: "/:id",
   tags: ["Cases - User"],
   summary: "Delete case (alias for /user/:id)",
+  security: [{ bearerAuth: [] }],
   request: { params: z.object({ id: z.string() }) },
   responses: { 200: { description: "Case deleted", content: { "application/json": { schema: SuccessResponseSchema } } } },
 });
@@ -331,6 +342,7 @@ const updateRootCaseStatusRoute = createRoute({
   path: "/:id/status",
   tags: ["Cases - User"],
   summary: "Update stage / status (alias for /user/:id/stage)",
+  security: [{ bearerAuth: [] }],
   request: { params: z.object({ id: z.string() }), body: { content: { "application/json": { schema: UpdateLawyerCaseStageSchema } } } },
   responses: { 200: { description: "Status updated", content: { "application/json": { schema: SuccessResponseSchema } } } },
 });
@@ -340,6 +352,7 @@ const assignLawyerRoute = createRoute({
   path: "/:id/assign-lawyer",
   tags: ["Cases - User"],
   summary: "Assign advocate to case docket",
+  security: [{ bearerAuth: [] }],
   request: {
     params: z.object({
       id: z.string().openapi({ example: "CUC-20260831154512" }),
@@ -366,6 +379,7 @@ const getCaseMessagesRoute = createRoute({
   path: "/:id/messages",
   tags: ["Chat"],
   summary: "Get consultation chat messages for a user case",
+  security: [{ bearerAuth: [] }],
   request: { params: z.object({ id: z.string() }) },
   responses: { 200: { description: "Chat messages", content: { "application/json": { schema: SuccessResponseSchema } } } },
 });
@@ -375,6 +389,7 @@ const sendCaseMessageRoute = createRoute({
   path: "/:id/messages",
   tags: ["Chat"],
   summary: "Send message in case chat",
+  security: [{ bearerAuth: [] }],
   request: {
     params: z.object({ id: z.string() }),
     body: { content: { "application/json": { schema: SendChatMessageSchema } } },
@@ -387,6 +402,7 @@ const markCaseMessagesReadRoute = createRoute({
   path: "/:id/messages/read",
   tags: ["Chat"],
   summary: "Mark messages as read",
+  security: [{ bearerAuth: [] }],
   request: { params: z.object({ id: z.string() }) },
   responses: { 200: { description: "Messages read", content: { "application/json": { schema: SuccessResponseSchema } } } },
 });
