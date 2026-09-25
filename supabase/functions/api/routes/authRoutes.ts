@@ -6,6 +6,8 @@ import {
   loginLawyer,
   loginAdmin,
   getCurrentUser,
+  refreshSession,
+  autoLogin,
 } from "../controllers/authController.ts";
 import { authenticateUser } from "../middlewares/auth.ts";
 import {
@@ -14,6 +16,8 @@ import {
   LawyerRegisterSchema,
   LawyerLoginSchema,
   AdminLoginSchema,
+  RefreshTokenSchema,
+  AutoLoginSchema,
   AuthResponseSchema,
   SuccessResponseSchema,
   ErrorResponseSchema,
@@ -157,11 +161,65 @@ const getMeRoute = createRoute({
   },
 });
 
+const refreshSessionRoute = createRoute({
+  method: "post",
+  path: "/refresh",
+  tags: ["Auth - General"],
+  summary: "Exchange refresh token for fresh access token and session",
+  request: {
+    body: {
+      content: {
+        "application/json": {
+          schema: RefreshTokenSchema,
+        },
+      },
+    },
+  },
+  responses: {
+    200: {
+      description: "Session refreshed successfully",
+      content: { "application/json": { schema: AuthResponseSchema } },
+    },
+    401: {
+      description: "Session expired or invalid refresh token",
+      content: { "application/json": { schema: ErrorResponseSchema } },
+    },
+  },
+});
+
+const autoLoginRoute = createRoute({
+  method: "post",
+  path: "/auto-login",
+  tags: ["Auth - General"],
+  summary: "Auto-login active session when JWT expired",
+  request: {
+    body: {
+      content: {
+        "application/json": {
+          schema: AutoLoginSchema,
+        },
+      },
+    },
+  },
+  responses: {
+    200: {
+      description: "Session restored via auto-login",
+      content: { "application/json": { schema: AuthResponseSchema } },
+    },
+    401: {
+      description: "Auto-login failed or credentials unavailable",
+      content: { "application/json": { schema: ErrorResponseSchema } },
+    },
+  },
+});
+
 auth.openapi(sendCitizenOtpRoute, sendCitizenOtp as any);
 auth.openapi(verifyCitizenOtpRoute, verifyCitizenOtp as any);
 auth.openapi(registerLawyerRoute, registerLawyer as any);
 auth.openapi(loginLawyerRoute, loginLawyer as any);
 auth.openapi(loginAdminRoute, loginAdmin as any);
 auth.openapi(getMeRoute, getCurrentUser as any);
+auth.openapi(refreshSessionRoute, refreshSession as any);
+auth.openapi(autoLoginRoute, autoLogin as any);
 
 export default auth;

@@ -7,12 +7,15 @@ import {
   getLawyers,
   updateLawyerProfile,
   subscribeToStore,
+  mergeRemoteLawyers,
   getActiveCities,
   getActiveLanguages,
   getActiveCourts,
 } from "@/data/appStore";
 import { lawyerService } from "@/services/lawyerService";
 import { useAuth } from "@/context/useAuth";
+import { authService } from "@/services/authService";
+import type { Lawyer } from "@/types";
 import {
   ShieldCheck,
   MapPin,
@@ -35,6 +38,7 @@ import {
   IndianRupee,
   Landmark,
   Star,
+  Clock,
 } from "lucide-react";
 import { Button, TextField, Select, Checkbox, InputChip, IconButton } from "@/components/m3";
 import {
@@ -79,9 +83,24 @@ function LawyerProfilePage() {
     return subscribeToStore(sync);
   }, []);
 
+  useEffect(() => {
+    if (user?.role === "lawyer" || user?.lawyerId) {
+      authService.getCurrentUser().then((freshUser) => {
+        if (freshUser?.lawyer) {
+          mergeRemoteLawyers([freshUser.lawyer as Partial<Lawyer>]);
+        }
+      });
+    }
+  }, [user?.role, user?.lawyerId]);
+
   const lawyer = useMemo(() => {
-    if (user?.id) {
-      const found = lawyers.find((l) => l.id === user.id || l.email === user.email);
+    if (user) {
+      const found = lawyers.find(
+        (l) =>
+          (user.lawyerId && l.id === user.lawyerId) ||
+          (user.id && (l.id === user.id || l.userId === user.id)) ||
+          (user.email && l.email?.toLowerCase() === user.email.toLowerCase()),
+      );
       if (found) return found;
     }
     return lawyers[0];
@@ -112,9 +131,9 @@ function LawyerProfileForm({ lawyer }: { lawyer: NonNullable<ReturnType<typeof g
   const [experienceYears, setExperienceYears] = useState(lawyer.experienceYears || 5);
   const [officeAddress, setOfficeAddress] = useState(lawyer.officeAddress || "");
   const [bio, setBio] = useState(lawyer.bio || "");
-  // Admin-controlled suspension locks the lawyer out of changing their own
-  // online/offline presence — the toggle greys out and reads "Suspended".
-  const suspended = lawyer.status === "Suspended";
+
+  const lawyerStatus = lawyer.status || "Pending";
+  const suspended = lawyerStatus === "Suspended";
   const [availabilityStatus, setAvailabilityStatus] = useState<"Online" | "Offline">(
     lawyer.availabilityStatus === "Offline" ? "Offline" : "Online",
   );
@@ -122,6 +141,19 @@ function LawyerProfileForm({ lawyer }: { lawyer: NonNullable<ReturnType<typeof g
   const [consultationFee, setConsultationFee] = useState<string>(
     String(lawyer.consultationFee ?? 1500),
   );
+
+  useEffect(() => {
+    setName(lawyer.name);
+    setEmail(lawyer.email);
+    setPhone(lawyer.phone);
+    setCity(lawyer.city);
+    setCities(lawyer.cities || [lawyer.city]);
+    setBarId(lawyer.barId || "");
+    setExperienceYears(lawyer.experienceYears || 5);
+    setOfficeAddress(lawyer.officeAddress || "");
+    setBio(lawyer.bio || "");
+    setAvailabilityStatus(lawyer.availabilityStatus === "Offline" ? "Offline" : "Online");
+  }, [lawyer]);
 
   // ID Proof File
   const [idProofFileName, setIdProofFileName] = useState(
@@ -376,10 +408,10 @@ function LawyerProfileForm({ lawyer }: { lawyer: NonNullable<ReturnType<typeof g
       ...(bankDetailsLocked
         ? {}
         : {
-            bankName: bankName.trim(),
-            accountNumber: accountNumber.trim(),
-            ifscCode: ifscCode.trim().toUpperCase(),
-          }),
+          bankName: bankName.trim(),
+          accountNumber: accountNumber.trim(),
+          ifscCode: ifscCode.trim().toUpperCase(),
+        }),
     });
 
     // Backend sync: Update profile
@@ -455,10 +487,27 @@ function LawyerProfileForm({ lawyer }: { lawyer: NonNullable<ReturnType<typeof g
                 <h2 className="text-xl sm:text-2xl font-extrabold text-foreground truncate max-w-md">
                   {name || "Advocate"}
                 </h2>
-                <span className="inline-flex items-center gap-1 rounded-full bg-emerald-500/10 px-2.5 py-0.5 text-[10px] font-bold uppercase tracking-wider text-emerald-600 dark:text-emerald-400">
-                  <ShieldCheck className="h-3 w-3" />
-                  {lawyer.status === "Approved" ? "Verified Advocate" : "Registration Verified"}
-                </span>
+                {lawyerStatus === "Approved" ? (
+                  <span className="inline-flex items-center gap-1 rounded-full border border-emerald-500/25 bg-emerald-500/10 px-2.5 py-0.5 text-[10px] font-bold uppercase tracking-wider text-emerald-600 dark:text-emerald-400">
+                    <ShieldCheck className="h-3 w-3" />
+                    Approved
+                  </span>
+                ) : lawyerStatus === "Suspended" ? (
+                  <span className="inline-flex items-center gap-1 rounded-full border border-slate-500/25 bg-slate-500/10 px-2.5 py-0.5 text-[10px] font-bold uppercase tracking-wider text-slate-600 dark:text-slate-400">
+                    <X className="h-3 w-3" />
+                    Suspended
+                  </span>
+                ) : lawyerStatus === "Rejected" ? (
+                  <span className="inline-flex items-center gap-1 rounded-full border border-red-500/25 bg-red-500/10 px-2.5 py-0.5 text-[10px] font-bold uppercase tracking-wider text-red-600 dark:text-red-400">
+                    <X className="h-3 w-3" />
+                    Rejected
+                  </span>
+                ) : (
+                  <span className="inline-flex items-center gap-1 rounded-full border border-amber-500/25 bg-amber-500/10 px-2.5 py-0.5 text-[10px] font-bold uppercase tracking-wider text-amber-600 dark:text-amber-400">
+                    <Clock className="h-3 w-3" />
+                    Pending
+                  </span>
+                )}
                 <span className="inline-flex items-center gap-1 rounded-full bg-amber-500/10 px-2.5 py-0.5 text-[11px] font-bold text-amber-600 dark:text-amber-400">
                   <Star className="h-3.5 w-3.5 fill-amber-500 text-amber-500" />
                   {lawyer.rating.toFixed(1)} ({lawyer.ratingCount ?? 0})
@@ -469,22 +518,20 @@ function LawyerProfileForm({ lawyer }: { lawyer: NonNullable<ReturnType<typeof g
                 <button
                   type="button"
                   onClick={() => setRoleTitle("Advocate")}
-                  className={`px-3 py-1 text-xs font-semibold rounded-full border transition-all cursor-pointer ${
-                    !isFirm
-                      ? "border-primary bg-primary/10 text-primary"
-                      : "border-border/60 bg-muted/50 text-muted-foreground hover:bg-muted"
-                  }`}
+                  className={`px-3 py-1 text-xs font-semibold rounded-full border transition-all cursor-pointer ${!isFirm
+                    ? "border-primary bg-primary/10 text-primary"
+                    : "border-border/60 bg-muted/50 text-muted-foreground hover:bg-muted"
+                    }`}
                 >
                   Individual Lawyer
                 </button>
                 <button
                   type="button"
                   onClick={() => setRoleTitle("Law Firm / Organisation")}
-                  className={`px-3 py-1 text-xs font-semibold rounded-full border transition-all cursor-pointer ${
-                    isFirm
-                      ? "border-primary bg-primary/10 text-primary"
-                      : "border-border/60 bg-muted/50 text-muted-foreground hover:bg-muted"
-                  }`}
+                  className={`px-3 py-1 text-xs font-semibold rounded-full border transition-all cursor-pointer ${isFirm
+                    ? "border-primary bg-primary/10 text-primary"
+                    : "border-border/60 bg-muted/50 text-muted-foreground hover:bg-muted"
+                    }`}
                 >
                   Law Firm / Organisation
                 </button>
@@ -521,21 +568,19 @@ function LawyerProfileForm({ lawyer }: { lawyer: NonNullable<ReturnType<typeof g
               <IndianRupee className="h-4 w-4 text-primary" /> Availability & Consultation Pricing
             </h3>
             <span
-              className={`inline-flex items-center gap-1.5 rounded-full border px-2.5 py-0.5 text-[10px] font-extrabold uppercase tracking-wider ${
-                suspended
-                  ? "border-border bg-muted text-muted-foreground"
-                  : availabilityStatus === "Online"
-                    ? "border-emerald-500/20 bg-emerald-500/10 text-emerald-600 dark:text-emerald-400"
-                    : "border-red-500/20 bg-red-500/10 text-red-600 dark:text-red-400"
-              }`}
+              className={`inline-flex items-center gap-1.5 rounded-full border px-2.5 py-0.5 text-[10px] font-extrabold uppercase tracking-wider ${suspended
+                ? "border-border bg-muted text-muted-foreground"
+                : availabilityStatus === "Online"
+                  ? "border-emerald-500/20 bg-emerald-500/10 text-emerald-600 dark:text-emerald-400"
+                  : "border-red-500/20 bg-red-500/10 text-red-600 dark:text-red-400"
+                }`}
             >
               {suspended ? (
                 <X className="h-3 w-3 stroke-3" />
               ) : (
                 <span
-                  className={`h-2 w-2 rounded-full ${
-                    availabilityStatus === "Online" ? "animate-pulse bg-emerald-500" : "bg-red-500"
-                  }`}
+                  className={`h-2 w-2 rounded-full ${availabilityStatus === "Online" ? "animate-pulse bg-emerald-500" : "bg-red-500"
+                    }`}
                 />
               )}
               {suspended ? "Suspended" : availabilityStatus === "Online" ? "Online" : "Offline"}
@@ -576,11 +621,10 @@ function LawyerProfileForm({ lawyer }: { lawyer: NonNullable<ReturnType<typeof g
                       onClick={() => {
                         if (availabilityStatus !== "Online") setPendingStatus("Online");
                       }}
-                      className={`flex cursor-pointer items-center justify-center gap-2 rounded-lg text-xs font-extrabold transition-all ${
-                        availabilityStatus === "Online"
-                          ? "border border-emerald-500/30 bg-surface text-emerald-600 shadow-xs dark:text-emerald-400"
-                          : "text-muted-foreground hover:text-foreground"
-                      }`}
+                      className={`flex cursor-pointer items-center justify-center gap-2 rounded-lg text-xs font-extrabold transition-all ${availabilityStatus === "Online"
+                        ? "border border-emerald-500/30 bg-surface text-emerald-600 shadow-xs dark:text-emerald-400"
+                        : "text-muted-foreground hover:text-foreground"
+                        }`}
                     >
                       <span className="h-2 w-2 rounded-full bg-emerald-500" />
                       Online
@@ -590,11 +634,10 @@ function LawyerProfileForm({ lawyer }: { lawyer: NonNullable<ReturnType<typeof g
                       onClick={() => {
                         if (availabilityStatus !== "Offline") setPendingStatus("Offline");
                       }}
-                      className={`flex cursor-pointer items-center justify-center gap-2 rounded-lg text-xs font-extrabold transition-all ${
-                        availabilityStatus === "Offline"
-                          ? "border border-red-500/30 bg-surface text-red-600 shadow-xs dark:text-red-400"
-                          : "text-muted-foreground hover:text-foreground"
-                      }`}
+                      className={`flex cursor-pointer items-center justify-center gap-2 rounded-lg text-xs font-extrabold transition-all ${availabilityStatus === "Offline"
+                        ? "border border-red-500/30 bg-surface text-red-600 shadow-xs dark:text-red-400"
+                        : "text-muted-foreground hover:text-foreground"
+                        }`}
                     >
                       <span className="h-2 w-2 rounded-full bg-red-500" />
                       Offline
@@ -833,7 +876,7 @@ function LawyerProfileForm({ lawyer }: { lawyer: NonNullable<ReturnType<typeof g
               onClick={handleAddPracticeEntries}
               className="justify-self-end shadow-xs"
             >
-              Add to Active Practice Areas
+              Add
             </Button>
           </div>
 
@@ -1113,7 +1156,7 @@ function LawyerProfileForm({ lawyer }: { lawyer: NonNullable<ReturnType<typeof g
               </span>
             )}
             <Button type="submit" variant="filled" className="px-6 font-bold">
-              Save Profile Changes
+              Save
             </Button>
           </div>
         </div>

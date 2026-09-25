@@ -74,7 +74,7 @@ export function LawyerRevenuePage() {
       if (match) return match.id;
     }
     if (user?.id) return user.id;
-    return getLawyers().find((l) => l.id === "l_001")?.id ?? "l_001";
+    return "";
   }, [user]);
 
   const [payments, setPayments] = useState<Payment[]>(() => getPayments(lawyerId));

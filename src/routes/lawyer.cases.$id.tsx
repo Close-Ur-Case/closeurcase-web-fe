@@ -1,7 +1,8 @@
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
-import { getCases, updateCaseFields, subscribeToStore } from "@/data/appStore";
+import { getCases, getLawyers, updateCaseFields, subscribeToStore } from "@/data/appStore";
 import { useCaseDetailSync } from "@/hooks/useCaseSync";
+import { useAuth } from "@/context/useAuth";
 import type { LegalCase } from "@/types";
 import { StatusDot } from "@/components/app/StatusDot";
 import { PageHeader } from "@/components/app/PageHeader";
@@ -71,6 +72,22 @@ export function LawyerCaseDetailPage() {
   }, []);
 
   const c = cases.find((x) => x.id === id);
+  const { user } = useAuth();
+  const currentLawyerId = user?.lawyerId || user?.id;
+  const lawyersList = getLawyers();
+  const currentLawyer = lawyersList.find(
+    (l) =>
+      (currentLawyerId && (l.id === currentLawyerId || l.id === user?.id)) ||
+      (user?.email && l.email?.toLowerCase() === user.email.toLowerCase()),
+  );
+
+  const isMyCase =
+    c &&
+    ((currentLawyerId && (c.lawyerId === currentLawyerId || c.lawyerId === user?.id)) ||
+      (currentLawyer &&
+        (c.lawyerId === currentLawyer.id ||
+          (currentLawyer.name &&
+            c.lawyerName?.trim().toLowerCase() === currentLawyer.name.trim().toLowerCase()))));
 
   // A case that only exists server-side isn't "not found" until its fetch settles.
   if (!c && isSyncing) {
@@ -87,6 +104,20 @@ export function LawyerCaseDetailPage() {
       <div className="space-y-4">
         <PageHeader title="Case not found" />
         <p className="text-sm text-muted-foreground">No case found with ID &quot;{id}&quot;.</p>
+        <Link to="/lawyer/cases">
+          <Button variant="outlined">Back to My Cases</Button>
+        </Link>
+      </div>
+    );
+  }
+
+  if (c && !isMyCase) {
+    return (
+      <div className="space-y-4">
+        <PageHeader title="Access Denied" />
+        <p className="text-sm text-muted-foreground">
+          You do not have permission to view or manage this case docket.
+        </p>
         <Link to="/lawyer/cases">
           <Button variant="outlined">Back to My Cases</Button>
         </Link>

@@ -68,13 +68,13 @@ export function LawyerKnowledgeBase() {
   const { user } = useAuth();
   const [tab, setTab] = useState<KbTab>("global");
   const lawyersList = getLawyers();
-  const currentLawyerId = user?.lawyerId || user?.id || "l_001";
+  const currentLawyerId = user?.lawyerId || user?.id || "";
   const currentLawyer =
     lawyersList.find(
       (l) =>
-        l.id === currentLawyerId ||
+        (currentLawyerId && (l.id === currentLawyerId || l.id === user?.id)) ||
         (user?.email && l.email?.toLowerCase() === user.email.toLowerCase()),
-    ) || lawyersList[0];
+    ) || null;
   const myDocs = useMyDocs(currentLawyer?.id ?? currentLawyerId);
 
   return (

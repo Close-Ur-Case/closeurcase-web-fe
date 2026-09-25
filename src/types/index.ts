@@ -47,6 +47,7 @@ export interface LawyerAward {
 
 export interface Lawyer {
   id: string;
+  userId?: string;
   name: string;
   email: string;
   cities?: string[];

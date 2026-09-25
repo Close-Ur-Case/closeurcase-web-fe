@@ -40,6 +40,7 @@ import {
   getLawyers,
   mergeRemoteCases,
   syncRemoteCitizenCases,
+  syncRemoteLawyerCases,
   subscribeToStore,
   updateCaseStatus,
 } from "@/data/appStore";
@@ -133,7 +134,38 @@ export function CaseDocketRegister({
     [currentCitizenId, currentUserId, citizenName],
   );
 
-  // Directly fetch fresh citizen cases from backend API on mount or user identity change
+  const currentLawyerId = user?.lawyerId || user?.id;
+  const currentLawyer = useMemo(() => {
+    if (!isLawyer) return null;
+    const lawyers = getLawyers();
+    return (
+      lawyers.find(
+        (l) =>
+          (currentLawyerId && l.id === currentLawyerId) ||
+          (user?.email && l.email?.toLowerCase() === user.email.toLowerCase()),
+      ) || null
+    );
+  }, [isLawyer, currentLawyerId, user?.email]);
+
+  const isLawyerCase = useCallback(
+    (c: LegalCase) => {
+      if (!c) return false;
+      if (currentLawyerId && (c.lawyerId === currentLawyerId || c.lawyerId === user?.id)) return true;
+      if (
+        currentLawyer &&
+        (c.lawyerId === currentLawyer.id ||
+          (currentLawyer.name &&
+            typeof c.lawyerName === "string" &&
+            c.lawyerName.trim().toLowerCase() === currentLawyer.name.trim().toLowerCase()))
+      ) {
+        return true;
+      }
+      return false;
+    },
+    [currentLawyerId, currentLawyer, user?.id],
+  );
+
+  // Directly fetch fresh citizen or lawyer cases from backend API on mount or user identity change
   useEffect(() => {
     if (!isLawyer) {
       const targetCitizenId = currentCitizenId || currentUserId;
@@ -148,12 +180,46 @@ export function CaseDocketRegister({
               { citizenId: currentCitizenId, userId: currentUserId, citizenEmail },
               mapped,
             );
-            setCases(mapped);
+            setCases(mapped.filter(isCitizenCase));
           }
         })
-        .catch((err) => console.warn("[CaseDocketRegister] Backend sync notice:", err));
+        .catch((err) => console.warn("[CaseDocketRegister] Citizen backend sync notice:", err));
+    } else {
+      const targetLawyerId = currentLawyerId || currentLawyer?.id;
+      caseService
+        .listUserCases<BackendUserCase>(targetLawyerId ? { lawyerId: targetLawyerId } : {})
+        .then((backendCases) => {
+          if (Array.isArray(backendCases)) {
+            const citizens = getCitizens();
+            const lawyers = getLawyers();
+            const mapped = backendCases.map((c) => mapBackendCaseToLegalCase(c, citizens, lawyers));
+            syncRemoteLawyerCases(
+              {
+                lawyerId: targetLawyerId,
+                userId: user?.id,
+                lawyerEmail: user?.email,
+                lawyerName: currentLawyer?.name || user?.name,
+              },
+              mapped,
+            );
+            setCases(mapped.filter(isLawyerCase));
+          }
+        })
+        .catch((err) => console.warn("[CaseDocketRegister] Lawyer backend sync notice:", err));
     }
-  }, [isLawyer, currentCitizenId, currentUserId, citizenEmail]);
+  }, [
+    isLawyer,
+    currentCitizenId,
+    currentUserId,
+    citizenEmail,
+    currentLawyerId,
+    currentLawyer,
+    user?.email,
+    user?.name,
+    user?.id,
+    isCitizenCase,
+    isLawyerCase,
+  ]);
 
   useEffect(() => {
     const sync = () => {
@@ -161,12 +227,12 @@ export function CaseDocketRegister({
       if (!isLawyer) {
         setCases(all.filter(isCitizenCase));
       } else {
-        setCases(all);
+        setCases(all.filter(isLawyerCase));
       }
     };
     sync();
     return subscribeToStore(sync);
-  }, [isLawyer, isCitizenCase]);
+  }, [isLawyer, isCitizenCase, isLawyerCase]);
 
   const clientOptions = useMemo(
     () => Array.from(new Set(cases.map((c) => c.citizenName).filter(Boolean))).sort(),
@@ -396,7 +462,7 @@ function PendingRequestsInbox({
   onApprove: (c: LegalCase) => void;
   onReject: (c: LegalCase) => void;
 }) {
-  const [collapsed, setCollapsed] = useState(true);
+  const [collapsed, setCollapsed] = useState(false);
   const [attachmentsCase, setAttachmentsCase] = useState<LegalCase | null>(null);
   const [previewDoc, setPreviewDoc] = useState<CaseDocument | null>(null);
   const [previewFullScreen, setPreviewFullScreen] = useState(false);

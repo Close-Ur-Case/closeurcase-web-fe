@@ -29,6 +29,7 @@ import {
   SendChatMessageSchema,
   ListLookupsQuerySchema,
   SuccessResponseSchema,
+  ErrorResponseSchema,
 } from "../schemas/index.ts";
 
 const caseRouter = new OpenAPIHono();
@@ -152,7 +153,7 @@ const listUserCasesRoute = createRoute({
   method: "get",
   path: "/user",
   tags: ["Cases - User"],
-  summary: "List user cases with filters (citizen sessions are strictly scoped to their own cases)",
+  summary: "List user cases with filters (citizen and lawyer sessions are strictly scoped to their own cases)",
   security: [{ bearerAuth: [] }],
   request: {
     query: z.object({
@@ -210,6 +211,14 @@ const getUserCaseRoute = createRoute({
       description: "User case docket details",
       content: { "application/json": { schema: SuccessResponseSchema } },
     },
+    403: {
+      description: "Forbidden: Case does not belong to the authenticated lawyer",
+      content: { "application/json": { schema: ErrorResponseSchema } },
+    },
+    404: {
+      description: "Case not found",
+      content: { "application/json": { schema: ErrorResponseSchema } },
+    },
   },
 });
 
@@ -217,7 +226,7 @@ const updateLawyerStageRoute = createRoute({
   method: "patch",
   path: "/user/:id/stage",
   tags: ["Cases - User"],
-  summary: "Lawyer updates case stage from lawyer_casestages lookup",
+  summary: "Lawyer updates case stage from lawyer_casestages lookup (scoped to assigned lawyer)",
   security: [{ bearerAuth: [] }],
   request: {
     params: z.object({
@@ -235,6 +244,14 @@ const updateLawyerStageRoute = createRoute({
     200: {
       description: "Case stage updated successfully",
       content: { "application/json": { schema: SuccessResponseSchema } },
+    },
+    403: {
+      description: "Forbidden: Lawyer is not authorized to update this case",
+      content: { "application/json": { schema: ErrorResponseSchema } },
+    },
+    404: {
+      description: "Case not found",
+      content: { "application/json": { schema: ErrorResponseSchema } },
     },
   },
 });

@@ -85,6 +85,21 @@ export interface AdminLoginPayload {
   password: string;
 }
 
+export interface RefreshTokenPayload {
+  refreshToken?: string;
+  refresh_token?: string;
+}
+
+export interface AutoLoginPayload {
+  role?: "citizen" | "lawyer" | "admin" | string;
+  phone?: string;
+  email?: string;
+  userId?: string;
+  citizenId?: string;
+  lawyerId?: string;
+}
+
+
 export interface AuthUser {
   id: string;
   role: "citizen" | "lawyer" | "admin";
@@ -94,6 +109,7 @@ export interface AuthUser {
   city?: string;
   citizenId?: string;
   lawyerId?: string;
+  status?: string;
   signupMethod?: "email" | "phone";
   [key: string]: unknown;
 }
@@ -258,6 +274,8 @@ export interface LawyerQueryParams {
   area?: string;
   category?: string;
   status?: string;
+  availabilityStatus?: string;
+  availability_status?: string;
   practiceArea?: string;
   specialization?: string;
   legalService?: string;

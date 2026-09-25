@@ -1,5 +1,5 @@
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState, useCallback } from "react";
 import {
   FileSearch,
   FilePlus2,
@@ -23,6 +23,8 @@ import {
   FileText,
   Lock,
   AlertCircle,
+  Loader2,
+  RefreshCw,
 } from "lucide-react";
 import { PageHeader } from "@/components/app/PageHeader";
 import { UserAvatar } from "@/components/app/UserAvatar";
@@ -40,14 +42,17 @@ import {
   getCases,
   saveCases,
   getLawyers,
+  mergeRemoteLawyers,
   generateCloseUrCaseId,
   subscribeToStore,
   mergeRemotePayments,
   getSubscriptions,
 } from "@/data/appStore";
 import { caseService } from "@/services/caseService";
+import { lawyerService } from "@/services/lawyerService";
 import { storageService } from "@/services/storageService";
 import { subscriptionService } from "@/services/subscriptionService";
+import type { LawyerQueryParams } from "@/types/api";
 import { useRazorpayCheckout } from "@/hooks/useRazorpayCheckout";
 import { useAuth } from "@/context/useAuth";
 import { SUBSCRIPTION_PLANS } from "@/data/subscriptionPlans";
@@ -487,37 +492,87 @@ export function FindLawyerWizard() {
     );
   }
 
-  const approvedLawyers = useMemo(
-    () => getLawyers().filter((l) => l.status === "Approved" && l.availabilityStatus !== "Offline"),
-    [],
-  );
+  const [fetchedLawyers, setFetchedLawyers] = useState<Lawyer[]>([]);
+  const [isLoadingLawyers, setIsLoadingLawyers] = useState(false);
+  const [hasFetchedLawyers, setHasFetchedLawyers] = useState(false);
+  const [lawyersFetchError, setLawyersFetchError] = useState<string | null>(null);
+
+  const fetchMatchingLawyers = useCallback(async () => {
+    setIsLoadingLawyers(true);
+    setLawyersFetchError(null);
+    try {
+      const practiceAreaParam =
+        selectedPracticeArea || (predictedCategory ? `${predictedCategory} Law` : undefined);
+      const specParam = selectedSpecialization || undefined;
+      const servicesParam =
+        selectedLegalServices.length > 0 ? selectedLegalServices.join(",") : undefined;
+
+      const params: LawyerQueryParams = {
+        status: "Approved",
+        availabilityStatus: "Online",
+        practiceArea: practiceAreaParam,
+        specialization: specParam,
+        legalService: servicesParam,
+        matchMode: "all",
+      };
+
+      const res = await lawyerService.getLawyers<Lawyer>(params);
+      if (Array.isArray(res)) {
+        setFetchedLawyers(res);
+        mergeRemoteLawyers(res);
+      }
+      setHasFetchedLawyers(true);
+    } catch (err) {
+      console.warn("[CreateCase] Failed to fetch matching lawyers from API:", err);
+      setLawyersFetchError("Could not connect to live advocate directory. Using local database.");
+      setFetchedLawyers(
+        getLawyers().filter((l) => l.status === "Approved" && l.availabilityStatus !== "Offline"),
+      );
+      setHasFetchedLawyers(true);
+    } finally {
+      setIsLoadingLawyers(false);
+    }
+  }, [selectedPracticeArea, predictedCategory, selectedSpecialization, selectedLegalServices]);
+
+  // Automatically fetch lawyers when browse mode is selected or case details update
+  useEffect(() => {
+    if (assignMode === "browse") {
+      fetchMatchingLawyers();
+    }
+  }, [assignMode, fetchMatchingLawyers]);
 
   const sortedLawyers = useMemo(() => {
-    // Unrecognized city names (free-text on lawyer self-registration) sort last
-    // rather than being guessed at.
     const distance = (city: string) =>
       distanceToCity(userCoords.lat, userCoords.lng, city) ?? Number.MAX_SAFE_INTEGER;
 
-    const categorySource = selectedSpecialization || selectedPracticeArea;
-    const mappedCategory = categorySource ? mapPracticeAreaToCategory(categorySource) : null;
-    const activeCategory = mappedCategory || predictedCategory;
+    const pool = hasFetchedLawyers
+      ? fetchedLawyers
+      : getLawyers().filter((l) => l.status === "Approved" && l.availabilityStatus !== "Offline");
 
-    return approvedLawyers
-      .filter((l) => !activeCategory || l.category === activeCategory)
-      .filter((l) => !selectedSpecialization || l.specializations?.includes(selectedSpecialization))
-      .sort((a, b) => {
-        const da = distance(a.city);
-        const db = distance(b.city);
-        if (da !== db) return da - db;
-        return b.rating - a.rating;
-      });
-  }, [
-    approvedLawyers,
-    predictedCategory,
-    userCoords,
-    selectedPracticeArea,
-    selectedSpecialization,
-  ]);
+    // Client-side guard ensuring only Approved and Online lawyers are shown
+    const filtered = pool.filter((l) => {
+      if (l.status !== "Approved") return false;
+      if (l.availabilityStatus === "Offline") return false;
+      return true;
+    });
+
+    return filtered.sort((a, b) => {
+      const da = distance(a.city);
+      const db = distance(b.city);
+      if (da !== db) return da - db;
+      return (b.rating ?? 0) - (a.rating ?? 0);
+    });
+  }, [hasFetchedLawyers, fetchedLawyers, userCoords]);
+
+  // Cleanly clear selected lawyer if they are no longer in the filtered matching pool
+  useEffect(() => {
+    if (selectedLawyerId && sortedLawyers.length > 0) {
+      const stillPresent = sortedLawyers.some((l) => l.id === selectedLawyerId);
+      if (!stillPresent) {
+        setSelectedLawyerId("");
+      }
+    }
+  }, [sortedLawyers, selectedLawyerId]);
 
   const selectedLawyer: Lawyer | undefined = sortedLawyers.find((l) => l.id === selectedLawyerId);
   const selectedPlan = SUBSCRIPTION_PLANS.find((p) => p.id === subscriptionPlan);
@@ -1531,7 +1586,10 @@ export function FindLawyerWizard() {
               {/* Card 1: Choose a Lawyer (Pay As You Go) */}
               <Card
                 variant="outlined"
-                onClick={() => setAssignMode("browse")}
+                onClick={() => {
+                  setAssignMode("browse");
+                  fetchMatchingLawyers();
+                }}
                 className={`relative overflow-hidden p-5 sm:p-6 cursor-pointer transition-all duration-300 rounded-2xl ${
                   assignMode === "browse"
                     ? "border-emerald-500 ring-2 ring-emerald-500/30 bg-gradient-to-br from-emerald-500/10 via-teal-500/5 to-transparent shadow-lg shadow-emerald-500/10"
@@ -1572,8 +1630,7 @@ export function FindLawyerWizard() {
                       )}
                     </div>
                     <p className="mt-1 text-xs text-muted-foreground leading-relaxed">
-                      Browse top-rated Lawyers near you, filtered strictly by your case category &
-                      location.
+                      Browse verified Online advocates matching your practice area, specialization & services.
                     </p>
                   </div>
                 </div>
@@ -1628,28 +1685,97 @@ export function FindLawyerWizard() {
             </div>
 
             {assignMode === "browse" && (
-              <Card variant="elevated" className="p-4 sm:p-6 space-y-3 rounded-2xl">
-                <h2 className="text-sm font-bold text-foreground">Pick a lawyer from law hub</h2>
-                <p className="text-[11px] text-muted-foreground">
-                  {locating
-                    ? "Detecting your location…"
-                    : `Sorted by proximity to ${userCityLabel}${
-                        selectedPracticeArea
-                          ? ` and ${selectedSpecialization || selectedPracticeArea} expertise`
-                          : predictedCategory
-                            ? ` and ${predictedCategory} Law expertise`
-                            : ""
-                      }.`}
-                </p>
-
-                <div className="max-h-80 space-y-2 overflow-y-auto pr-1">
-                  {sortedLawyers.length === 0 ? (
-                    <p className="rounded-lg border border-dashed border-border bg-background p-4 text-center text-xs text-muted-foreground">
-                      No Lawyers match this practice area right now — go back and try Auto-Assign
-                      instead.
+              <Card variant="elevated" className="p-4 sm:p-6 space-y-4 rounded-2xl border border-emerald-500/20 bg-card">
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-border/60 pb-3">
+                  <div>
+                    <div className="flex items-center gap-2">
+                      <h2 className="text-sm font-bold text-foreground">Verified Online Advocates</h2>
+                      <span className="flex items-center gap-1 text-[10px] font-bold text-emerald-600 dark:text-emerald-400 bg-emerald-500/10 px-2 py-0.5 rounded-full border border-emerald-500/20">
+                        <span className="h-1.5 w-1.5 rounded-full bg-emerald-500 animate-pulse" />
+                        Online Only
+                      </span>
+                    </div>
+                    <p className="text-[11px] text-muted-foreground mt-0.5">
+                      {locating
+                        ? "Detecting your location…"
+                        : `Sorted by proximity to ${userCityLabel}${
+                            selectedPracticeArea
+                              ? ` and ${selectedSpecialization || selectedPracticeArea} expertise`
+                              : predictedCategory
+                                ? ` and ${predictedCategory} Law expertise`
+                                : ""
+                          }.`}
                     </p>
-                  ) : (
-                    sortedLawyers.map((l) => (
+                  </div>
+                  <Button
+                    variant="outlined"
+                    onClick={fetchMatchingLawyers}
+                    disabled={isLoadingLawyers}
+                    className="self-start sm:self-auto shrink-0 text-xs h-8 px-2.5"
+                  >
+                    <RefreshCw className={`h-3.5 w-3.5 mr-1 ${isLoadingLawyers ? "animate-spin" : ""}`} />
+                    Refresh
+                  </Button>
+                </div>
+
+                {/* Filter tags indicating exact match criteria */}
+                <div className="flex flex-wrap items-center gap-1.5 text-[11px]">
+                  <span className="text-muted-foreground font-medium">Matching:</span>
+                  {(selectedPracticeArea || predictedCategory) && (
+                    <span className="rounded-md bg-secondary/80 px-2 py-0.5 font-semibold text-secondary-foreground border border-border/50">
+                      {selectedPracticeArea || `${predictedCategory} Law`}
+                    </span>
+                  )}
+                  {selectedSpecialization && (
+                    <span className="rounded-md bg-secondary/80 px-2 py-0.5 font-semibold text-secondary-foreground border border-border/50">
+                      {selectedSpecialization}
+                    </span>
+                  )}
+                  {selectedLegalServices.length > 0 && (
+                    <span className="rounded-md bg-secondary/80 px-2 py-0.5 font-semibold text-secondary-foreground border border-border/50">
+                      {selectedLegalServices.length} {selectedLegalServices.length === 1 ? "Service" : "Services"}
+                    </span>
+                  )}
+                  <span className="rounded-md bg-emerald-500/10 text-emerald-700 dark:text-emerald-300 border border-emerald-500/20 px-2 py-0.5 font-bold">
+                    Approved
+                  </span>
+                </div>
+
+                {isLoadingLawyers ? (
+                  <div className="flex flex-col items-center justify-center p-10 space-y-3 rounded-xl border border-dashed border-border/80 bg-background/50">
+                    <Loader2 className="h-6 w-6 animate-spin text-emerald-600" />
+                    <p className="text-xs text-muted-foreground font-medium">
+                      Finding available advocates matching your case criteria…
+                    </p>
+                  </div>
+                ) : sortedLawyers.length === 0 ? (
+                  <div className="rounded-xl border border-dashed border-border bg-background p-6 text-center space-y-3">
+                    <div className="mx-auto flex h-10 w-10 items-center justify-center rounded-full bg-amber-500/10 text-amber-600">
+                      <Users className="h-5 w-5" />
+                    </div>
+                    <div>
+                      <div className="text-xs font-bold text-foreground">
+                        No online advocates match all selected criteria
+                      </div>
+                      <p className="mt-1 text-[11px] text-muted-foreground max-w-md mx-auto">
+                        No approved advocates who are currently online match{" "}
+                        {selectedPracticeArea ? `practice area "${selectedPracticeArea}"` : ""}
+                        {selectedSpecialization ? ` and specialization "${selectedSpecialization}"` : ""}.
+                        You can hand off to our legal admin team via Auto-Assign or retry.
+                      </p>
+                    </div>
+                    <div className="flex items-center justify-center gap-2 pt-1">
+                      <Button variant="outlined" onClick={() => setAssignMode("admin")}>
+                        Switch to Auto-Assign
+                      </Button>
+                      <Button variant="filled" onClick={fetchMatchingLawyers}>
+                        Retry Search
+                      </Button>
+                    </div>
+                  </div>
+                ) : (
+                  <div className="max-h-80 space-y-2 overflow-y-auto pr-1">
+                    {sortedLawyers.map((l) => (
                       <div
                         key={l.id}
                         onClick={() => setSelectedLawyerId(l.id)}
@@ -1660,14 +1786,25 @@ export function FindLawyerWizard() {
                         }`}
                       >
                         <div className="flex min-w-0 items-center gap-3">
-                          <UserAvatar name={l.name} size="sm" role="lawyer" />
+                          <div className="relative">
+                            <UserAvatar name={l.name} size="sm" role="lawyer" />
+                            <span
+                              className="absolute -bottom-0.5 -right-0.5 h-2.5 w-2.5 rounded-full bg-emerald-500 ring-2 ring-background"
+                              title="Online"
+                            />
+                          </div>
                           <div className="min-w-0">
-                            <div className="truncate text-xs font-bold text-foreground">
-                              {l.name}
+                            <div className="flex items-center gap-1.5 truncate">
+                              <span className="truncate text-xs font-bold text-foreground">
+                                {l.name}
+                              </span>
+                              <span className="text-[10px] font-bold text-emerald-600 dark:text-emerald-400 bg-emerald-500/10 px-1.5 py-0.2 rounded">
+                                Online
+                              </span>
                             </div>
-                            <div className="text-[11px] text-muted-foreground">
+                            <div className="text-[11px] text-muted-foreground truncate">
                               {l.category} Law · {l.area ? `${l.area}, ` : ""}
-                              {l.city} · {l.experienceYears} yrs
+                              {l.city} · {l.experienceYears} yrs · ★ {l.rating}
                             </div>
                           </div>
                         </div>
@@ -1692,9 +1829,9 @@ export function FindLawyerWizard() {
                           )}
                         </div>
                       </div>
-                    ))
-                  )}
-                </div>
+                    ))}
+                  </div>
+                )}
               </Card>
             )}
 

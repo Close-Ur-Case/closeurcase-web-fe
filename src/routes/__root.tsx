@@ -9,6 +9,7 @@ import {
 import { useEffect } from "react";
 import { CitizenLanguageProvider } from "@/features/citizen/i18n/CitizenLanguageContext";
 import { AuthProvider } from "@/context/AuthContext";
+import { SessionExpiredModal } from "@/components/app/SessionExpiredModal";
 import { Button, FILLED_LINK_BUTTON_CLASS, OUTLINED_LINK_BUTTON_CLASS } from "@/components/m3";
 
 function NotFoundComponent() {
@@ -157,6 +158,7 @@ function RootComponent() {
       <AuthProvider>
         <CitizenLanguageProvider>
           <ScrollToTop />
+          <SessionExpiredModal />
           <Outlet />
         </CitizenLanguageProvider>
       </AuthProvider>

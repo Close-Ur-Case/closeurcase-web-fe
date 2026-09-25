@@ -227,6 +227,57 @@ export function syncRemoteCitizenCases(
   saveCases(merged);
 }
 
+/**
+ * Reconciles lawyer cases against authoritative server results, pruning
+ * zombie/stale mock cases that do not belong to this lawyer.
+ */
+export function syncRemoteLawyerCases(
+  lawyerIdentifier: {
+    lawyerId?: string | null;
+    userId?: string | null;
+    lawyerEmail?: string | null;
+    lawyerName?: string | null;
+  },
+  remoteCases: LegalCase[],
+): void {
+  const current = getCases();
+  const remoteIds = new Set(remoteCases.map((r) => r.id));
+  const targetLawyerId = lawyerIdentifier.lawyerId;
+  const targetUserId = lawyerIdentifier.userId;
+  const lawyerName = lawyerIdentifier.lawyerName?.trim().toLowerCase();
+  const emailPrefix = lawyerIdentifier.lawyerEmail
+    ? lawyerIdentifier.lawyerEmail.split("@")[0].toLowerCase()
+    : null;
+
+  // Filter current store: keep cases for other users, prune stale ones for this lawyer
+  const keptOtherCases = current.filter((c) => {
+    // If it's one of the remote cases by ID, we'll merge the fresh remote version below
+    if (remoteIds.has(c.id)) return false;
+
+    // Check if it belongs to this lawyer
+    const matchesLawyer =
+      (targetLawyerId && c.lawyerId === targetLawyerId) ||
+      (targetUserId && c.lawyerId === targetUserId) ||
+      (lawyerName &&
+        typeof c.lawyerName === "string" &&
+        c.lawyerName.trim().toLowerCase() === lawyerName) ||
+      (emailPrefix &&
+        typeof c.lawyerName === "string" &&
+        c.lawyerName.toLowerCase().includes(emailPrefix));
+
+    if (matchesLawyer) {
+      // It claims to belong to this lawyer, but the server didn't return it.
+      // Purge it so the server remains the single source of truth.
+      return false;
+    }
+
+    return true;
+  });
+
+  const merged = [...remoteCases, ...keptOtherCases];
+  saveCases(merged);
+}
+
 export function addCase(c: LegalCase) {
   const current = getCases();
   const updated = [c, ...current];
@@ -497,6 +548,7 @@ export function mergeRemoteLawyers(remote: Partial<Lawyer>[]): void {
       activeCases: r.activeCases ?? existing?.activeCases ?? 0,
       rating: rating ?? 0,
       category: category ?? "Civil",
+      availabilityStatus: (r.availabilityStatus as "Online" | "Offline") ?? existing?.availabilityStatus ?? "Online",
     };
 
     if (!existing || JSON.stringify(existing) !== JSON.stringify(merged)) {

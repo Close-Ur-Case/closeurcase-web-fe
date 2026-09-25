@@ -2,7 +2,7 @@ import type { Context } from "hono";
 import { CaseService } from "../services/caseService.ts";
 import { ApiResponse } from "../utils/apiResponse.ts";
 import { db } from "../config/db.ts";
-import { citizens } from "../models/users.ts";
+import { citizens, lawyers } from "../models/users.ts";
 import { eq, or } from "drizzle-orm";
 import { ApiError } from "../utils/apiError.ts";
 
@@ -82,12 +82,23 @@ export async function getUserCase(c: Context) {
     }
   }
 
+  if (user && user.role === "lawyer") {
+    const [lawyer] = await db
+      .select({ id: lawyers.id })
+      .from(lawyers)
+      .where(or(eq(lawyers.userId, user.id), eq(lawyers.id, user.id)));
+    const myLawyerId = lawyer?.id || user.id;
+    if (result.lawyerId && result.lawyerId !== myLawyerId && result.lawyerId !== user.id) {
+      throw ApiError.forbidden("Access denied: You can only view your own cases");
+    }
+  }
+
   return ApiResponse.success(c, result, "Case retrieved successfully");
 }
 
 export async function listUserCases(c: Context) {
   const citizenIdParam = c.req.query("citizenId");
-  const lawyerId = c.req.query("lawyerId");
+  const lawyerIdParam = c.req.query("lawyerId");
   const status = c.req.query("status");
   const caseType = c.req.query("caseType");
   const search = c.req.query("search");
@@ -97,6 +108,8 @@ export async function listUserCases(c: Context) {
   const user = c.get("user");
   let effectiveCitizenId = citizenIdParam;
   let citizenUserId: string | undefined = undefined;
+  let effectiveLawyerId = lawyerIdParam;
+  let lawyerUserId: string | undefined = undefined;
 
   if (user && user.role === "citizen") {
     citizenUserId = user.id;
@@ -105,7 +118,14 @@ export async function listUserCases(c: Context) {
       .from(citizens)
       .where(or(eq(citizens.userId, user.id), eq(citizens.id, user.id)));
     effectiveCitizenId = citizen?.id || user.id;
-  } else if (!user && !citizenIdParam && !lawyerId) {
+  } else if (user && user.role === "lawyer") {
+    lawyerUserId = user.id;
+    const [lawyer] = await db
+      .select({ id: lawyers.id })
+      .from(lawyers)
+      .where(or(eq(lawyers.userId, user.id), eq(lawyers.id, user.id)));
+    effectiveLawyerId = lawyer?.id || user.id;
+  } else if (!user && !citizenIdParam && !lawyerIdParam) {
     // Unauthenticated requests without explicit target scoping return empty list
     return ApiResponse.success(c, [], "Cases retrieved successfully");
   }
@@ -113,7 +133,8 @@ export async function listUserCases(c: Context) {
   const result = await CaseService.listUserCases({
     citizenId: effectiveCitizenId,
     citizenUserId,
-    lawyerId,
+    lawyerId: effectiveLawyerId,
+    lawyerUserId,
     status,
     caseType,
     search,
@@ -127,6 +148,18 @@ export async function updateLawyerStage(c: Context) {
   const id = c.req.param("id")!;
   const user = c.get("user");
   const body = await c.req.json();
+
+  if (user && user.role === "lawyer") {
+    const existing = await CaseService.getUserCaseById(id);
+    const [lawyer] = await db
+      .select({ id: lawyers.id })
+      .from(lawyers)
+      .where(or(eq(lawyers.userId, user.id), eq(lawyers.id, user.id)));
+    const myLawyerId = lawyer?.id || user.id;
+    if (existing.lawyerId && existing.lawyerId !== myLawyerId && existing.lawyerId !== user.id) {
+      throw ApiError.forbidden("Access denied: You can only update stages on your own cases");
+    }
+  }
 
   const stage = body.stage || body.status;
   const result = await CaseService.updateLawyerStage(id, user?.id || null, {

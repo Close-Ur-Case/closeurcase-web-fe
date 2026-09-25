@@ -14,11 +14,12 @@ export async function getLawyers(c: Context) {
   const area = c.req.query("area");
   const category = c.req.query("category");
   const status = c.req.query("status");
+  const availabilityStatus = c.req.query("availabilityStatus") || c.req.query("availability_status");
   const search = c.req.query("search");
   const language = c.req.query("language");
-  const practiceArea = c.req.query("practiceArea");
+  const practiceArea = c.req.query("practiceArea") || c.req.query("practice_area");
   const specialization = c.req.query("specialization");
-  const legalService = c.req.query("legalService");
+  const legalService = c.req.query("legalService") || c.req.query("legal_service") || c.req.query("legalServices");
   const matchMode = (c.req.query("matchMode") || "all").toLowerCase();
   const limit = Number(c.req.query("limit") || "50");
   const offset = Number(c.req.query("offset") || "0");
@@ -30,6 +31,7 @@ export async function getLawyers(c: Context) {
   if (area) conditions.push(ilike(lawyers.area, `%${area}%`));
   if (category) conditions.push(eq(lawyers.category, category));
   if (status) conditions.push(eq(lawyers.status, status));
+  if (availabilityStatus) conditions.push(ilike(lawyers.availabilityStatus, availabilityStatus));
 
   const stateId = c.req.query("state_id") || c.req.query("stateId");
   const districtId = c.req.query("district_id") || c.req.query("districtId");
@@ -42,13 +44,12 @@ export async function getLawyers(c: Context) {
   if (practiceArea) {
     const rawAreas = practiceArea.split(",").map((s) => s.trim()).filter(Boolean);
     if (rawAreas.length > 0) {
-      const { ids, terms } = await LawyerCategoryService.resolveCategoryQuery(rawAreas);
+      const { allTokens } = await LawyerCategoryService.resolveCategoryQuery(rawAreas);
       const conds = [];
-      for (const id of ids) {
-        conds.push(sql`${lawyers.practiceAreas}::jsonb ? ${id}`);
-      }
-      for (const term of terms) {
-        conds.push(sql`(${lawyers.practiceAreas}::jsonb ? ${term} OR ${lawyers.practiceAreas}::text ILIKE ${'%' + term + '%'})`);
+      for (const token of allTokens) {
+        conds.push(
+          sql`(${lawyers.practiceAreas}::jsonb ? ${token} OR ${lawyers.category} ILIKE ${'%' + token + '%'} OR ${lawyers.practiceAreas}::text ILIKE ${'%' + token + '%'})`
+        );
       }
       if (conds.length > 0) {
         taxonomyConditions.push(or(...conds));
@@ -59,13 +60,12 @@ export async function getLawyers(c: Context) {
   if (specialization) {
     const rawSpecs = specialization.split(",").map((s) => s.trim()).filter(Boolean);
     if (rawSpecs.length > 0) {
-      const { ids, terms } = await LawyerCategoryService.resolveSpecializationQuery(rawSpecs);
+      const { allTokens } = await LawyerCategoryService.resolveSpecializationQuery(rawSpecs);
       const conds = [];
-      for (const id of ids) {
-        conds.push(sql`${lawyers.specializations}::jsonb ? ${id}`);
-      }
-      for (const term of terms) {
-        conds.push(sql`(${lawyers.specializations}::jsonb ? ${term} OR ${lawyers.specializations}::text ILIKE ${'%' + term + '%'})`);
+      for (const token of allTokens) {
+        conds.push(
+          sql`(${lawyers.specializations}::jsonb ? ${token} OR ${lawyers.specializations}::text ILIKE ${'%' + token + '%'})`
+        );
       }
       if (conds.length > 0) {
         taxonomyConditions.push(or(...conds));
@@ -76,13 +76,12 @@ export async function getLawyers(c: Context) {
   if (legalService) {
     const rawServices = legalService.split(",").map((s) => s.trim()).filter(Boolean);
     if (rawServices.length > 0) {
-      const { ids, terms } = await LawyerCategoryService.resolveLegalServiceQuery(rawServices);
+      const { allTokens } = await LawyerCategoryService.resolveLegalServiceQuery(rawServices);
       const conds = [];
-      for (const id of ids) {
-        conds.push(sql`${lawyers.legalServices}::jsonb ? ${id}`);
-      }
-      for (const term of terms) {
-        conds.push(sql`(${lawyers.legalServices}::jsonb ? ${term} OR ${lawyers.legalServices}::text ILIKE ${'%' + term + '%'})`);
+      for (const token of allTokens) {
+        conds.push(
+          sql`(${lawyers.legalServices}::jsonb ? ${token} OR ${lawyers.legalServices}::text ILIKE ${'%' + token + '%'})`
+        );
       }
       if (conds.length > 0) {
         taxonomyConditions.push(or(...conds));

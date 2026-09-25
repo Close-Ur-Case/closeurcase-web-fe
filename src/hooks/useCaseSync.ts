@@ -19,7 +19,13 @@ import {
   type BackendUserCase,
   type ListCasesParams,
 } from "@/services/caseService";
-import { getCitizens, getLawyers, mergeRemoteCases, syncRemoteCitizenCases } from "@/data/appStore";
+import {
+  getCitizens,
+  getLawyers,
+  mergeRemoteCases,
+  syncRemoteCitizenCases,
+  syncRemoteLawyerCases,
+} from "@/data/appStore";
 import { useAuth } from "@/context/useAuth";
 
 export interface CaseSyncState {
@@ -58,6 +64,12 @@ function mergeBackendCases(
     userId?: string | null;
     citizenEmail?: string | null;
   },
+  lawyerScope?: {
+    lawyerId?: string | null;
+    userId?: string | null;
+    lawyerEmail?: string | null;
+    lawyerName?: string | null;
+  },
 ): number {
   if (!Array.isArray(backendCases)) return 0;
   // Resolved fresh per sync so names reflect whatever the citizen/lawyer
@@ -67,6 +79,13 @@ function mergeBackendCases(
   const mapped = backendCases.map((c) => mapBackendCaseToLegalCase(c, citizens, lawyers));
   if (citizenScope?.citizenId || citizenScope?.userId || citizenScope?.citizenEmail) {
     syncRemoteCitizenCases(citizenScope, mapped);
+  } else if (
+    lawyerScope?.lawyerId ||
+    lawyerScope?.userId ||
+    lawyerScope?.lawyerEmail ||
+    lawyerScope?.lawyerName
+  ) {
+    syncRemoteLawyerCases(lawyerScope, mapped);
   } else {
     mergeRemoteCases(mapped);
   }
@@ -105,11 +124,21 @@ export function useCaseSync(): CaseSyncState {
           }
         : undefined;
 
+    const lawyerScope =
+      role === "lawyer"
+        ? {
+            lawyerId: user?.lawyerId || user?.id,
+            userId: user?.id,
+            lawyerEmail: user?.email,
+            lawyerName: user?.name,
+          }
+        : undefined;
+
     caseService
       .listUserCases<BackendUserCase>(scoped)
       .then((backendCases) => {
         if (cancelled) return;
-        mergeBackendCases(backendCases, citizenScope);
+        mergeBackendCases(backendCases, citizenScope, lawyerScope);
         setLastSyncedAt(Date.now());
       })
       .catch((err: unknown) => {

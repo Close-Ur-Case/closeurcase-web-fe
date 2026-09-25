@@ -44,18 +44,30 @@ export function CasesListView() {
   }
 
   const { user } = useAuth();
-  const currentLawyerId = user?.lawyerId || user?.id || "l_001";
+  const currentLawyerId = user?.lawyerId || user?.id;
   const currentLawyer =
     lawyersList.find(
       (l) =>
-        l.id === currentLawyerId ||
+        (currentLawyerId && (l.id === currentLawyerId || l.id === user?.id)) ||
         (user?.email && l.email?.toLowerCase() === user.email.toLowerCase()),
-    ) || lawyersList[0];
-  const myCases = rows.filter(
-    (c) =>
-      c.lawyerId === currentLawyerId ||
-      (currentLawyer && (c.lawyerId === currentLawyer.id || c.lawyerName === currentLawyer.name)),
-  );
+    ) || null;
+
+  const isLawyerCase = (c: LegalCase) => {
+    if (!currentLawyerId && !currentLawyer && !user?.email) return false;
+    if (currentLawyerId && (c.lawyerId === currentLawyerId || c.lawyerId === user?.id)) return true;
+    if (
+      currentLawyer &&
+      (c.lawyerId === currentLawyer.id ||
+        (currentLawyer.name &&
+          typeof c.lawyerName === "string" &&
+          c.lawyerName.trim().toLowerCase() === currentLawyer.name.trim().toLowerCase()))
+    ) {
+      return true;
+    }
+    return false;
+  };
+
+  const myCases = rows.filter(isLawyerCase);
 
   const assignedCases = myCases.filter((c) => c.source !== "ecourt");
   const importedCases = myCases.filter((c) => c.source === "ecourt");
@@ -196,12 +208,12 @@ export function CasesListView() {
         </div>
       )}
 
-      {currentLawyer && (
+      {(currentLawyer || currentLawyerId) && (
         <ImportCaseModal
           open={importOpen}
           onOpenChange={setImportOpen}
-          lawyerId={currentLawyer.id}
-          lawyerName={currentLawyer.name}
+          lawyerId={currentLawyer?.id || currentLawyerId || ""}
+          lawyerName={currentLawyer?.name || user?.name || "Advocate"}
         />
       )}
     </div>

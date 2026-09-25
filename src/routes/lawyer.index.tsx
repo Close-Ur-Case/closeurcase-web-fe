@@ -3,12 +3,13 @@ import { useState, useEffect } from "react";
 import { PageHeader } from "@/components/app/PageHeader";
 import { CasesTable } from "@/components/app/CasesTable";
 import { LocationIndicator } from "@/components/app/LocationIndicator";
-import { getCases, getLawyers, subscribeToStore } from "@/data/appStore";
-import type { LegalCase } from "@/types";
+import { getCases, getLawyers, subscribeToStore, mergeRemoteLawyers } from "@/data/appStore";
+import type { LegalCase, Lawyer } from "@/types";
 import { Briefcase, Clock, CalendarClock, CheckCircle2, ArrowRight } from "lucide-react";
 import { Card } from "@/components/m3";
 import { hasUpcomingHearing, nextHearingSortKey } from "@/components/app/caseDocketShared";
 import { useAuth } from "@/context/useAuth";
+import { authService } from "@/services/authService";
 
 export const Route = createFileRoute("/lawyer/")({
   component: LawyerDashboard,
@@ -27,21 +28,46 @@ export function LawyerDashboard() {
     return subscribeToStore(sync);
   }, []);
 
-  // Dynamically resolve authenticated lawyer profile with fallback
-  const currentLawyerId = user?.lawyerId || user?.id || "l_001";
+  useEffect(() => {
+    // Re-verify lawyer profile from backend to ensure status is fresh
+    if (user?.role === "lawyer" || user?.lawyerId) {
+      authService.getCurrentUser().then((freshUser) => {
+        if (freshUser?.lawyer) {
+          mergeRemoteLawyers([freshUser.lawyer as Partial<Lawyer>]);
+        }
+      });
+    }
+  }, [user?.role, user?.lawyerId]);
+
+  // Dynamically resolve authenticated lawyer profile
+  const currentLawyerId = user?.lawyerId || user?.id;
   const currentLawyer =
     lawyersList.find(
       (l) =>
-        l.id === currentLawyerId ||
+        (currentLawyerId && (l.id === currentLawyerId || l.id === user?.id)) ||
+        (user?.id && l.userId === user.id) ||
         (user?.email && l.email?.toLowerCase() === user.email.toLowerCase()),
-    ) || lawyersList[0];
+    ) || null;
+
+  const lawyerStatus = currentLawyer?.status || user?.status || "Pending";
 
   // Cases assigned to current lawyer OR matching their profile
-  const myCases = allCases.filter(
-    (c) =>
-      c.lawyerId === currentLawyerId ||
-      (currentLawyer && (c.lawyerId === currentLawyer.id || c.lawyerName === currentLawyer.name)),
-  );
+  const isLawyerCase = (c: LegalCase) => {
+    if (!currentLawyerId && !currentLawyer && !user?.email) return false;
+    if (currentLawyerId && (c.lawyerId === currentLawyerId || c.lawyerId === user?.id)) return true;
+    if (
+      currentLawyer &&
+      (c.lawyerId === currentLawyer.id ||
+        (currentLawyer.name &&
+          typeof c.lawyerName === "string" &&
+          c.lawyerName.trim().toLowerCase() === currentLawyer.name.trim().toLowerCase()))
+    ) {
+      return true;
+    }
+    return false;
+  };
+
+  const myCases = allCases.filter(isLawyerCase);
   const activeCases = myCases.filter((c) => c.status !== "Resolved" && c.status !== "Closed");
   const resolvedCases = myCases.filter((c) => c.status === "Resolved" || c.status === "Closed");
 
@@ -49,6 +75,8 @@ export function LawyerDashboard() {
   const upcomingHearingCases = [...activeCases]
     .filter((c) => hasUpcomingHearing(c, today))
     .sort((a, b) => nextHearingSortKey(a).localeCompare(nextHearingSortKey(b)));
+
+  const displayName = currentLawyer?.name ?? user?.name ?? "Advocate";
 
   return (
     <div className="space-y-6">
@@ -58,14 +86,14 @@ export function LawyerDashboard() {
       </div>
 
       <PageHeader
-        title={`Welcome, Adv. ${currentLawyer?.name ?? "Swathi"}`}
+        title={`Welcome, Adv. ${displayName}`}
         description="Review your cases and launch AI analysis tools."
       />
 
-      {/* Verification Status Banner if Pending */}
-      {currentLawyer?.status === "Pending" && (
+      {/* Verification Status Banner based on lawyers.status */}
+      {lawyerStatus === "Pending" ? (
         <div
-          className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 rounded-lg border p-4"
+          className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 rounded-xl border p-4"
           style={{
             borderColor: "color-mix(in srgb, var(--md-extended-color-warning) 30%, transparent)",
             backgroundColor: "color-mix(in srgb, var(--md-extended-color-warning) 8%, transparent)",
@@ -91,7 +119,22 @@ export function LawyerDashboard() {
             Pending
           </span>
         </div>
-      )}
+      ) : lawyerStatus === "Approved" ? (
+        <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 rounded-xl border border-emerald-500/25 bg-emerald-500/5 p-4 text-emerald-700 dark:text-emerald-300">
+          <div className="flex items-center gap-3">
+            <CheckCircle2 className="h-5 w-5 shrink-0 text-emerald-600 dark:text-emerald-400" />
+            <div>
+              <div className="text-xs font-bold">Bar Credentials Verified & Approved</div>
+              <div className="text-[11px] opacity-90 text-emerald-700/80 dark:text-emerald-300/80">
+                Your advocate account is active and verified. You are visible in the legal directory and eligible to receive new case requests.
+              </div>
+            </div>
+          </div>
+          <span className="rounded-md bg-emerald-500/15 px-2.5 py-1 text-[10px] font-bold uppercase tracking-wider text-emerald-700 dark:text-emerald-300 border border-emerald-500/20">
+            Approved
+          </span>
+        </div>
+      ) : null}
 
       {/* Stat row */}
       <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">

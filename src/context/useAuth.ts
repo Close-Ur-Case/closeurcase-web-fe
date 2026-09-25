@@ -7,6 +7,11 @@ export interface AuthContextType {
   role: "citizen" | "lawyer" | "admin" | null;
   isAuthenticated: boolean;
   isLoading: boolean;
+  isSessionExpired: boolean;
+  sessionExpiredMessage: string | null;
+  openSessionExpiredModal: (message?: string) => void;
+  closeSessionExpiredModal: () => void;
+  relogin: () => Promise<boolean>;
   loginCitizen: (token: string | undefined, user: AuthUser) => void;
   loginLawyer: (token: string | undefined, user: AuthUser) => void;
   loginAdmin: (token: string | undefined, user: AuthUser) => void;

@@ -102,3 +102,28 @@ export const AuthResponseSchema = z
     message: z.string().optional().openapi({ example: "Authentication successful" }),
   })
   .openapi("AuthResponse");
+
+export const RefreshTokenSchema = z
+  .object({
+    refreshToken: z
+      .string()
+      .optional()
+      .openapi({ example: "3b290740-410a-48d6-a212-9c3fbfb53cb1", description: "Supabase refresh token" }),
+    refresh_token: z
+      .string()
+      .optional()
+      .openapi({ example: "3b290740-410a-48d6-a212-9c3fbfb53cb1" }),
+  })
+  .openapi("RefreshTokenRequest");
+
+export const AutoLoginSchema = z
+  .object({
+    role: z.enum(["citizen", "lawyer", "admin"]).optional().openapi({ example: "citizen" }),
+    phone: z.string().optional().openapi({ example: "+919876543210" }),
+    email: z.string().email().optional().openapi({ example: "citizen@example.com" }),
+    userId: z.string().optional().openapi({ example: "usr_123" }),
+    citizenId: z.string().optional().openapi({ example: "u_001" }),
+    lawyerId: z.string().optional().openapi({ example: "l_001" }),
+  })
+  .openapi("AutoLoginRequest");
+

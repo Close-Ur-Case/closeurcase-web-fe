@@ -411,7 +411,7 @@ export class LawyerCategoryService {
   /**
    * Helper to resolve Category query inputs (IDs or names) to target IDs and fallback terms.
    */
-  static async resolveCategoryQuery(inputs: string[]): Promise<{ ids: string[]; terms: string[] }> {
+  static async resolveCategoryQuery(inputs: string[]): Promise<{ ids: string[]; terms: string[]; allTokens: string[] }> {
     const allCategories = await db
       .select()
       .from(caseCategories)
@@ -419,8 +419,10 @@ export class LawyerCategoryService {
 
     const ids: string[] = [];
     const terms: string[] = [];
+    const allTokens: string[] = [];
 
     for (const input of inputs) {
+      if (input) allTokens.push(input);
       const match = allCategories.find(
         (c) =>
           c.id.toLowerCase() === input.toLowerCase() ||
@@ -429,18 +431,21 @@ export class LawyerCategoryService {
       );
       if (match) {
         if (!ids.includes(match.id)) ids.push(match.id);
+        if (!allTokens.includes(match.id)) allTokens.push(match.id);
+        if (!allTokens.includes(match.name)) allTokens.push(match.name);
+        if (match.code && !allTokens.includes(match.code)) allTokens.push(match.code);
       } else {
         terms.push(input);
       }
     }
 
-    return { ids, terms };
+    return { ids, terms, allTokens: Array.from(new Set(allTokens.filter(Boolean))) };
   }
 
   /**
    * Helper to resolve Specialization query inputs (IDs or names) to target IDs and fallback terms.
    */
-  static async resolveSpecializationQuery(inputs: string[]): Promise<{ ids: string[]; terms: string[] }> {
+  static async resolveSpecializationQuery(inputs: string[]): Promise<{ ids: string[]; terms: string[]; allTokens: string[] }> {
     const allSpecs = await db
       .select()
       .from(caseSpecializations)
@@ -448,8 +453,10 @@ export class LawyerCategoryService {
 
     const ids: string[] = [];
     const terms: string[] = [];
+    const allTokens: string[] = [];
 
     for (const input of inputs) {
+      if (input) allTokens.push(input);
       const match = allSpecs.find(
         (sp) =>
           sp.id.toLowerCase() === input.toLowerCase() ||
@@ -457,18 +464,20 @@ export class LawyerCategoryService {
       );
       if (match) {
         if (!ids.includes(match.id)) ids.push(match.id);
+        if (!allTokens.includes(match.id)) allTokens.push(match.id);
+        if (!allTokens.includes(match.name)) allTokens.push(match.name);
       } else {
         terms.push(input);
       }
     }
 
-    return { ids, terms };
+    return { ids, terms, allTokens: Array.from(new Set(allTokens.filter(Boolean))) };
   }
 
   /**
    * Helper to resolve Legal Service query inputs (IDs or names) to target IDs and fallback terms.
    */
-  static async resolveLegalServiceQuery(inputs: string[]): Promise<{ ids: string[]; terms: string[] }> {
+  static async resolveLegalServiceQuery(inputs: string[]): Promise<{ ids: string[]; terms: string[]; allTokens: string[] }> {
     const allServices = await db
       .select()
       .from(legalServices)
@@ -476,8 +485,10 @@ export class LawyerCategoryService {
 
     const ids: string[] = [];
     const terms: string[] = [];
+    const allTokens: string[] = [];
 
     for (const input of inputs) {
+      if (input) allTokens.push(input);
       const match = allServices.find(
         (s) =>
           s.id.toLowerCase() === input.toLowerCase() ||
@@ -485,12 +496,14 @@ export class LawyerCategoryService {
       );
       if (match) {
         if (!ids.includes(match.id)) ids.push(match.id);
+        if (!allTokens.includes(match.id)) allTokens.push(match.id);
+        if (!allTokens.includes(match.name)) allTokens.push(match.name);
       } else {
         terms.push(input);
       }
     }
 
-    return { ids, terms };
+    return { ids, terms, allTokens: Array.from(new Set(allTokens.filter(Boolean))) };
   }
 
   /**

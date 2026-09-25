@@ -380,13 +380,24 @@ export class CaseService {
     citizenId?: string;
     citizenUserId?: string;
     lawyerId?: string;
+    lawyerUserId?: string;
     status?: string;
     caseType?: string;
     search?: string;
     limit?: number;
     offset?: number;
   } = {}) {
-    const { citizenId, citizenUserId, lawyerId, status, caseType, search, limit = 50, offset = 0 } = filters;
+    const {
+      citizenId,
+      citizenUserId,
+      lawyerId,
+      lawyerUserId,
+      status,
+      caseType,
+      search,
+      limit = 50,
+      offset = 0,
+    } = filters;
     const conditions: any[] = [];
 
     if (citizenId && citizenUserId && citizenId !== citizenUserId) {
@@ -394,7 +405,12 @@ export class CaseService {
     } else if (citizenId) {
       conditions.push(eq(casesUser.citizenId, citizenId));
     }
-    if (lawyerId) conditions.push(eq(casesUser.lawyerId, lawyerId));
+
+    if (lawyerId && lawyerUserId && lawyerId !== lawyerUserId) {
+      conditions.push(or(eq(casesUser.lawyerId, lawyerId), eq(casesUser.lawyerId, lawyerUserId)));
+    } else if (lawyerId) {
+      conditions.push(eq(casesUser.lawyerId, lawyerId));
+    }
     if (status) conditions.push(eq(casesUser.caseStatus, status));
     if (caseType) conditions.push(eq(casesUser.caseType, caseType.toLowerCase()));
 

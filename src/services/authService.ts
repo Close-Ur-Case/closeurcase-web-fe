@@ -8,10 +8,15 @@
 import {
   apiClient,
   setStoredToken,
+  setStoredRefreshToken,
+  getStoredRefreshToken,
   setStoredUser,
   getStoredUser,
   clearAuthStorage,
 } from "./apiClient";
+import { getCitizenSession, setCitizenSession } from "@/features/citizen/session";
+import { mergeRemoteLawyers } from "@/data/appStore";
+import type { Lawyer } from "@/types";
 import type {
   SendOtpPayload,
   SendOtpResponse,
@@ -26,11 +31,13 @@ import type {
 interface RawAuthResponse {
   user?: {
     id?: string;
+    role?: string;
     email?: string;
     phone?: string;
     name?: string;
     city?: string;
     citizenId?: string;
+    lawyerId?: string;
   };
   token?: string;
   session?: {
@@ -109,9 +116,14 @@ export const authService = {
       signupMethod,
     };
 
+    const refreshToken = res?.session?.refreshToken || res?.session?.refresh_token;
+
     if (!options?.skipStorage) {
       if (token) {
         setStoredToken(token);
+      }
+      if (refreshToken) {
+        setStoredRefreshToken(refreshToken);
       }
       setStoredUser(user);
     }
@@ -147,6 +159,11 @@ export const authService = {
     });
 
     const token = res?.session?.accessToken || res?.session?.access_token || res?.token;
+    const lawyerStatus =
+      (res?.lawyer as { status?: string })?.status ||
+      (res?.user as { status?: string })?.status ||
+      "Pending";
+
     const user: AuthUser = {
       id: res?.user?.id || res?.lawyer?.id || "lawyer_id",
       role: "lawyer",
@@ -154,10 +171,19 @@ export const authService = {
       name: res?.lawyer?.name || "Advocate",
       lawyerId: res?.lawyer?.id,
       city: res?.lawyer?.city,
+      status: lawyerStatus,
     };
 
+    if (res?.lawyer) {
+      mergeRemoteLawyers([res.lawyer as Partial<Lawyer>]);
+    }
+
+    const refreshToken = res?.session?.refreshToken || res?.session?.refresh_token;
     if (token) {
       setStoredToken(token);
+    }
+    if (refreshToken) {
+      setStoredRefreshToken(refreshToken);
     }
     setStoredUser(user);
 
@@ -186,8 +212,12 @@ export const authService = {
       name: res?.admin?.name || "Platform Admin",
     };
 
+    const refreshToken = res?.session?.refreshToken || res?.session?.refresh_token;
     if (token) {
       setStoredToken(token);
+    }
+    if (refreshToken) {
+      setStoredRefreshToken(refreshToken);
     }
     setStoredUser(user);
 
@@ -238,8 +268,17 @@ export const authService = {
                 ? "Advocate"
                 : "Citizen User"),
           phone: rawUser.phone || existing?.phone,
+          status:
+            (resObj.status as string) ||
+            (lawyerObj as { status?: string })?.status ||
+            (citizenObj as { status?: string })?.status ||
+            rawUser.status ||
+            existing?.status,
         };
         setStoredUser(merged);
+        if (lawyerObj) {
+          mergeRemoteLawyers([lawyerObj as Partial<Lawyer>]);
+        }
         return merged;
       }
       return getStoredUser<AuthUser>();
@@ -253,5 +292,131 @@ export const authService = {
    */
   logout(): void {
     clearAuthStorage();
+  },
+
+  /**
+   * Exchange stored refresh token for a fresh JWT access token
+   */
+  async refreshToken(): Promise<AuthResponseData | null> {
+    const refreshToken = getStoredRefreshToken();
+    if (!refreshToken) return null;
+
+    try {
+      const res = await apiClient.post<RawAuthResponse>(
+        "/auth/refresh",
+        { refreshToken },
+        { skipAuth: true }
+      );
+
+      const token = res?.session?.accessToken || res?.session?.access_token || res?.token;
+      const newRefreshToken = res?.session?.refreshToken || res?.session?.refresh_token;
+
+      if (token) setStoredToken(token);
+      if (newRefreshToken) setStoredRefreshToken(newRefreshToken);
+
+      const existing = getStoredUser<AuthUser>();
+      const user: AuthUser | undefined = res?.user
+        ? {
+            ...existing,
+            id: res.user.id || existing?.id || "",
+            role: (res.user.role || existing?.role || "citizen") as AuthUser["role"],
+            email: res.user.email || existing?.email,
+            phone: res.user.phone || existing?.phone,
+            name: res.user.name || existing?.name || "User",
+            citizenId: res.user.citizenId || existing?.citizenId,
+            lawyerId: (res.user as { lawyerId?: string })?.lawyerId || existing?.lawyerId,
+          }
+        : existing || undefined;
+
+      if (user) setStoredUser(user);
+
+      return {
+        user,
+        token,
+        session: res?.session,
+        message: "Session refreshed successfully",
+      };
+    } catch (err) {
+      console.warn("[authService] Token refresh failed:", err);
+      return null;
+    }
+  },
+
+  /**
+   * Auto-login to restore active user session when JWT expired
+   */
+  async autoLogin(): Promise<AuthResponseData | null> {
+    // 1. First try refresh token renewal
+    const refreshed = await this.refreshToken();
+    if (refreshed?.token) return refreshed;
+
+    // 2. Try auto-login with stored session identity
+    const existing = getStoredUser<AuthUser>();
+    const citizenSession = getCitizenSession();
+    const phone = existing?.phone || citizenSession?.phone;
+    const email = existing?.email || citizenSession?.email;
+    const role = existing?.role || (citizenSession.authenticated ? "citizen" : undefined);
+
+    if (!role && !phone && !email) {
+      return null;
+    }
+
+    try {
+      const res = await apiClient.post<RawAuthResponse>(
+        "/auth/auto-login",
+        {
+          role: role || "citizen",
+          phone: phone || undefined,
+          email: email || undefined,
+          userId: existing?.id,
+          citizenId: existing?.citizenId,
+          lawyerId: existing?.lawyerId,
+        },
+        { skipAuth: true }
+      );
+
+      const token = res?.session?.accessToken || res?.session?.access_token || res?.token;
+      const refreshToken = res?.session?.refreshToken || res?.session?.refresh_token;
+
+      if (token) setStoredToken(token);
+      if (refreshToken) setStoredRefreshToken(refreshToken);
+
+      const resolvedUser: AuthUser = {
+        id: res?.user?.id || existing?.id || `u_${Date.now()}`,
+        role: ((res?.user as { role?: string })?.role || role || "citizen") as AuthUser["role"],
+        email: res?.user?.email || email,
+        phone: res?.user?.phone || phone,
+        name: res?.citizen?.name || res?.lawyer?.name || res?.user?.name || existing?.name || "User",
+        citizenId: res?.citizen?.id || res?.user?.citizenId || existing?.citizenId,
+        lawyerId: res?.lawyer?.id || (res?.user as { lawyerId?: string })?.lawyerId || existing?.lawyerId,
+        status:
+          (res?.lawyer as { status?: string })?.status ||
+          (res?.user as { status?: string })?.status ||
+          existing?.status,
+      };
+
+      setStoredUser(resolvedUser);
+      if (res?.lawyer) {
+        mergeRemoteLawyers([res.lawyer as Partial<Lawyer>]);
+      }
+      if (resolvedUser.role === "citizen") {
+        setCitizenSession({
+          authenticated: true,
+          phone: resolvedUser.phone || "",
+          email: resolvedUser.email || undefined,
+          fullName: resolvedUser.name || "Citizen",
+        });
+      }
+
+      return {
+        user: resolvedUser,
+        token,
+        session: res?.session,
+        message: "Auto-login successful",
+      };
+    } catch (err) {
+      console.warn("[authService] Auto-login failed:", err);
+      return null;
+    }
   },
 };

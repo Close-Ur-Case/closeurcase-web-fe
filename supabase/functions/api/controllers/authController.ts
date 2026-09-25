@@ -3,7 +3,7 @@ import { AuthService } from "../services/authService.ts";
 import { ApiResponse } from "../utils/apiResponse.ts";
 import { db } from "../config/db.ts";
 import { citizens, lawyers } from "../models/users.ts";
-import { eq, or } from "drizzle-orm";
+import { eq, or, ilike } from "drizzle-orm";
 
 export async function sendCitizenOtp(c: Context) {
   const body = await c.req.json();
@@ -53,8 +53,19 @@ export async function getCurrentUser(c: Context) {
     const [law] = await db
       .select()
       .from(lawyers)
-      .where(or(eq(lawyers.userId, user.id), eq(lawyers.id, user.id)));
+      .where(
+        user.email
+          ? or(
+              eq(lawyers.userId, user.id),
+              eq(lawyers.id, user.id),
+              ilike(lawyers.email, user.email.toLowerCase()),
+            )
+          : or(eq(lawyers.userId, user.id), eq(lawyers.id, user.id)),
+      );
     lawyerRecord = law || null;
+    if (lawyerRecord && lawyerRecord.userId !== user.id) {
+      await db.update(lawyers).set({ userId: user.id }).where(eq(lawyers.id, lawyerRecord.id));
+    }
   }
 
   return ApiResponse.success(
@@ -65,10 +76,25 @@ export async function getCurrentUser(c: Context) {
       lawyerId: lawyerRecord?.id || undefined,
       name: citizenRecord?.name || lawyerRecord?.name || user.email?.split("@")[0] || "User",
       avatarUrl: citizenRecord?.avatarUrl || lawyerRecord?.photoUrl || undefined,
+      status: lawyerRecord?.status || citizenRecord?.status || (user as { status?: string }).status || "Pending",
       citizen: citizenRecord,
       lawyer: lawyerRecord,
     },
     "Current user session details"
   );
 }
+
+export async function refreshSession(c: Context) {
+  const body = await c.req.json();
+  const token = body.refreshToken || body.refresh_token;
+  const result = await AuthService.refreshSession(token);
+  return ApiResponse.success(c, result, "Session refreshed successfully");
+}
+
+export async function autoLogin(c: Context) {
+  const body = await c.req.json();
+  const result = await AuthService.autoLogin(body);
+  return ApiResponse.success(c, result, result.message || "Auto-login successful");
+}
+
 
