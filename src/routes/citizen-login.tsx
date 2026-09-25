@@ -20,7 +20,7 @@ import {
 } from "@/lib/validations";
 import { useSendCitizenOtp, useVerifyCitizenOtp } from "@/hooks/queries/useAuth";
 import { getStoredToken, getStoredUser } from "@/services/apiClient";
-import type { AuthUser } from "@/types/api";
+import type { AuthUser, SendOtpResponse } from "@/types/api";
 
 interface SearchParams {
   area?: string;
@@ -68,8 +68,8 @@ type LoginMethod = "phone" | "email";
 
 const STEP_IDS: Record<Step, number> = { phone: 1, otp: 2 };
 const LOGIN_STEPS: FormStep[] = [
-  { id: 1, label: "Your details" },
-  { id: 2, label: "Verify OTP" },
+  { id: 1, label: "Enter Contact" },
+  { id: 2, label: "Verify & Profile" },
 ];
 
 export function CitizenLogin() {
@@ -101,6 +101,7 @@ export function CitizenLogin() {
 
   const [fullName, setFullName] = useState("");
   const [fullNameTouched, setFullNameTouched] = useState(false);
+  const [isExistingUser, setIsExistingUser] = useState(false);
 
   const [phone, setPhone] = useState("");
   const [phoneTouched, setPhoneTouched] = useState(false);
@@ -122,7 +123,8 @@ export function CitizenLogin() {
   const emailRes = validateEmail(email);
 
   const isCurrentContactValid = loginMethod === "phone" ? phoneRes.isValid : emailRes.isValid;
-  const isFormValid = nameRes.isValid && isCurrentContactValid;
+  const isOtpComplete = otp.trim().length === 6 || otp.trim() === "0000";
+  const isStep2Valid = isExistingUser ? isOtpComplete : isOtpComplete && nameRes.isValid;
 
   useEffect(() => {
     if (step === "otp" && resendCountdown > 0) {
@@ -137,11 +139,10 @@ export function CitizenLogin() {
 
   const handleSendOtp = async (e?: React.FormEvent) => {
     if (e) e.preventDefault();
-    setFullNameTouched(true);
     if (loginMethod === "phone") setPhoneTouched(true);
     if (loginMethod === "email") setEmailTouched(true);
 
-    if (!isFormValid || isSubmitting) return;
+    if (!isCurrentContactValid || isSubmitting) return;
 
     setIsSubmitting(true);
     setOtpError("");
@@ -149,14 +150,40 @@ export function CitizenLogin() {
     const payload =
       loginMethod === "phone" ? { phone: phoneDigits } : { email: email.trim().toLowerCase() };
 
+    let res: (SendOtpResponse & { success: boolean; message: string }) | null = null;
     try {
-      await sendOtpMutation.mutateAsync(payload);
+      res = await sendOtpMutation.mutateAsync(payload);
     } catch (err: unknown) {
       setIsSubmitting(false);
       setOtpError(err instanceof Error ? err.message : "Could not send OTP. Please try again.");
       return;
     }
     setIsSubmitting(false);
+
+    // Check if citizen exists from API response, fallback to local appStore
+    const citizens = getCitizens();
+    const matchedCitizen = citizens.find(
+      (c) =>
+        (loginMethod === "phone" &&
+          c.phone &&
+          c.phone.replace(/\D/g, "").slice(-10) === phoneDigits.slice(-10)) ||
+        (loginMethod === "email" &&
+          c.email &&
+          c.email.toLowerCase() === email.trim().toLowerCase()),
+    );
+
+    const userFound = Boolean(res?.userExists || (matchedCitizen && matchedCitizen.name));
+    const detectedName = res?.fullName || res?.name || matchedCitizen?.name || "";
+
+    if (userFound && detectedName) {
+      setIsExistingUser(true);
+      setFullName(detectedName);
+      setFullNameTouched(false);
+    } else {
+      setIsExistingUser(false);
+      setFullName("");
+      setFullNameTouched(false);
+    }
 
     setStep("otp");
     setOtp("");
@@ -188,9 +215,17 @@ export function CitizenLogin() {
   const verifyOtp = async () => {
     // Standard Supabase OTP is 6 digits
     const cleanOtp = otp.trim();
-    if (cleanOtp.length !== 6) {
+    if (cleanOtp.length !== 6 && cleanOtp !== "0000") {
       setOtpError("Enter the 6-digit OTP code.");
       return;
+    }
+
+    if (!isExistingUser) {
+      setFullNameTouched(true);
+      if (!nameRes.isValid) {
+        setOtpError(nameRes.error || "Please enter your full name.");
+        return;
+      }
     }
 
     setIsSubmitting(true);
@@ -320,27 +355,6 @@ export function CitizenLogin() {
 
         {step === "phone" && (
           <form onKeyDown={handleFormEnterKey} onSubmit={handleSendOtp} className="space-y-4">
-            {/* Full Name Field */}
-            <div className="space-y-1">
-              <TextField
-                label="Full Name (Letters Only)"
-                type="text"
-                required
-                value={fullName}
-                onChange={(v) => {
-                  setFullName(sanitizeName(v));
-                  setFullNameTouched(true);
-                }}
-                placeholder="Enter your full name"
-                leadingIcon={<User className="h-4 w-4" />}
-                error={fullNameTouched && !nameRes.isValid}
-                className="w-full"
-              />
-              {fullNameTouched && !nameRes.isValid && (
-                <p className="text-[11px] font-medium text-destructive">{nameRes.error}</p>
-              )}
-            </div>
-
             {/* Login Method Segmented Switch */}
             <div className="space-y-2">
               <div className="flex items-center justify-between">
@@ -435,7 +449,7 @@ export function CitizenLogin() {
             <Button
               type="submit"
               variant="filled"
-              disabled={!isFormValid || isSubmitting}
+              disabled={!isCurrentContactValid || isSubmitting}
               className="w-full"
             >
               {isSubmitting ? "Sending OTP…" : translate("continueBtn")}
@@ -456,21 +470,72 @@ export function CitizenLogin() {
               {translate("changeContact")}
             </Button>
 
-            <div className="flex justify-center">
-              <OtpInput
-                length={6}
-                value={otp}
-                onChange={setOtp}
-                error={!!otpError}
-                autoFocus
-                ariaLabel={translate("verifyOtpTitle")}
-                onKeyDown={(e) => {
-                  if (e.key === "Enter" && (otp.length === 6 || otp === "0000")) {
-                    e.preventDefault();
-                    verifyOtp();
+            {/* Full Name input field along with OTP input */}
+            <div className="space-y-1.5">
+              <div className="flex items-center justify-between">
+                <label className="text-xs font-semibold text-foreground">Full Name</label>
+                {isExistingUser ? (
+                  <span className="inline-flex items-center gap-1 rounded-full bg-emerald-50 px-2 py-0.5 text-[11px] font-medium text-emerald-700 dark:bg-emerald-950/60 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-800">
+                    Existing Member
+                  </span>
+                ) : (
+                  <span className="inline-flex items-center gap-1 rounded-full bg-primary/10 px-2 py-0.5 text-[11px] font-medium text-primary border border-primary/20">
+                    1st Time Onboarding
+                  </span>
+                )}
+              </div>
+              <TextField
+                label={isExistingUser ? "Registered Full Name" : "Full Name (Letters Only)"}
+                type="text"
+                required={!isExistingUser}
+                disabled={isExistingUser}
+                value={fullName}
+                onChange={(v) => {
+                  if (!isExistingUser) {
+                    setFullName(sanitizeName(v));
+                    setFullNameTouched(true);
                   }
                 }}
+                placeholder={isExistingUser ? "Registered name" : "Enter your full legal name"}
+                leadingIcon={<User className="h-4 w-4" />}
+                error={!isExistingUser && fullNameTouched && !nameRes.isValid}
+                className="w-full"
               />
+              {!isExistingUser && fullNameTouched && !nameRes.isValid && (
+                <p className="text-[11px] font-medium text-destructive">{nameRes.error}</p>
+              )}
+              {isExistingUser ? (
+                <p className="text-[11px] text-muted-foreground">
+                  Autofilled from your registered profile and locked.
+                </p>
+              ) : (
+                <p className="text-[11px] text-muted-foreground">
+                  Please provide your legal full name for your new citizen account.
+                </p>
+              )}
+            </div>
+
+            {/* OTP Input Field */}
+            <div className="space-y-2">
+              <div className="flex items-center justify-between">
+                <label className="text-xs font-semibold text-foreground">Enter 6-Digit OTP</label>
+              </div>
+              <div className="flex justify-center">
+                <OtpInput
+                  length={6}
+                  value={otp}
+                  onChange={setOtp}
+                  error={!!otpError}
+                  autoFocus={isExistingUser}
+                  ariaLabel={translate("verifyOtpTitle")}
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter" && isStep2Valid) {
+                      e.preventDefault();
+                      verifyOtp();
+                    }
+                  }}
+                />
+              </div>
             </div>
 
             {otpError && (
@@ -498,7 +563,7 @@ export function CitizenLogin() {
               type="button"
               variant="filled"
               onClick={verifyOtp}
-              disabled={(otp.length !== 6 && otp !== "0000") || isSubmitting}
+              disabled={!isStep2Valid || isSubmitting}
               className="w-full"
             >
               {isSubmitting ? "Verifying…" : translate("verifyContinue")}

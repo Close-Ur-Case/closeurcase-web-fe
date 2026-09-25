@@ -28,6 +28,16 @@ export interface SendOtpPayload {
   identifier?: string;
 }
 
+export interface SendOtpResponse {
+  success?: boolean;
+  message?: string;
+  channel?: "sms" | "email" | string;
+  recipient?: string;
+  userExists?: boolean;
+  name?: string | null;
+  fullName?: string | null;
+}
+
 export interface VerifyOtpPayload {
   token: string;
   phone?: string;

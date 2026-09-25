@@ -14,6 +14,7 @@ import {
 } from "./apiClient";
 import type {
   SendOtpPayload,
+  SendOtpResponse,
   VerifyOtpPayload,
   LawyerRegisterPayload,
   LawyerLoginPayload,
@@ -60,13 +61,20 @@ export const authService = {
   /**
    * Send 6-digit OTP to citizen mobile or email
    */
-  async sendCitizenOtp(payload: SendOtpPayload): Promise<{ success: boolean; message: string }> {
-    const res = await apiClient.post<{ message?: string }>("/auth/citizen/send-otp", payload, {
+  async sendCitizenOtp(
+    payload: SendOtpPayload,
+  ): Promise<SendOtpResponse & { success: boolean; message: string }> {
+    const res = await apiClient.post<SendOtpResponse>("/auth/citizen/send-otp", payload, {
       skipAuth: true,
     });
     return {
       success: true,
       message: res?.message || "OTP sent successfully",
+      channel: res?.channel,
+      recipient: res?.recipient,
+      userExists: res?.userExists,
+      name: res?.name || res?.fullName || null,
+      fullName: res?.fullName || res?.name || null,
     };
   },
 
