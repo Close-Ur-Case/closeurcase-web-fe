@@ -1185,8 +1185,8 @@ function TagDropdownField({
       />
       {values.length > 0 && (
         <div className="flex flex-wrap gap-1.5 max-h-28 overflow-y-auto pr-1">
-          {values.map((v, i) => (
-            <InputChip key={`${v}-${i}`} label={v} onRemove={() => onRemove(i)} />
+          {values.map((v) => (
+            <InputChip key={v} label={v} onRemove={() => onRemove(values.indexOf(v))} />
           ))}
         </div>
       )}
@@ -1260,12 +1260,12 @@ function CourtsDropdownField({
 
       {values.length > 0 && (
         <div className="flex flex-wrap gap-1.5 max-h-28 overflow-y-auto pr-1">
-          {values.map((v, i) => (
+          {values.map((v) => (
             <InputChip
-              key={`${v}-${i}`}
+              key={v}
               label={v}
               icon={<Scale className="h-3 w-3" />}
-              onRemove={() => onRemove(i)}
+              onRemove={() => onRemove(values.indexOf(v))}
             />
           ))}
         </div>

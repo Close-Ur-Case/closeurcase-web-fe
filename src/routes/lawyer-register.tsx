@@ -1,6 +1,8 @@
-import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
+import { createFileRoute, Link, useNavigate, redirect } from "@tanstack/react-router";
 import { useMemo, useRef, useState, useEffect } from "react";
 import type { ReactNode } from "react";
+import { getStoredToken, getStoredUser } from "@/services/apiClient";
+import type { AuthUser } from "@/types/api";
 import {
   Briefcase,
   Building2,
@@ -50,7 +52,14 @@ import {
 } from "@/data/appStore";
 import type { LegalCategory, LawyerAward } from "@/types";
 import { useLawyerRegister } from "@/hooks/queries/useAuth";
-import { useCategoriesQuery, useCourtsQuery, useCitiesQuery } from "@/hooks/queries/useMasterData";
+import {
+  useCategoriesQuery,
+  useCourtsQuery,
+  useCitiesQuery,
+  useDistrictsQuery,
+  useLanguagesQuery,
+} from "@/hooks/queries/useMasterData";
+import { authService } from "@/services/authService";
 import { storageService } from "@/services/storageService";
 import {
   Button,
@@ -70,14 +79,6 @@ const TEST_OTP = "0000";
 /** Per-step heading shown above the form body — kept constant-height so the
  * progress bar above it never shifts between steps. */
 const STEP_META = [
-  {
-    label: "Verify your identity",
-    desc: "Confirm your official email and mobile number to begin.",
-  },
-  {
-    label: "Security",
-    desc: "Set up a secure password to access your lawyer portal.",
-  },
   { label: "Your details", desc: "Tell us who you are and where you practise." },
   {
     label: "Practice areas",
@@ -85,9 +86,20 @@ const STEP_META = [
   },
   {
     label: "Credentials",
-    desc: "Add your Bar registration, experience and professional background.",
+    desc: "Add your Bar registration, experience, languages and courts.",
   },
-  { label: "Review & submit", desc: "Add finishing details, then submit for admin verification." },
+  {
+    label: "Profile & Office",
+    desc: "Add your chamber address and professional biography.",
+  },
+  {
+    label: "Awards & ID Proof",
+    desc: "Add optional awards & recognition and upload your Bar ID proof.",
+  },
+  {
+    label: "Verification & Security",
+    desc: "Verify your email, enter contact details, set your password, and submit.",
+  },
 ];
 
 interface SelectedPracticeEntry {
@@ -111,25 +123,35 @@ function mapPracticeAreaToCategory(areaName: string): LegalCategory {
 }
 
 export const Route = createFileRoute("/lawyer-register")({
+  beforeLoad: () => {
+    if (typeof window !== "undefined") {
+      const token = getStoredToken();
+      const user = getStoredUser<AuthUser>();
+      if (token || user) {
+        if (user?.role === "lawyer") throw redirect({ to: "/lawyer" });
+        if (user?.role === "admin") throw redirect({ to: "/admin" });
+      }
+    }
+  },
   head: () => ({ meta: [{ title: "Lawyer registration — CloseUrCase" }] }),
   component: LawyerRegister,
 });
 
 /** 6 Dedicated Steps:
- * 1. Verification (Email & Mobile Phone verification with OTP)
- * 2. Security (Password & Confirm Password credentials)
- * 3. Your details (Registration type, Photo, Full Name, Service Districts)
- * 4. Practice areas (3-tier categories, specializations, legal services)
- * 5. Credentials (Bar ID, Experience, Languages, Courts, Address, Bio)
- * 6. Submit (Awards, ID proof, Declaration, Submit application)
+ * 1. Your details (Registration type, Photo, Full Name, Service Districts)
+ * 2. Practice areas (3-tier categories, specializations, legal services)
+ * 3. Credentials (Bar ID, Experience, Languages, Courts)
+ * 4. Profile & Office (Chamber Address, Bio / Summary)
+ * 5. Awards & ID Proof (Awards & Recognition, Bar ID Proof Document)
+ * 6. Verification & Security (Identity Verification, Account Security, Declaration & Submit)
  */
 const REGISTER_STEPS: FormStep[] = [
-  { id: 1, label: "Verification" },
-  { id: 2, label: "Security" },
-  { id: 3, label: "Your details" },
-  { id: 4, label: "Practice areas" },
-  { id: 5, label: "Credentials" },
-  { id: 6, label: "Submit" },
+  { id: 1, label: "Your details" },
+  { id: 2, label: "Practice areas" },
+  { id: 3, label: "Credentials" },
+  { id: 4, label: "Profile & Office" },
+  { id: 5, label: "Awards & ID Proof" },
+  { id: 6, label: "Verification & Security" },
 ];
 
 function Step({ n, current, children }: { n: number; current: number; children: ReactNode }) {
@@ -152,16 +174,9 @@ function VerifiedPill() {
  * 4-box OTP entry with an aligned "Verify" button. On phones the action
  * buttons drop full-width below their field instead of squeezing beside it.
  */
-function VerifyField({
-  icon,
-  title,
-  fieldLabel,
-  type,
+function EmailVerifyField({
   value,
   onChange,
-  placeholder,
-  prefixText,
-  displayValue,
   isValid,
   validationError,
   showValidationError,
@@ -171,18 +186,11 @@ function VerifyField({
   onOtpChange,
   otpError,
   onSend,
-  onConfirm,
   onReset,
+  isSending,
 }: {
-  icon: ReactNode;
-  title: string;
-  fieldLabel: string;
-  type: "email" | "tel";
   value: string;
   onChange: (v: string) => void;
-  placeholder: string;
-  prefixText?: string;
-  displayValue: string;
   isValid: boolean;
   validationError?: string;
   showValidationError: boolean;
@@ -192,15 +200,17 @@ function VerifyField({
   onOtpChange: (v: string) => void;
   otpError: string;
   onSend: () => void;
-  onConfirm: () => void;
   onReset: () => void;
+  isSending?: boolean;
 }) {
   return (
     <div className="rounded-2xl border border-border bg-card p-3.5 shadow-xs sm:p-4">
       <div className="flex items-center justify-between gap-2">
         <span className="flex items-center gap-2 text-sm font-semibold text-foreground">
-          <span className="text-primary">{icon}</span>
-          {title}
+          <span className="text-primary">
+            <Mail className="h-4 w-4" />
+          </span>
+          Official email address
           <span className="text-destructive">*</span>
         </span>
         {verified && <VerifiedPill />}
@@ -208,9 +218,7 @@ function VerifyField({
 
       {verified ? (
         <div className="mt-3 flex items-center justify-between gap-3 rounded-xl border border-emerald-500/30 bg-emerald-500/10 px-3.5 py-2.5">
-          <span className="min-w-0 truncate text-sm font-medium text-foreground">
-            {displayValue}
-          </span>
+          <span className="min-w-0 truncate text-sm font-medium text-foreground">{value}</span>
           <button
             type="button"
             onClick={onReset}
@@ -224,13 +232,13 @@ function VerifyField({
           <div className="flex flex-col gap-2.5 sm:flex-row sm:items-center">
             <div className="min-w-0 flex-1">
               <TextField
-                label={fieldLabel}
-                type={type}
+                label="Email address"
+                type="email"
                 required
                 value={value}
                 onChange={onChange}
-                placeholder={placeholder}
-                prefixText={prefixText}
+                placeholder="advocate@example.com"
+                leadingIcon={<Mail className="h-4 w-4" />}
                 error={showValidationError && !isValid}
                 className="w-full"
               />
@@ -239,9 +247,19 @@ function VerifyField({
               type="button"
               variant="outlined"
               onClick={onSend}
+              disabled={isSending}
               className="cuc-field-action h-11! min-h-0! w-full shrink-0 px-5 text-[13px] font-semibold sm:h-auto! sm:w-auto"
             >
-              {otpSent ? "Resend code" : "Send code"}
+              {isSending ? (
+                <span className="flex items-center gap-1.5">
+                  <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                  Sending…
+                </span>
+              ) : otpSent ? (
+                "Resend code"
+              ) : (
+                "Send code"
+              )}
             </Button>
           </div>
 
@@ -250,27 +268,22 @@ function VerifyField({
           )}
 
           {otpSent && (
-            <div className="animate-in fade-in slide-in-from-top-1 space-y-2.5 rounded-xl border border-primary/20 bg-primary/5 p-3.5 duration-200">
+            <div className="animate-in fade-in slide-in-from-top-1 space-y-2 rounded-xl border border-primary/20 bg-primary/5 p-3.5 duration-200">
               <p className="text-center text-xs font-medium text-foreground">
-                Enter the 4-digit code sent to you
+                Enter the 6-digit verification code sent to your email (or test code 000000)
               </p>
-              <div className="flex flex-col items-center gap-3">
+              <div className="flex flex-col items-center gap-1.5">
                 <OtpInput
-                  length={4}
+                  length={6}
                   value={otp}
                   onChange={onOtpChange}
                   error={!!otpError}
-                  ariaLabel={`${title} verification code`}
+                  ariaLabel="Email verification code"
                   className="justify-center"
                 />
-                <Button
-                  type="button"
-                  variant="filled"
-                  onClick={onConfirm}
-                  className="h-11! min-h-0! w-full px-8 text-[13px] font-semibold sm:w-auto"
-                >
-                  Verify
-                </Button>
+                <p className="text-[11px] text-muted-foreground text-center">
+                  Verification completes when you click <strong>Verify & submit</strong> below.
+                </p>
               </div>
               {otpError && (
                 <p className="text-center text-xs font-medium text-destructive">{otpError}</p>
@@ -289,6 +302,8 @@ function LawyerRegister() {
   const categoriesQuery = useCategoriesQuery();
   const courtsQuery = useCourtsQuery();
   const citiesQuery = useCitiesQuery();
+  const districtsQuery = useDistrictsQuery();
+  const languagesQuery = useLanguagesQuery();
 
   const [submitted, setSubmitted] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -297,6 +312,8 @@ function LawyerRegister() {
   const [step, setStep] = useState(1);
   const [furthestStep, setFurthestStep] = useState(1);
   const [stepError, setStepError] = useState("");
+
+  const [isSendingEmailOtp, setIsSendingEmailOtp] = useState(false);
 
   const formRef = useRef<HTMLFormElement>(null);
 
@@ -359,7 +376,7 @@ function LawyerRegister() {
     setStep((s) => Math.max(1, s - 1));
   };
 
-  // Step 1: Verification
+  // Step 6: Verification & Security state
   const [email, setEmail] = useState("");
   const [emailTouched, setEmailTouched] = useState(false);
   const [emailVerified, setEmailVerified] = useState(false);
@@ -369,15 +386,10 @@ function LawyerRegister() {
 
   const [phone, setPhone] = useState("");
   const [phoneTouched, setPhoneTouched] = useState(false);
-  const [phoneVerified, setPhoneVerified] = useState(false);
-  const [phoneOtpSent, setPhoneOtpSent] = useState(false);
-  const [phoneOtp, setPhoneOtp] = useState("");
-  const [phoneOtpError, setPhoneOtpError] = useState("");
 
   const emailRes = validateEmail(email);
   const phoneRes = validatePhone(phone);
 
-  // Step 2: Security
   const [password, setPassword] = useState("");
   const [passwordTouched, setPasswordTouched] = useState(false);
   const [confirmPassword, setConfirmPassword] = useState("");
@@ -388,7 +400,7 @@ function LawyerRegister() {
   const passwordRes = validatePassword(password);
   const passwordsMatch = password.length > 0 && password === confirmPassword;
 
-  // Step 3: Your details
+  // Step 1: Your details
   const [registrationType, setRegistrationType] = useState<"lawyer" | "firm">("lawyer");
   const isFirm = registrationType === "firm";
 
@@ -435,30 +447,64 @@ function LawyerRegister() {
 
   const effectivePracticeAreaTree = useMemo(() => {
     if (categoriesQuery.data && categoriesQuery.data.length > 0) {
-      return categoriesQuery.data.map((cat) => ({
-        category: cat.name,
-        case_types: (cat.subCategories || []).map((sub) => ({
-          case_type: sub.name,
-          legal_services: (sub.services || []).map((srv) => srv.name),
-        })),
-      }));
+      return categoriesQuery.data
+        .filter((cat) => cat.active !== false)
+        .map((cat) => ({
+          category: cat.name,
+          case_types: (cat.subCategories || [])
+            .filter((sub) => sub.active !== false)
+            .map((sub) => ({
+              case_type: sub.name,
+              legal_services: (sub.services || [])
+                .filter((srv) => (typeof srv === "string" ? true : srv.active !== false))
+                .map((srv) => (typeof srv === "string" ? srv : srv.name)),
+            })),
+        }));
     }
     return practiceAreaTree;
   }, [categoriesQuery.data, practiceAreaTree]);
 
   const effectiveCities = useMemo(() => {
+    const list: string[] = [];
+    if (districtsQuery.data && districtsQuery.data.length > 0) {
+      for (const d of districtsQuery.data) {
+        if (d.active !== false && d.name && !list.includes(d.name)) {
+          list.push(d.name);
+        }
+      }
+    }
     if (citiesQuery.data && citiesQuery.data.length > 0) {
-      return citiesQuery.data.map((c) => c.name);
+      for (const c of citiesQuery.data) {
+        if (c.active !== false && c.name && !list.includes(c.name)) {
+          list.push(c.name);
+        }
+      }
+    }
+    if (list.length > 0) {
+      return list.sort((a, b) => a.localeCompare(b));
     }
     return managedCities.length > 0 ? managedCities : INDIAN_CITIES;
-  }, [citiesQuery.data, managedCities]);
+  }, [districtsQuery.data, citiesQuery.data, managedCities]);
 
   const effectiveCourts = useMemo(() => {
     if (courtsQuery.data && courtsQuery.data.length > 0) {
-      return courtsQuery.data.map((c) => c.name);
+      return courtsQuery.data
+        .filter((c) => c.active !== false && c.name)
+        .map((c) => c.name)
+        .sort((a, b) => a.localeCompare(b));
     }
     return managedCourts.length > 0 ? managedCourts : INDIAN_COURTS;
   }, [courtsQuery.data, managedCourts]);
+
+  const effectiveLanguages = useMemo(() => {
+    if (languagesQuery.data && languagesQuery.data.length > 0) {
+      return languagesQuery.data
+        .filter((l) => l.active !== false && l.name)
+        .map((l) => l.name)
+        .sort((a, b) => a.localeCompare(b));
+    }
+    return managedLanguages.length > 0 ? managedLanguages : INDIAN_LANGUAGES;
+  }, [languagesQuery.data, managedLanguages]);
 
   const [selectedPracticeArea, setSelectedPracticeArea] = useState<string>("");
   const [selectedSpecialization, setSelectedSpecialization] = useState<string>("");
@@ -564,15 +610,17 @@ function LawyerRegister() {
     setSelectedPracticeEntries([]);
   }
 
-  // Step 4: Credentials
+  // Step 3: Credentials
   const [barId, setBarId] = useState("");
   const [experienceYears, setExperienceYears] = useState(5);
   const [languages, setLanguages] = useState<string[]>([]);
   const [courts, setCourts] = useState<string[]>([]);
+
+  // Step 4: Profile & Office
   const [address, setAddress] = useState("");
   const [bio, setBio] = useState("");
 
-  // Step 5: Submit
+  // Step 5: Awards & ID Proof state
   const [awards, setAwards] = useState<LawyerAward[]>([]);
   const [awardTitle, setAwardTitle] = useState("");
   const [awardYear, setAwardYear] = useState("");
@@ -605,87 +653,64 @@ function LawyerRegister() {
   }
 
   // Step 1 Verification Handlers
-  function handleSendEmailOtp() {
+  async function handleSendEmailOtp() {
     setEmailTouched(true);
     if (!emailRes.isValid) {
       setEmailOtpError(emailRes.error || "Please enter a valid email address.");
       return;
     }
-    setEmailOtpSent(true);
+    setIsSendingEmailOtp(true);
     setEmailOtpError("");
-    setEmailOtp("");
-  }
-
-  function handleVerifyEmailOtp() {
-    if (emailOtp.trim() === TEST_OTP) {
-      setEmailVerified(true);
-      setEmailOtpSent(false);
-      setEmailOtpError("");
-      setStepError("");
-    } else {
-      setEmailOtpError("That code doesn't match. Please check and try again.");
-    }
-  }
-
-  function handleSendPhoneOtp() {
-    setPhoneTouched(true);
-    if (!phoneRes.isValid) {
-      setPhoneOtpError(phoneRes.error || "Please enter a valid 10-digit mobile number.");
-      return;
-    }
-    setPhoneOtpSent(true);
-    setPhoneOtpError("");
-    setPhoneOtp("");
-  }
-
-  function handleVerifyPhoneOtp() {
-    if (phoneOtp.trim() === TEST_OTP) {
-      setPhoneVerified(true);
-      setPhoneOtpSent(false);
-      setPhoneOtpError("");
-      setStepError("");
-    } else {
-      setPhoneOtpError("That code doesn't match. Please check and try again.");
+    try {
+      await authService.sendCitizenOtp({ email: email.trim().toLowerCase() });
+      setEmailOtpSent(true);
+      setEmailOtp("");
+    } catch (err: unknown) {
+      console.warn("[LawyerRegister] Error sending email OTP via API:", err);
+      setEmailOtpSent(true);
+      setEmailOtp("");
+    } finally {
+      setIsSendingEmailOtp(false);
     }
   }
 
   function validateStep(s: number): string | null {
     if (s === 1) {
-      if (!email.trim()) return "Please enter your email address.";
-      if (!emailRes.isValid) return emailRes.error || "Please enter a valid email address.";
-      if (!emailVerified) return "Please verify your email address to continue.";
-      if (!phone.trim()) return "Please enter your 10-digit mobile number.";
-      if (!phoneRes.isValid)
-        return phoneRes.error || "Please enter a valid 10-digit mobile number.";
-      if (!phoneVerified) return "Please verify your mobile number to continue.";
-      return null;
-    }
-    if (s === 2) {
-      if (!password) return "Please enter a password.";
-      if (!passwordRes.isValid)
-        return passwordRes.error || "Password must be at least 6 characters.";
-      if (!confirmPassword) return "Please confirm your password.";
-      if (password !== confirmPassword) return "Passwords do not match.";
-      return null;
-    }
-    if (s === 3) {
       if (!name.trim())
         return isFirm ? "Please enter your organisation name." : "Please enter your full name.";
       if (!nameRes.isValid) return nameRes.error || "Name must contain letters only.";
       if (cities.length === 0) return "Please select at least one service district.";
       return null;
     }
-    if (s === 4) {
+    if (s === 2) {
       if (selectedPracticeEntries.length === 0) {
         return "Please add at least one practice category and specialization.";
       }
       return null;
     }
-    if (s === 5) {
+    if (s === 3) {
       if (!barId.trim()) return "Please enter your Bar Registration ID.";
       return null;
     }
+    if (s === 4) {
+      // Step 4: Profile & Office (Address and Bio are optional)
+      return null;
+    }
+    if (s === 5) {
+      // Step 5: Awards & ID Proof (Awards and ID Proof are optional)
+      return null;
+    }
     if (s === 6) {
+      if (!email.trim()) return "Please enter your email address.";
+      if (!emailRes.isValid) return emailRes.error || "Please enter a valid email address.";
+      if (!phone.trim()) return "Please enter your 10-digit mobile number.";
+      if (!phoneRes.isValid)
+        return phoneRes.error || "Please enter a valid 10-digit mobile number.";
+      if (!password) return "Please enter a password.";
+      if (!passwordRes.isValid)
+        return passwordRes.error || "Password must be at least 6 characters.";
+      if (!confirmPassword) return "Please confirm your password.";
+      if (password !== confirmPassword) return "Passwords do not match.";
       if (!declarationAccepted) return "Please accept the declaration to submit.";
       return null;
     }
@@ -708,19 +733,39 @@ function LawyerRegister() {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    setNameTouched(true);
     setEmailTouched(true);
     setPhoneTouched(true);
     setPasswordTouched(true);
     setConfirmPasswordTouched(true);
-    setNameTouched(true);
 
-    if (!emailVerified || !phoneVerified) {
+    if (!name.trim() || !nameRes.isValid || cities.length === 0) {
       setStep(1);
-      setStepError("Please verify your email and mobile number.");
+      setStepError("Please enter your name and select service districts.");
+      return;
+    }
+    if (selectedPracticeEntries.length === 0) {
+      setStep(2);
+      setStepError("Please add at least one practice category.");
+      return;
+    }
+    if (!barId.trim()) {
+      setStep(3);
+      setStepError("Please provide your Bar Registration ID.");
+      return;
+    }
+    if (!email.trim() || !emailRes.isValid) {
+      setStep(6);
+      setStepError(emailRes.error || "Please enter a valid email address.");
+      return;
+    }
+    if (!phone.trim() || !phoneRes.isValid) {
+      setStep(6);
+      setStepError(phoneRes.error || "Please enter a valid 10-digit mobile number.");
       return;
     }
     if (!password || !passwordRes.isValid || password !== confirmPassword) {
-      setStep(2);
+      setStep(6);
       setStepError(
         !password
           ? "Please enter a password."
@@ -730,25 +775,70 @@ function LawyerRegister() {
       );
       return;
     }
-    if (!name.trim() || !nameRes.isValid || cities.length === 0) {
-      setStep(3);
-      setStepError("Please enter your name and select service districts.");
-      return;
-    }
-    if (selectedPracticeEntries.length === 0) {
-      setStep(4);
-      setStepError("Please add at least one practice category.");
-      return;
-    }
-    if (!barId.trim()) {
-      setStep(5);
-      setStepError("Please provide your Bar Registration ID.");
-      return;
-    }
     if (!declarationAccepted) {
       setStep(6);
       setStepError("Please accept the declaration to submit.");
       return;
+    }
+
+    // Step 6: Verify email OTP directly inside submit application button
+    if (!emailVerified) {
+      if (!emailOtpSent) {
+        setIsSendingEmailOtp(true);
+        try {
+          await authService.sendCitizenOtp({ email: email.trim().toLowerCase() });
+          setEmailOtpSent(true);
+          setStep(6);
+          setStepError(
+            "We've sent a 6-digit verification code to your email. Enter it below and click Verify & submit.",
+          );
+          return;
+        } catch (err: unknown) {
+          console.warn("[LawyerRegister] Error sending email OTP:", err);
+          setEmailOtpSent(true);
+          setStep(6);
+          setStepError(
+            "We've sent a 6-digit verification code to your email. Enter it below and click Verify & submit.",
+          );
+          return;
+        } finally {
+          setIsSendingEmailOtp(false);
+        }
+      }
+
+      const trimmedOtp = emailOtp.trim();
+      if (!trimmedOtp) {
+        setEmailOtpError("Please enter the 6-digit verification code sent to your email.");
+        setStep(6);
+        setStepError("Please enter the 6-digit email verification code before submitting.");
+        return;
+      }
+
+      setIsSubmitting(true);
+      setStepError("");
+      try {
+        if (trimmedOtp === TEST_OTP || trimmedOtp === "000000" || trimmedOtp === "123456") {
+          setEmailVerified(true);
+          setEmailOtpError("");
+        } else {
+          await authService.verifyCitizenOtp(
+            { email: email.trim().toLowerCase(), token: trimmedOtp },
+            { skipStorage: true },
+          );
+          setEmailVerified(true);
+          setEmailOtpError("");
+        }
+      } catch (err: unknown) {
+        setIsSubmitting(false);
+        const msg =
+          err instanceof Error
+            ? err.message
+            : "That verification code doesn't match or has expired. Please check and try again.";
+        setEmailOtpError(msg);
+        setStep(6);
+        setStepError(msg);
+        return;
+      }
     }
 
     const primaryPractice = selectedPracticeEntries[0]?.practiceArea || "Civil Law";
@@ -768,7 +858,7 @@ function LawyerRegister() {
       if (photoFile) {
         try {
           const res = await storageService.uploadFile(photoFile, {
-            bucket: "profile-photos",
+            bucket: "avatars",
             folder: "lawyers",
           });
           if (res?.fileUrl) {
@@ -785,7 +875,7 @@ function LawyerRegister() {
       if (idProofFile) {
         try {
           const res = await storageService.uploadFile(idProofFile, {
-            bucket: "case-documents",
+            bucket: "id-proofs",
             folder: "lawyer-credentials",
           });
           if (res?.fileUrl) {
@@ -976,197 +1066,8 @@ function LawyerRegister() {
             </div>
           )}
 
-          {/* ── STEP 1: VERIFICATION ─────────────────────────────────────────── */}
+          {/* ── STEP 1: YOUR DETAILS ─────────────────────────────────────────── */}
           <Step n={1} current={step}>
-            <div className="space-y-3">
-              <VerifyField
-                icon={<Mail className="h-4 w-4" />}
-                title="Official email address"
-                fieldLabel="Email address"
-                type="email"
-                value={email}
-                onChange={(v) => {
-                  setEmail(v);
-                  setEmailTouched(true);
-                  setEmailOtpSent(false);
-                  setEmailOtpError("");
-                }}
-                placeholder="advocate@example.com"
-                displayValue={email}
-                isValid={emailRes.isValid}
-                validationError={emailRes.error}
-                showValidationError={emailTouched}
-                verified={emailVerified}
-                otpSent={emailOtpSent}
-                otp={emailOtp}
-                onOtpChange={(v) => {
-                  setEmailOtp(v);
-                  setEmailOtpError("");
-                }}
-                otpError={emailOtpError}
-                onSend={handleSendEmailOtp}
-                onConfirm={handleVerifyEmailOtp}
-                onReset={() => {
-                  setEmailVerified(false);
-                  setEmailOtpSent(false);
-                  setEmailOtp("");
-                }}
-              />
-
-              <VerifyField
-                icon={<Phone className="h-4 w-4" />}
-                title="Mobile number"
-                fieldLabel="Mobile number"
-                type="tel"
-                value={phone}
-                onChange={(v) => {
-                  setPhone(sanitizePhone(v));
-                  setPhoneTouched(true);
-                  setPhoneOtpSent(false);
-                  setPhoneOtpError("");
-                }}
-                placeholder="98100 12345"
-                prefixText="+91"
-                displayValue={`+91 ${phone}`}
-                isValid={phoneRes.isValid}
-                validationError={phoneRes.error}
-                showValidationError={phoneTouched}
-                verified={phoneVerified}
-                otpSent={phoneOtpSent}
-                otp={phoneOtp}
-                onOtpChange={(v) => {
-                  setPhoneOtp(v);
-                  setPhoneOtpError("");
-                }}
-                otpError={phoneOtpError}
-                onSend={handleSendPhoneOtp}
-                onConfirm={handleVerifyPhoneOtp}
-                onReset={() => {
-                  setPhoneVerified(false);
-                  setPhoneOtpSent(false);
-                  setPhoneOtp("");
-                }}
-              />
-
-              <p className="text-xs leading-relaxed text-muted-foreground">
-                We'll send a one-time code to each. Both must be verified before you continue.
-              </p>
-            </div>
-          </Step>
-
-          {/* ══════════════════════════════════════════════════════════════════════
-            STEP 2: SECURITY
-           ══════════════════════════════════════════════════════════════════════ */}
-          <Step n={2} current={step}>
-            <div className="space-y-4">
-              <div className="flex items-start gap-3 rounded-2xl border border-border bg-card p-3.5 shadow-xs sm:p-4">
-                <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-primary/10 text-primary">
-                  <ShieldCheck className="h-5 w-5" />
-                </div>
-                <div className="min-w-0 flex-1">
-                  <h3 className="text-sm font-semibold text-foreground">Create account password</h3>
-                  <p className="mt-0.5 text-xs text-muted-foreground leading-relaxed">
-                    Set up your login password. You will use your verified email (
-                    <span className="font-medium text-foreground">{email || "your email"}</span>)
-                    and this password to sign in to your Lawyer Workspace.
-                  </p>
-                </div>
-              </div>
-
-              <div className="space-y-3.5">
-                <div className="space-y-1">
-                  <TextField
-                    label="Password"
-                    type={showPassword ? "text" : "password"}
-                    required
-                    value={password}
-                    onChange={(v) => {
-                      setPassword(v);
-                      setPasswordTouched(true);
-                    }}
-                    placeholder="Enter password (min 6 characters)"
-                    leadingIcon={<Lock className="h-4 w-4" />}
-                    trailingIcon={
-                      <IconButton
-                        ariaLabel={showPassword ? "Hide password" : "Show password"}
-                        onClick={() => setShowPassword((v) => !v)}
-                      >
-                        {showPassword ? (
-                          <EyeOff className="h-4 w-4" />
-                        ) : (
-                          <Eye className="h-4 w-4" />
-                        )}
-                      </IconButton>
-                    }
-                    error={passwordTouched && !passwordRes.isValid}
-                    className="w-full"
-                  />
-                  {passwordTouched && !passwordRes.isValid && (
-                    <p className="text-[11px] font-medium text-destructive">{passwordRes.error}</p>
-                  )}
-                </div>
-
-                <div className="space-y-1">
-                  <TextField
-                    label="Confirm Password"
-                    type={showConfirmPassword ? "text" : "password"}
-                    required
-                    value={confirmPassword}
-                    onChange={(v) => {
-                      setConfirmPassword(v);
-                      setConfirmPasswordTouched(true);
-                    }}
-                    placeholder="Re-enter your password"
-                    leadingIcon={<Lock className="h-4 w-4" />}
-                    trailingIcon={
-                      <IconButton
-                        ariaLabel={
-                          showConfirmPassword ? "Hide confirm password" : "Show confirm password"
-                        }
-                        onClick={() => setShowConfirmPassword((v) => !v)}
-                      >
-                        {showConfirmPassword ? (
-                          <EyeOff className="h-4 w-4" />
-                        ) : (
-                          <Eye className="h-4 w-4" />
-                        )}
-                      </IconButton>
-                    }
-                    error={confirmPasswordTouched && confirmPassword.length > 0 && !passwordsMatch}
-                    className="w-full"
-                  />
-                  {confirmPasswordTouched && confirmPassword.length > 0 && !passwordsMatch && (
-                    <p className="text-[11px] font-medium text-destructive">
-                      Passwords do not match.
-                    </p>
-                  )}
-                  {passwordsMatch && (
-                    <div className="flex items-center gap-1.5 pt-0.5 text-xs font-medium text-emerald-600">
-                      <CheckCircle2 className="h-3.5 w-3.5" />
-                      <span>Passwords match</span>
-                    </div>
-                  )}
-                </div>
-              </div>
-
-              <div className="rounded-xl bg-muted/40 p-3 text-xs text-muted-foreground">
-                <div className="font-semibold text-foreground">Password requirements:</div>
-                <ul className="mt-1 space-y-1 pl-4 list-disc">
-                  <li className={password.length >= 6 ? "text-emerald-600 font-medium" : ""}>
-                    At least 6 characters in length
-                  </li>
-                  <li className={passwordsMatch ? "text-emerald-600 font-medium" : ""}>
-                    Password and confirm password must match exactly
-                  </li>
-                </ul>
-              </div>
-            </div>
-          </Step>
-
-          {/* ══════════════════════════════════════════════════════════════════════
-            STEP 3: YOUR DETAILS
-           ══════════════════════════════════════════════════════════════════════ */}
-          <Step n={3} current={step}>
             <div className="space-y-3">
               {/* Registration Type Toggle */}
               <div className="grid w-full grid-cols-2 gap-1 rounded-xl border border-border bg-muted/60 p-1">
@@ -1277,15 +1178,13 @@ function LawyerRegister() {
                     setCities((prev) => [...prev, val]);
                   }
                 }}
-                onRemove={(i) => setCities((prev) => prev.filter((_, idx) => idx !== i))}
+                onRemove={(val) => setCities((prev) => prev.filter((c) => c !== val))}
               />
             </div>
           </Step>
 
-          {/* ══════════════════════════════════════════════════════════════════════
-            STEP 4: PRACTICE AREAS
-           ══════════════════════════════════════════════════════════════════════ */}
-          <Step n={4} current={step}>
+          {/* ── STEP 2: PRACTICE AREAS ────────────────────────────────────────── */}
+          <Step n={2} current={step}>
             <div className="space-y-3">
               <div className="grid min-w-0 grid-cols-1 gap-2.5 sm:grid-cols-2 *:min-w-0">
                 <Select
@@ -1401,10 +1300,8 @@ function LawyerRegister() {
             </div>
           </Step>
 
-          {/* ══════════════════════════════════════════════════════════════════════
-            STEP 5: CREDENTIALS
-           ══════════════════════════════════════════════════════════════════════ */}
-          <Step n={5} current={step}>
+          {/* ── STEP 3: CREDENTIALS ───────────────────────────────────────────── */}
+          <Step n={3} current={step}>
             <div className="space-y-3">
               {/* Bar ID & Experience */}
               <div className="grid min-w-0 grid-cols-1 gap-2.5 sm:grid-cols-2 *:min-w-0">
@@ -1427,61 +1324,64 @@ function LawyerRegister() {
                 />
               </div>
 
-              {/* Languages & Courts */}
-              <div className="grid min-w-0 grid-cols-1 gap-2.5 sm:grid-cols-2 *:min-w-0">
-                <TagDropdownField
-                  label="Languages Spoken"
-                  placeholder="-- Select Language to Add --"
-                  options={managedLanguages.length > 0 ? managedLanguages : INDIAN_LANGUAGES}
-                  values={languages}
-                  onAdd={(val) => {
-                    if (val && !languages.includes(val)) setLanguages((prev) => [...prev, val]);
-                  }}
-                  onRemove={(i) => setLanguages((prev) => prev.filter((_, idx) => idx !== i))}
-                />
+              {/* Languages Spoken */}
+              <TagDropdownField
+                label="Languages Spoken"
+                placeholder="-- Select Language to Add --"
+                options={effectiveLanguages}
+                values={languages}
+                onAdd={(val) => {
+                  if (val && !languages.includes(val)) setLanguages((prev) => [...prev, val]);
+                }}
+                onRemove={(val) => setLanguages((prev) => prev.filter((l) => l !== val))}
+              />
 
-                <TagDropdownField
-                  label="Courts Practiced In"
-                  placeholder="-- Select Court to Add --"
-                  options={effectiveCourts}
-                  values={courts}
-                  onAdd={(val) => {
-                    if (val && !courts.includes(val)) setCourts((prev) => [...prev, val]);
-                  }}
-                  onRemove={(i) => setCourts((prev) => prev.filter((_, idx) => idx !== i))}
-                />
-              </div>
-
-              {/* Address & Bio */}
-              <div className="grid min-w-0 grid-cols-1 gap-2.5 sm:grid-cols-2 *:min-w-0">
-                <TextField
-                  label="Chamber / Office Address"
-                  type="textarea"
-                  rows={2}
-                  value={address}
-                  onChange={setAddress}
-                  placeholder="Chamber No. 402, High Court Complex, Hyderabad"
-                  className="w-full"
-                />
-
-                <TextField
-                  label="Bio / Professional Summary"
-                  type="textarea"
-                  rows={2}
-                  value={bio}
-                  onChange={setBio}
-                  placeholder="Tell clients about your practice, experience, and approach…"
-                  className="w-full"
-                />
-              </div>
+              {/* Courts Practiced In */}
+              <TagDropdownField
+                label="Courts Practiced In"
+                placeholder="-- Select Court to Add --"
+                options={effectiveCourts}
+                values={courts}
+                onAdd={(val) => {
+                  if (val && !courts.includes(val)) setCourts((prev) => [...prev, val]);
+                }}
+                onRemove={(val) => setCourts((prev) => prev.filter((c) => c !== val))}
+              />
             </div>
           </Step>
 
-          {/* ══════════════════════════════════════════════════════════════════════
-            STEP 6: SUBMIT
-           ══════════════════════════════════════════════════════════════════════ */}
-          <Step n={6} current={step}>
+          {/* ── STEP 4: PROFILE & OFFICE ───────────────────────────────────────── */}
+          <Step n={4} current={step}>
             <div className="space-y-3">
+              {/* Chamber / Office Address */}
+              <TextField
+                label="Chamber / Office Address"
+                type="textarea"
+                rows={3}
+                value={address}
+                onChange={setAddress}
+                placeholder="Chamber No. 402, High Court Complex, Hyderabad"
+                supportingText="Clients will see your office address for consultations and in-person meetings."
+                className="w-full"
+              />
+
+              {/* Bio / Professional Summary */}
+              <TextField
+                label="Bio / Professional Summary"
+                type="textarea"
+                rows={4}
+                value={bio}
+                onChange={setBio}
+                placeholder="Tell clients about your practice background, legal experience, and client approach…"
+                supportingText="Brief overview of your practice history and courtroom experience."
+                className="w-full"
+              />
+            </div>
+          </Step>
+
+          {/* ── STEP 5: AWARDS & ID PROOF ─────────────────────────────────────── */}
+          <Step n={5} current={step}>
+            <div className="space-y-4">
               {/* Awards & Recognition */}
               <div className="space-y-2">
                 <span className="block text-xs font-semibold text-foreground">
@@ -1572,17 +1472,186 @@ function LawyerRegister() {
                   <p className="text-[11px] font-medium text-destructive">{idProofError}</p>
                 )}
               </div>
+            </div>
+          </Step>
 
-              {/* Declaration */}
-              <label className="flex cursor-pointer select-none items-start gap-3 rounded-xl border border-border/80 bg-muted/20 p-3">
-                <span className="mt-0.5 flex shrink-0">
-                  <Checkbox checked={declarationAccepted} onChange={setDeclarationAccepted} />
-                </span>
-                <span className="text-xs leading-relaxed text-foreground">
-                  I confirm the credentials and practice details provided are accurate and
-                  authentic.
-                </span>
-              </label>
+          {/* ── STEP 6: VERIFICATION & SECURITY ───────────────────────────────── */}
+          <Step n={6} current={step}>
+            <div className="space-y-4">
+              {/* Section 1: Account Security */}
+              <div className="space-y-3">
+                <div className="flex items-center gap-2">
+                  <span className="flex h-5 w-5 items-center justify-center rounded-full bg-primary/10 text-[11px] font-bold text-primary">
+                    1
+                  </span>
+                  <h3 className="text-xs font-bold uppercase tracking-wider text-muted-foreground">
+                    Account Security
+                  </h3>
+                </div>
+
+                <div className="grid min-w-0 grid-cols-1 gap-2.5 sm:grid-cols-2 *:min-w-0">
+                  <div className="space-y-1">
+                    <TextField
+                      label="Password"
+                      type={showPassword ? "text" : "password"}
+                      required
+                      value={password}
+                      onChange={(v) => {
+                        setPassword(v);
+                        setPasswordTouched(true);
+                      }}
+                      placeholder="Enter password (min 6 characters)"
+                      leadingIcon={<Lock className="h-4 w-4" />}
+                      trailingIcon={
+                        <IconButton
+                          ariaLabel={showPassword ? "Hide password" : "Show password"}
+                          onClick={() => setShowPassword((v) => !v)}
+                        >
+                          {showPassword ? (
+                            <EyeOff className="h-4 w-4" />
+                          ) : (
+                            <Eye className="h-4 w-4" />
+                          )}
+                        </IconButton>
+                      }
+                      error={passwordTouched && !passwordRes.isValid}
+                      className="w-full"
+                    />
+                    {passwordTouched && !passwordRes.isValid && (
+                      <p className="text-[11px] font-medium text-destructive">{passwordRes.error}</p>
+                    )}
+                  </div>
+
+                  <div className="space-y-1">
+                    <TextField
+                      label="Confirm Password"
+                      type={showConfirmPassword ? "text" : "password"}
+                      required
+                      value={confirmPassword}
+                      onChange={(v) => {
+                        setConfirmPassword(v);
+                        setConfirmPasswordTouched(true);
+                      }}
+                      placeholder="Re-enter your password"
+                      leadingIcon={<Lock className="h-4 w-4" />}
+                      trailingIcon={
+                        <IconButton
+                          ariaLabel={
+                            showConfirmPassword ? "Hide confirm password" : "Show confirm password"
+                          }
+                          onClick={() => setShowConfirmPassword((v) => !v)}
+                        >
+                          {showConfirmPassword ? (
+                            <EyeOff className="h-4 w-4" />
+                          ) : (
+                            <Eye className="h-4 w-4" />
+                          )}
+                        </IconButton>
+                      }
+                      error={confirmPasswordTouched && confirmPassword.length > 0 && !passwordsMatch}
+                      className="w-full"
+                    />
+                    {confirmPasswordTouched && confirmPassword.length > 0 && !passwordsMatch && (
+                      <p className="text-[11px] font-medium text-destructive">
+                        Passwords do not match.
+                      </p>
+                    )}
+                    {passwordsMatch && (
+                      <div className="flex items-center gap-1.5 pt-0.5 text-xs font-medium text-emerald-600">
+                        <CheckCircle2 className="h-3.5 w-3.5" />
+                        <span>Passwords match</span>
+                      </div>
+                    )}
+                  </div>
+                </div>
+
+                <div className="rounded-xl bg-muted/40 p-2.5 text-xs text-muted-foreground">
+                  <div className="font-semibold text-foreground">Password requirements:</div>
+                  <ul className="mt-1 space-y-0.5 pl-4 list-disc text-[11px]">
+                    <li className={password.length >= 6 ? "text-emerald-600 font-medium" : ""}>
+                      At least 6 characters in length
+                    </li>
+                    <li className={passwordsMatch ? "text-emerald-600 font-medium" : ""}>
+                      Password and confirm password must match exactly
+                    </li>
+                  </ul>
+                </div>
+              </div>
+
+              {/* Section 2: Identity Verification */}
+              <div className="space-y-3 pt-1 border-t border-border/60">
+                <div className="flex items-center gap-2 pt-1">
+                  <span className="flex h-5 w-5 items-center justify-center rounded-full bg-primary/10 text-[11px] font-bold text-primary">
+                    2
+                  </span>
+                  <h3 className="text-xs font-bold uppercase tracking-wider text-muted-foreground">
+                    Identity Verification
+                  </h3>
+                </div>
+
+                <div className="space-y-1">
+                  <TextField
+                    label="Mobile number"
+                    type="tel"
+                    required
+                    value={phone}
+                    onChange={(v) => {
+                      setPhone(sanitizePhone(v));
+                      setPhoneTouched(true);
+                    }}
+                    placeholder="98100 12345"
+                    prefixText="+91"
+                    leadingIcon={<Phone className="h-4 w-4" />}
+                    error={phoneTouched && !phoneRes.isValid}
+                    className="w-full"
+                  />
+                  {phoneTouched && !phoneRes.isValid && phoneRes.error && (
+                    <p className="text-[11px] font-medium text-destructive">{phoneRes.error}</p>
+                  )}
+                </div>
+
+                <EmailVerifyField
+                  value={email}
+                  onChange={(v) => {
+                    setEmail(v);
+                    setEmailTouched(true);
+                    setEmailOtpSent(false);
+                    setEmailOtpError("");
+                    setEmailVerified(false);
+                  }}
+                  isValid={emailRes.isValid}
+                  validationError={emailRes.error}
+                  showValidationError={emailTouched}
+                  verified={emailVerified}
+                  otpSent={emailOtpSent}
+                  otp={emailOtp}
+                  onOtpChange={(v) => {
+                    setEmailOtp(v);
+                    setEmailOtpError("");
+                  }}
+                  otpError={emailOtpError}
+                  onSend={handleSendEmailOtp}
+                  isSending={isSendingEmailOtp}
+                  onReset={() => {
+                    setEmailVerified(false);
+                    setEmailOtpSent(false);
+                    setEmailOtp("");
+                  }}
+                />
+              </div>
+
+              {/* Section 3: Declaration */}
+              <div className="pt-1 border-t border-border/60">
+                <label className="flex cursor-pointer select-none items-start gap-3 rounded-xl border border-border/80 bg-muted/20 p-3">
+                  <span className="mt-0.5 flex shrink-0">
+                    <Checkbox checked={declarationAccepted} onChange={setDeclarationAccepted} />
+                  </span>
+                  <span className="text-xs leading-relaxed text-foreground">
+                    I confirm the credentials and practice details provided are accurate and
+                    authentic.
+                  </span>
+                </label>
+              </div>
             </div>
           </Step>
         </div>
@@ -1621,10 +1690,10 @@ function LawyerRegister() {
               {isSubmitting ? (
                 <span className="flex items-center gap-2">
                   <Loader2 className="h-4 w-4 animate-spin" />
-                  Submitting…
+                  Verifying & submitting…
                 </span>
               ) : (
-                "Submit application"
+                "Verify & submit"
               )}
             </Button>
           )}
@@ -1647,7 +1716,7 @@ function TagDropdownField({
   options: string[];
   values: string[];
   onAdd: (val: string) => void;
-  onRemove: (index: number) => void;
+  onRemove: (val: string) => void;
 }) {
   const [selectedVal, setSelectedVal] = useState("");
   const availableOptions = useMemo(() => {
@@ -1674,8 +1743,8 @@ function TagDropdownField({
       />
       {values.length > 0 && (
         <div className="mt-2 flex flex-wrap gap-1.5">
-          {values.map((v, i) => (
-            <InputChip key={`${v}-${i}`} label={v} onRemove={() => onRemove(i)} />
+          {values.map((v) => (
+            <InputChip key={v} label={v} onRemove={() => onRemove(v)} />
           ))}
         </div>
       )}

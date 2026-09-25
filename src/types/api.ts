@@ -165,6 +165,7 @@ export interface MasterLegalService {
   code: string;
   description?: string;
   baseFee?: number;
+  active?: boolean;
 }
 
 export interface MasterSpecialization {
@@ -173,6 +174,7 @@ export interface MasterSpecialization {
   name: string;
   code: string;
   description?: string;
+  active?: boolean;
   services?: MasterLegalService[];
 }
 
@@ -204,6 +206,18 @@ export interface MasterCity {
   id: string;
   name: string;
   state?: string;
+  stateId?: string;
+  districtId?: string;
+  tier?: string;
+  active?: boolean;
+}
+
+export interface MasterLanguage {
+  id: string;
+  name: string;
+  nativeName?: string;
+  code: string;
+  active?: boolean;
 }
 
 // ============================================================================
@@ -470,6 +484,8 @@ export interface MasterDistrict {
   id: string;
   stateId: string;
   name: string;
+  state?: string;
+  active?: boolean;
 }
 
 // ============================================================================

@@ -1,10 +1,11 @@
 import { Link } from "@tanstack/react-router";
-import { LogIn, Scale } from "lucide-react";
+import { Briefcase, LogIn, Scale, ShieldCheck, User } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { FILLED_LINK_BUTTON_CLASS } from "@/components/m3";
 import { CitizenLanguageButtons } from "@/features/citizen/CitizenLanguageButtons";
 import { useCitizenLanguage } from "@/features/citizen/i18n/CitizenLanguageContext";
 import { HERO_TRUST_POINTS } from "@/landing-page/constants";
+import { useLandingAuth } from "@/hooks/useLandingAuth";
 
 const HERO_SOCIAL_LINKS = [
   {
@@ -43,6 +44,7 @@ const HERO_SOCIAL_LINKS = [
 
 export function Hero() {
   const { translate } = useCitizenLanguage();
+  const { isCitizen, isLawyer, isAdmin } = useLandingAuth();
   const heroTitleParts = translate("heroTitle").split(",");
 
   return (
@@ -122,8 +124,9 @@ export function Hero() {
           </p>
 
           <div className="mt-9 flex flex-col items-stretch gap-4 sm:flex-row sm:items-center">
+            {/* Button 1: ALWAYS File a Case (citizen route, autologins to /citizen if citizen is logged in) */}
             <Link
-              to="/citizen-login"
+              to={isCitizen ? "/citizen" : "/citizen-login"}
               className={cn(
                 FILLED_LINK_BUTTON_CLASS,
                 "!rounded-full !bg-gradient-to-br !from-[#e8d5a3] !via-[#d4af37] !to-[#b8942a] !px-8 !py-3.5 !text-sm font-semibold !text-slate-950 shadow-lg shadow-[#d4af37]/25 transition-all hover:!from-[#f0e0b0] hover:!to-[#c9a84c] active:scale-[0.98] justify-center shrink-0",
@@ -132,13 +135,41 @@ export function Hero() {
               <Scale className="h-4 w-4 shrink-0" aria-hidden />
               File a Case
             </Link>
-            <Link
-              to="/lawyer-register"
-              className="group inline-flex w-full items-center justify-center gap-1.5 rounded-full border border-[#d4af37]/40 bg-white/[0.03] px-5 py-2.5 text-xs font-semibold text-[#e8d5a3] backdrop-blur-sm transition-all hover:border-[#d4af37] hover:bg-[#d4af37]/10 hover:text-white active:scale-[0.98] sm:w-auto sm:shrink-0"
-            >
-              <LogIn className="h-3.5 w-3.5 shrink-0 transition-transform group-hover:translate-x-0.5" />
-              Register as Lawyer
-            </Link>
+
+            {/* Button 2: Lawyer / Dashboard action (autologins lawyer to /lawyer if logged in) */}
+            {isLawyer ? (
+              <Link
+                to="/lawyer"
+                className="group inline-flex w-full items-center justify-center gap-1.5 rounded-full border border-[#d4af37]/40 bg-white/[0.03] px-5 py-2.5 text-xs font-semibold text-[#e8d5a3] backdrop-blur-sm transition-all hover:border-[#d4af37] hover:bg-[#d4af37]/10 hover:text-white active:scale-[0.98] sm:w-auto sm:shrink-0"
+              >
+                <Briefcase className="h-3.5 w-3.5 shrink-0" />
+                Lawyer Dashboard
+              </Link>
+            ) : isCitizen ? (
+              <Link
+                to="/citizen"
+                className="group inline-flex w-full items-center justify-center gap-1.5 rounded-full border border-[#d4af37]/40 bg-white/[0.03] px-5 py-2.5 text-xs font-semibold text-[#e8d5a3] backdrop-blur-sm transition-all hover:border-[#d4af37] hover:bg-[#d4af37]/10 hover:text-white active:scale-[0.98] sm:w-auto sm:shrink-0"
+              >
+                <User className="h-3.5 w-3.5 shrink-0 transition-transform group-hover:translate-x-0.5" />
+                Citizen Dashboard
+              </Link>
+            ) : isAdmin ? (
+              <Link
+                to="/admin"
+                className="group inline-flex w-full items-center justify-center gap-1.5 rounded-full border border-[#d4af37]/40 bg-white/[0.03] px-5 py-2.5 text-xs font-semibold text-[#e8d5a3] backdrop-blur-sm transition-all hover:border-[#d4af37] hover:bg-[#d4af37]/10 hover:text-white active:scale-[0.98] sm:w-auto sm:shrink-0"
+              >
+                <ShieldCheck className="h-3.5 w-3.5 shrink-0" />
+                Admin Dashboard
+              </Link>
+            ) : (
+              <Link
+                to="/lawyer-register"
+                className="group inline-flex w-full items-center justify-center gap-1.5 rounded-full border border-[#d4af37]/40 bg-white/[0.03] px-5 py-2.5 text-xs font-semibold text-[#e8d5a3] backdrop-blur-sm transition-all hover:border-[#d4af37] hover:bg-[#d4af37]/10 hover:text-white active:scale-[0.98] sm:w-auto sm:shrink-0"
+              >
+                <LogIn className="h-3.5 w-3.5 shrink-0 transition-transform group-hover:translate-x-0.5" />
+                Register as Lawyer
+              </Link>
+            )}
           </div>
         </div>
       </div>

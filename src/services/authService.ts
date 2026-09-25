@@ -81,7 +81,10 @@ export const authService = {
   /**
    * Verify citizen OTP and receive session token
    */
-  async verifyCitizenOtp(payload: VerifyOtpPayload): Promise<AuthResponseData> {
+  async verifyCitizenOtp(
+    payload: VerifyOtpPayload,
+    options?: { skipStorage?: boolean }
+  ): Promise<AuthResponseData> {
     const res = await apiClient.post<RawAuthResponse>("/auth/citizen/verify-otp", payload, {
       skipAuth: true,
     });
@@ -106,10 +109,12 @@ export const authService = {
       signupMethod,
     };
 
-    if (token) {
-      setStoredToken(token);
+    if (!options?.skipStorage) {
+      if (token) {
+        setStoredToken(token);
+      }
+      setStoredUser(user);
     }
-    setStoredUser(user);
 
     return {
       user,

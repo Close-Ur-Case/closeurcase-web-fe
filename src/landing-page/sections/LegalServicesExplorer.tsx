@@ -4,6 +4,7 @@ import { ArrowRight } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { SectionKicker } from "@/landing-page/SectionKicker";
 import { usePracticeAreas } from "@/hooks/queries/useMasterData";
+import { useLandingAuth } from "@/hooks/useLandingAuth";
 
 /** Compact three-step chip drill-down over the "Find a Lawyer" mega-menu
  * taxonomy: pick a practice area -> pick a specialization -> pick the legal
@@ -29,6 +30,7 @@ function StepLabel({ n, text }: { n: number; text: string }) {
 
 export function LegalServicesExplorer() {
   const { practiceAreas } = usePracticeAreas();
+  const { isCitizen } = useLandingAuth();
   const [selectedAreaName, setSelectedAreaName] = useState<string | null>(null);
   const [specName, setSpecName] = useState<string | null>(null);
 
@@ -95,7 +97,7 @@ export function LegalServicesExplorer() {
                 {spec.legal_services?.map((service) => (
                   <Link
                     key={service}
-                    to="/citizen-login"
+                    to={isCitizen ? "/citizen/create-case" : "/citizen-login"}
                     search={{ area: area.category, specialization: spec.case_type, service }}
                     className="group inline-flex items-center gap-1.5 rounded-full border border-[#d4af37]/30 bg-white px-3 py-1.5 text-xs font-medium text-slate-700 transition-all duration-150 hover:-translate-y-0.5 hover:border-[#d4af37]/70 hover:text-[#a9853f] hover:shadow-sm hover:shadow-[#d4af37]/20"
                   >
@@ -111,7 +113,7 @@ export function LegalServicesExplorer() {
         <p className="mt-3 text-xs text-slate-500">
           Not sure which fits?{" "}
           <Link
-            to="/citizen-login"
+            to={isCitizen ? "/citizen/create-case" : "/citizen-login"}
             className="font-semibold text-[#a9853f] transition-colors hover:text-[#8a6d2f] hover:underline"
           >
             Describe your matter instead →

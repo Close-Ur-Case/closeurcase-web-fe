@@ -3,6 +3,7 @@ import { Link } from "@tanstack/react-router";
 import { avatarUrlFor } from "@/data/avatarPool";
 import { Card } from "@/components/m3";
 import { SectionKicker } from "@/landing-page/SectionKicker";
+import { useLandingAuth } from "@/hooks/useLandingAuth";
 
 const LAWYERS = [
   {
@@ -102,6 +103,7 @@ function LawyerCard({ lawyer }: { lawyer: (typeof LAWYERS)[number] }) {
 }
 
 export function TrustedLawyers() {
+  const { citizenDashboardTo } = useLandingAuth();
   const track = [...LAWYERS, ...LAWYERS];
 
   return (
@@ -120,7 +122,7 @@ export function TrustedLawyers() {
         <div className="relative overflow-hidden mask-[linear-gradient(to_right,transparent,black_8%,black_92%,transparent)]">
           <div className="flex w-max animate-marquee gap-4">
             {track.map((lawyer, i) => (
-              <Link key={`${lawyer.name}-${i}`} to="/citizen-login" className="block">
+              <Link key={`${lawyer.name}-${i}`} to={citizenDashboardTo} className="block">
                 <LawyerCard lawyer={lawyer} />
               </Link>
             ))}

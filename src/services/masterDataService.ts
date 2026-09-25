@@ -10,6 +10,8 @@ import type {
   MasterLegalService,
   MasterCourt,
   MasterCity,
+  MasterDistrict,
+  MasterLanguage,
 } from "@/types/api";
 
 export const masterDataService = {
@@ -55,8 +57,8 @@ export const masterDataService = {
   /**
    * Get supported languages
    */
-  async getLanguages(): Promise<Array<{ id: string; name: string; code: string }>> {
-    return apiClient.get("/master-data/languages");
+  async getLanguages(): Promise<MasterLanguage[]> {
+    return apiClient.get<MasterLanguage[]>("/master-data/languages");
   },
 
   /**
@@ -76,8 +78,8 @@ export const masterDataService = {
   /**
    * Get districts (optional stateId)
    */
-  async getDistricts<T = unknown>(stateId?: string): Promise<T[]> {
-    return apiClient.get<T[]>("/master-data/districts", {
+  async getDistricts(stateId?: string): Promise<MasterDistrict[]> {
+    return apiClient.get<MasterDistrict[]>("/master-data/districts", {
       params: stateId ? { stateId } : undefined,
     });
   },

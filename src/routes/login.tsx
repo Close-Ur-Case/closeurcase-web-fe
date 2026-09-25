@@ -19,7 +19,6 @@ export const Route = createFileRoute("/login")({
       if (token || user) {
         if (user?.role === "admin") throw redirect({ to: "/admin" });
         if (user?.role === "lawyer") throw redirect({ to: "/lawyer" });
-        if (user?.role === "citizen") throw redirect({ to: "/citizen" });
       }
     }
   },

@@ -3,6 +3,7 @@ import { useEffect, useRef, useState } from "react";
 import { ArrowRight, ChevronDown, ChevronRight, ExternalLink } from "lucide-react";
 import { usePracticeAreas } from "@/hooks/queries/useMasterData";
 import { GOVERNMENT_SERVICES } from "@/data/governmentServices";
+import { useLandingAuth } from "@/hooks/useLandingAuth";
 
 type MenuKey = "lawyer" | "gov";
 
@@ -20,6 +21,7 @@ const CLOSE_DELAY_MS = 150;
  * just reveals the preview. */
 export function PublicNav() {
   const { practiceAreas } = usePracticeAreas();
+  const { isCitizen, citizenFileCaseTo } = useLandingAuth();
   const [openMenu, setOpenMenu] = useState<MenuKey | null>(null);
   const [activeAreaIndex, setActiveAreaIndex] = useState(0);
   const closeTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -140,7 +142,7 @@ export function PublicNav() {
                       {spec.legal_services.map((service) => (
                         <li key={service}>
                           <Link
-                            to="/citizen-login"
+                            to={isCitizen ? "/citizen/create-case" : "/citizen-login"}
                             search={{
                               area: activeArea.category,
                               specialization: spec.case_type,
@@ -165,7 +167,7 @@ export function PublicNav() {
               Not sure which one fits? Describe your issue and we'll match you.
             </span>
             <Link
-              to="/citizen-login"
+              to={citizenFileCaseTo}
               onClick={closeNow}
               className="inline-flex shrink-0 items-center gap-1.5 rounded-lg bg-primary px-3 py-1.5 text-xs font-bold text-primary-foreground transition-colors duration-150 hover:bg-primary/90"
             >

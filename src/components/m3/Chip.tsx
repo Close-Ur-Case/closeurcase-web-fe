@@ -103,12 +103,25 @@ export function InputChip({
   onClick?: () => void;
   className?: string;
 }) {
+  const handleRemove = (e?: Event) => {
+    // CRITICAL for React Virtual DOM Reconciliation:
+    // @material/web's md-input-chip automatically calls `this.remove()` on itself in the DOM unless
+    // `e.preventDefault()` is invoked on the cancelable "remove" event.
+    // If it removes itself from the DOM before React's commit phase, React's reconciler crashes with:
+    // `NotFoundError: Failed to execute 'removeChild' on 'Node': The node to be removed is not a child of this node.`
+    if (e && typeof e.preventDefault === "function") {
+      e.preventDefault();
+      e.stopPropagation();
+    }
+    onRemove?.();
+  };
+
   return (
     <MdInputChipEl
       label={label}
       selected={selected}
       disabled={disabled}
-      onRemove={onRemove}
+      onRemove={onRemove ? handleRemove : undefined}
       onClick={onClick}
       className={className}
     >

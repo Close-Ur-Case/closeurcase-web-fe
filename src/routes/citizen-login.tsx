@@ -34,10 +34,9 @@ export const Route = createFileRoute("/citizen-login")({
       const session = getCitizenSession();
       const token = getStoredToken();
       const user = getStoredUser<AuthUser>();
-      const isAuthenticated = session.authenticated || Boolean(token) || Boolean(user);
-      if (isAuthenticated) {
-        if (user && user.role === "admin") throw redirect({ to: "/admin" });
-        if (user && user.role === "lawyer") throw redirect({ to: "/lawyer" });
+      const isCitizenAuthenticated =
+        session.authenticated || (Boolean(token || user) && user?.role === "citizen");
+      if (isCitizenAuthenticated) {
         if (search.area || search.specialization || search.service) {
           throw redirect({
             to: "/citizen/create-case",

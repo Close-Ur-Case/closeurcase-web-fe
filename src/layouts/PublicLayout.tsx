@@ -3,6 +3,7 @@ import { useEffect, useState } from "react";
 import type { CSSProperties, MouseEvent, ReactNode } from "react";
 import {
   ArrowUpRight,
+  Briefcase,
   ChevronDown,
   Info,
   LogIn,
@@ -10,7 +11,9 @@ import {
   Menu,
   MessageCircle,
   Phone,
+  Scale,
   ShieldCheck,
+  User,
   X,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
@@ -23,6 +26,7 @@ import { AnimatedDownloadButton } from "@/components/app/AnimatedDownloadButton"
 import { MailLink } from "@/components/app/MailLink";
 import { FILLED_LINK_BUTTON_CITIZEN_CLASS, IconButton } from "@/components/m3";
 import { LexBot } from "@/components/app/LexBot";
+import { useLandingAuth } from "@/hooks/useLandingAuth";
 
 /** Gold gradient treatment for header/drawer CTAs, matching the gold CTAs
  * used throughout the new landing page instead of the component's default
@@ -53,6 +57,17 @@ export function PublicLayout({ children }: { children: ReactNode }) {
   const [isHeroScrolled, setIsHeroScrolled] = useState(false);
   const { translate } = useCitizenLanguage();
   const { practiceAreas } = usePracticeAreas();
+  const {
+    isCitizen,
+    isLawyer,
+    isAdmin,
+    citizenFileCaseTo,
+    citizenDashboardTo,
+    citizenMyCasesTo,
+    citizenSubscriptionsTo,
+    lawyerDashboardTo,
+    lawyerRegisterTo,
+  } = useLandingAuth();
   const location = useLocation();
   const isHome = location.pathname === "/";
 
@@ -174,17 +189,55 @@ export function PublicLayout({ children }: { children: ReactNode }) {
               {/* On desktop: Animated 24/7 Download Button placed on left side of Lawyer Sign In */}
               {isHome && <AnimatedDownloadButton useBlendedHeader={useBlendedHeader} size="md" />}
 
-              <Link
-                to="/login"
-                className={cn(
-                  FILLED_LINK_BUTTON_CITIZEN_CLASS,
-                  "!h-auto whitespace-nowrap !px-3.5 !py-2 !text-xs",
-                  goldCitizenButtonClass,
-                )}
-              >
-                <LogIn className="h-3.5 w-3.5 shrink-0" aria-hidden />
-                Lawyer Sign In
-              </Link>
+              {isLawyer ? (
+                <Link
+                  to="/lawyer"
+                  className={cn(
+                    FILLED_LINK_BUTTON_CITIZEN_CLASS,
+                    "!h-auto whitespace-nowrap !px-3.5 !py-2 !text-xs",
+                    goldCitizenButtonClass,
+                  )}
+                >
+                  <Briefcase className="h-3.5 w-3.5 shrink-0" aria-hidden />
+                  Lawyer Dashboard
+                </Link>
+              ) : isCitizen ? (
+                <Link
+                  to="/citizen"
+                  className={cn(
+                    FILLED_LINK_BUTTON_CITIZEN_CLASS,
+                    "!h-auto whitespace-nowrap !px-3.5 !py-2 !text-xs",
+                    goldCitizenButtonClass,
+                  )}
+                >
+                  <User className="h-3.5 w-3.5 shrink-0" aria-hidden />
+                  Citizen Dashboard
+                </Link>
+              ) : isAdmin ? (
+                <Link
+                  to="/admin"
+                  className={cn(
+                    FILLED_LINK_BUTTON_CITIZEN_CLASS,
+                    "!h-auto whitespace-nowrap !px-3.5 !py-2 !text-xs",
+                    goldCitizenButtonClass,
+                  )}
+                >
+                  <ShieldCheck className="h-3.5 w-3.5 shrink-0" aria-hidden />
+                  Admin Dashboard
+                </Link>
+              ) : (
+                <Link
+                  to="/login"
+                  className={cn(
+                    FILLED_LINK_BUTTON_CITIZEN_CLASS,
+                    "!h-auto whitespace-nowrap !px-3.5 !py-2 !text-xs",
+                    goldCitizenButtonClass,
+                  )}
+                >
+                  <LogIn className="h-3.5 w-3.5 shrink-0" aria-hidden />
+                  Lawyer Sign In
+                </Link>
+              )}
               <Link
                 to="/"
                 hash="contact"
@@ -321,7 +374,7 @@ export function PublicLayout({ children }: { children: ReactNode }) {
                                     {spec.legal_services.map((service) => (
                                       <li key={service}>
                                         <Link
-                                          to="/citizen-login"
+                                          to={isCitizen ? "/citizen/create-case" : "/citizen-login"}
                                           search={{
                                             area: area.category,
                                             specialization: spec.case_type,
@@ -411,7 +464,7 @@ export function PublicLayout({ children }: { children: ReactNode }) {
           {/* Actions — one consistent full-width pill each */}
           <div className="space-y-2.5 pt-1">
             <Link
-              to="/citizen-login"
+              to={citizenFileCaseTo}
               onClick={closeMobileMenu}
               className={cn(
                 "flex h-11 w-full items-center justify-center gap-2 rounded-full px-6 text-sm font-semibold transition-opacity hover:opacity-90 active:opacity-80",
@@ -420,6 +473,33 @@ export function PublicLayout({ children }: { children: ReactNode }) {
             >
               <Phone className="h-4 w-4 shrink-0" aria-hidden />
               File a Case
+            </Link>
+
+            <Link
+              to={citizenDashboardTo}
+              onClick={closeMobileMenu}
+              className="flex h-11 w-full items-center justify-center gap-2 rounded-full border border-border bg-background px-6 text-sm font-semibold text-foreground transition-colors hover:bg-muted"
+            >
+              <User className="h-4 w-4 shrink-0" aria-hidden />
+              {isCitizen ? "Citizen Dashboard" : "Citizen Sign In"}
+            </Link>
+
+            <Link
+              to={lawyerDashboardTo}
+              onClick={closeMobileMenu}
+              className="flex h-11 w-full items-center justify-center gap-2 rounded-full border border-border bg-background px-6 text-sm font-semibold text-foreground transition-colors hover:bg-muted"
+            >
+              {isLawyer ? (
+                <>
+                  <Briefcase className="h-4 w-4 shrink-0" aria-hidden />
+                  Lawyer Dashboard
+                </>
+              ) : (
+                <>
+                  <LogIn className="h-4 w-4 shrink-0" aria-hidden />
+                  Lawyer Sign In
+                </>
+              )}
             </Link>
 
             <Link
@@ -501,22 +581,22 @@ export function PublicLayout({ children }: { children: ReactNode }) {
               </h3>
               <ul className="mt-3 space-y-2 text-xs text-slate-600">
                 <li>
-                  <Link to="/citizen-login" className="transition-colors hover:text-[#a9853f]">
+                  <Link to={citizenFileCaseTo} className="transition-colors hover:text-[#a9853f]">
                     File a case
                   </Link>
                 </li>
                 <li>
-                  <Link to="/citizen-login" className="transition-colors hover:text-[#a9853f]">
+                  <Link to={citizenDashboardTo} className="transition-colors hover:text-[#a9853f]">
                     Find a lawyer
                   </Link>
                 </li>
                 <li>
-                  <Link to="/citizen-login" className="transition-colors hover:text-[#a9853f]">
+                  <Link to={citizenMyCasesTo} className="transition-colors hover:text-[#a9853f]">
                     Track your case
                   </Link>
                 </li>
                 <li>
-                  <Link to="/citizen-login" className="transition-colors hover:text-[#a9853f]">
+                  <Link to={citizenSubscriptionsTo} className="transition-colors hover:text-[#a9853f]">
                     Auto-Assign &amp; subscriptions
                   </Link>
                 </li>
@@ -530,13 +610,13 @@ export function PublicLayout({ children }: { children: ReactNode }) {
               </h3>
               <ul className="mt-3 space-y-2 text-xs text-slate-600">
                 <li>
-                  <Link to="/lawyer-register" className="transition-colors hover:text-[#a9853f]">
-                    Lawyer registration
+                  <Link to={lawyerRegisterTo} className="transition-colors hover:text-[#a9853f]">
+                    {isLawyer ? "Lawyer Portal" : "Lawyer registration"}
                   </Link>
                 </li>
                 <li>
-                  <Link to="/login" className="transition-colors hover:text-[#a9853f]">
-                    {translate("lawyerAdminLogin")}
+                  <Link to={lawyerDashboardTo} className="transition-colors hover:text-[#a9853f]">
+                    {isLawyer ? "Lawyer Dashboard" : translate("lawyerAdminLogin")}
                   </Link>
                 </li>
                 <li>
@@ -561,7 +641,7 @@ export function PublicLayout({ children }: { children: ReactNode }) {
                 {practiceAreas.slice(0, 6).map((area) => (
                   <li key={area.category}>
                     <Link
-                      to="/citizen-login"
+                      to={isCitizen ? "/citizen/create-case" : "/citizen-login"}
                       search={{ area: area.category }}
                       className="group inline-flex items-center gap-1 transition-colors hover:text-[#a9853f]"
                     >
@@ -577,11 +657,11 @@ export function PublicLayout({ children }: { children: ReactNode }) {
           <div className="mt-10 flex flex-col gap-3 border-t border-slate-200/70 pt-6 text-center sm:flex-row sm:items-center sm:justify-between sm:text-left">
             <p className="text-xs text-slate-500">© 2026 CloseUrCase. All rights reserved.</p>
             <Link
-              to="/citizen-login"
+              to={citizenDashboardTo}
               className="text-xs font-semibold hover:underline"
               style={{ color: "var(--md-extended-color-citizen)" }}
             >
-              {translate("citizenLoginLabel")}
+              {isCitizen ? "Citizen Dashboard" : translate("citizenLoginLabel")}
             </Link>
             <p className="text-[11px] text-slate-400">
               Not a law firm. Using this site does not create an attorney–client relationship.

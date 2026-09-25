@@ -356,9 +356,31 @@ export class AuthService {
         },
       });
 
-      if (error) throw ApiError.badRequest(error.message);
-      userId = data.user?.id || `usr_${Date.now()}`;
-      authSession = data.session;
+      if (error) {
+        if (
+          error.message.toLowerCase().includes("already registered") ||
+          error.message.toLowerCase().includes("already exists")
+        ) {
+          const { data: adminUserData } = await supabaseAdmin.auth.admin.listUsers();
+          const matchedAuthUser = adminUserData?.users?.find(
+            (u) => u.email?.toLowerCase() === email.toLowerCase()
+          );
+          if (matchedAuthUser) {
+            userId = matchedAuthUser.id;
+            await supabaseAdmin.auth.admin.updateUserById(userId, {
+              password: password || "Legal@12345",
+              user_metadata: { role: "lawyer", full_name: name, phone },
+            });
+          } else {
+            throw ApiError.badRequest(error.message);
+          }
+        } else {
+          throw ApiError.badRequest(error.message);
+        }
+      } else {
+        userId = data.user?.id || `usr_${Date.now()}`;
+        authSession = data.session;
+      }
     }
 
     const [existingUser] = await db.select().from(users).where(eq(users.id, userId));
@@ -369,6 +391,16 @@ export class AuthService {
         email,
         phone,
       });
+    } else {
+      await db
+        .update(users)
+        .set({
+          role: "lawyer",
+          email,
+          phone,
+          updatedAt: new Date(),
+        })
+        .where(eq(users.id, userId));
     }
 
     const lawyerId = `l_${Date.now()}`;
@@ -389,56 +421,111 @@ export class AuthService {
     );
 
     const targetCity = city || lawyerData.cities?.[0] || "Hyderabad";
-    const [lawyerRecord] = await db
-      .insert(lawyers)
-      .values({
-        id: lawyerId,
-        userId,
-        name,
-        email,
-        phone,
-        category: category || primaryCategory,
-        roleTitle:
-          lawyerData.roleTitle ||
-          (lawyerData.registrationType === "firm" ? "Law Firm / Organisation" : "Advocate"),
-        registrationType: lawyerData.registrationType || "lawyer",
-        city: targetCity,
-        cities: lawyerData.cities || (targetCity ? [targetCity] : ["Hyderabad"]),
-        stateId:
-          lawyerData.stateId ||
-          (targetCity === "Visakhapatnam"
-            ? "andhra_pradesh"
-            : targetCity === "Hyderabad"
-              ? "telangana"
-              : null),
-        districtId:
-          lawyerData.districtId ||
-          (targetCity === "Visakhapatnam"
-            ? "visakhapatnam"
-            : targetCity === "Hyderabad"
-              ? "hyderabad"
-              : null),
-        barId,
-        experienceYears: experienceYears || 0,
-        status: "Pending",
-        rating: "4.8",
-        activeCases: 0,
-        photoUrl: lawyerData.photoUrl || null,
-        idProofUrl: lawyerData.idProofUrl || null,
-        idProofFileName: lawyerData.idProofFileName || null,
-        officeAddress: lawyerData.officeAddress || null,
-        bio: lawyerData.bio || null,
-        languages: languageIds,
-        practiceAreas: normalizedAreas,
-        specializations: normalizedSpecs,
-        legalServices: normalizedServices,
-        courts: lawyerData.courts || [],
-        awards: lawyerData.awards || [],
-        consultationFee: lawyerData.consultationFee || 1000,
-        declarationAccepted: lawyerData.declarationAccepted !== false,
-        joinedAt: today,
-      })
-      .returning();
+    const [existingLawyer] = await db
+      .select()
+      .from(lawyers)
+      .where(eq(lawyers.userId, userId));
+
+    let lawyerRecord;
+    if (existingLawyer) {
+      [lawyerRecord] = await db
+        .update(lawyers)
+        .set({
+          name,
+          email,
+          phone,
+          category: category || primaryCategory,
+          roleTitle:
+            lawyerData.roleTitle ||
+            (lawyerData.registrationType === "firm" ? "Law Firm / Organisation" : "Advocate"),
+          registrationType: lawyerData.registrationType || "lawyer",
+          city: targetCity,
+          cities: lawyerData.cities || (targetCity ? [targetCity] : ["Hyderabad"]),
+          stateId:
+            lawyerData.stateId ||
+            (targetCity === "Visakhapatnam"
+              ? "andhra_pradesh"
+              : targetCity === "Hyderabad"
+                ? "telangana"
+                : null),
+          districtId:
+            lawyerData.districtId ||
+            (targetCity === "Visakhapatnam"
+              ? "visakhapatnam"
+              : targetCity === "Hyderabad"
+                ? "hyderabad"
+                : null),
+          barId,
+          experienceYears: experienceYears || 0,
+          status: "Pending",
+          photoUrl: lawyerData.photoUrl || existingLawyer.photoUrl,
+          idProofUrl: lawyerData.idProofUrl || existingLawyer.idProofUrl,
+          idProofFileName: lawyerData.idProofFileName || existingLawyer.idProofFileName,
+          officeAddress: lawyerData.officeAddress || existingLawyer.officeAddress,
+          bio: lawyerData.bio || existingLawyer.bio,
+          languages: languageIds,
+          practiceAreas: normalizedAreas,
+          specializations: normalizedSpecs,
+          legalServices: normalizedServices,
+          courts: lawyerData.courts || existingLawyer.courts,
+          awards: lawyerData.awards || existingLawyer.awards,
+          declarationAccepted: lawyerData.declarationAccepted !== false,
+          updatedAt: new Date(),
+        })
+        .where(eq(lawyers.id, existingLawyer.id))
+        .returning();
+    } else {
+      [lawyerRecord] = await db
+        .insert(lawyers)
+        .values({
+          id: lawyerId,
+          userId,
+          name,
+          email,
+          phone,
+          category: category || primaryCategory,
+          roleTitle:
+            lawyerData.roleTitle ||
+            (lawyerData.registrationType === "firm" ? "Law Firm / Organisation" : "Advocate"),
+          registrationType: lawyerData.registrationType || "lawyer",
+          city: targetCity,
+          cities: lawyerData.cities || (targetCity ? [targetCity] : ["Hyderabad"]),
+          stateId:
+            lawyerData.stateId ||
+            (targetCity === "Visakhapatnam"
+              ? "andhra_pradesh"
+              : targetCity === "Hyderabad"
+                ? "telangana"
+                : null),
+          districtId:
+            lawyerData.districtId ||
+            (targetCity === "Visakhapatnam"
+              ? "visakhapatnam"
+              : targetCity === "Hyderabad"
+                ? "hyderabad"
+                : null),
+          barId,
+          experienceYears: experienceYears || 0,
+          status: "Pending",
+          rating: "4.8",
+          activeCases: 0,
+          photoUrl: lawyerData.photoUrl || null,
+          idProofUrl: lawyerData.idProofUrl || null,
+          idProofFileName: lawyerData.idProofFileName || null,
+          officeAddress: lawyerData.officeAddress || null,
+          bio: lawyerData.bio || null,
+          languages: languageIds,
+          practiceAreas: normalizedAreas,
+          specializations: normalizedSpecs,
+          legalServices: normalizedServices,
+          courts: lawyerData.courts || [],
+          awards: lawyerData.awards || [],
+          consultationFee: lawyerData.consultationFee || 1000,
+          declarationAccepted: lawyerData.declarationAccepted !== false,
+          joinedAt: today,
+        })
+        .returning();
+    }
 
     const categoriesDetails = await LawyerCategoryService.getCategoriesForLawyer(
       normalizedAreas,

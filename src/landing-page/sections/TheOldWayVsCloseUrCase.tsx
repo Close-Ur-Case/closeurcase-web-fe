@@ -9,8 +9,10 @@ import {
   MessageSquare,
   ArrowRight,
 } from "lucide-react";
+import { Link } from "@tanstack/react-router";
 import { cn } from "@/lib/utils";
 import { SectionKicker } from "@/landing-page/SectionKicker";
+import { useLandingAuth } from "@/hooks/useLandingAuth";
 
 interface LegalNode {
   id: string;
@@ -121,6 +123,7 @@ function getLabelClasses(pos: LegalNode["labelPosition"]) {
 }
 
 export function TheOldWayVsCloseUrCase() {
+  const { citizenFileCaseTo } = useLandingAuth();
   return (
     <section className="border-t border-slate-200/70 bg-[#faf8f4] py-7 sm:py-10">
       <div className="mx-auto max-w-7xl 2xl:max-w-[1440px] px-4 sm:px-6 lg:px-8">
@@ -390,13 +393,13 @@ export function TheOldWayVsCloseUrCase() {
 
             {/* Bottom Full-Width CTA Button */}
             <div className="mt-3">
-              <a
-                href="/citizen-login"
+              <Link
+                to={citizenFileCaseTo}
                 className="flex w-full items-center justify-center gap-2 rounded-xl bg-[#003272] py-2.5 sm:py-3 px-4 text-center text-xs sm:text-sm font-semibold text-white shadow-sm shadow-[#003272]/20 transition-all hover:bg-[#024397] hover:shadow-md"
               >
                 <span>Start with CloseUrCase</span>
                 <ArrowRight className="h-3.5 w-3.5" />
-              </a>
+              </Link>
             </div>
           </div>
         </div>

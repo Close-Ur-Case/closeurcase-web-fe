@@ -5,8 +5,10 @@ import { Card } from "@/components/m3";
 import { SectionKicker } from "@/landing-page/SectionKicker";
 import { goldIconCircle } from "@/landing-page/theme";
 import { PRACTICE_CATEGORIES } from "@/landing-page/constants";
+import { useLandingAuth } from "@/hooks/useLandingAuth";
 
 export function PracticeCategories() {
+  const { isCitizen } = useLandingAuth();
   return (
     <section className="border-t border-slate-200/70 bg-[#faf8f4] py-7 sm:py-10">
       <div className="mx-auto max-w-7xl 2xl:max-w-[1440px] px-4 sm:px-6 lg:px-8">
@@ -64,7 +66,8 @@ export function PracticeCategories() {
                     <p className="mt-2 text-[11px] italic text-slate-500">{cat.remedy}</p>
                   </div>
                   <Link
-                    to={cat.link}
+                    to={isCitizen ? "/citizen/create-case" : "/citizen-login"}
+                    search={isCitizen ? { area: cat.title } : undefined}
                     className="mt-auto inline-flex items-center gap-1.5 border-b border-transparent pt-5 text-xs font-semibold text-slate-900 transition-colors hover:border-[#d4af37]/50 hover:text-[#a9853f]"
                   >
                     File this case type
