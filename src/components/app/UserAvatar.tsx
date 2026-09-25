@@ -1,3 +1,4 @@
+import { useState, useEffect } from "react";
 import { Star, X } from "lucide-react";
 import { avatarUrlFor } from "@/data/avatarPool";
 import { getLawyers, getCitizens, planTierForCitizen } from "@/data/appStore";
@@ -73,6 +74,16 @@ const PRESENCE_X_CLASSES = {
   lg: { box: "h-6 w-6 -bottom-1 -right-1", icon: "h-4 w-4" },
 };
 
+function getInitials(name?: string): string {
+  if (!name || !name.trim()) return "U";
+  const clean = name.replace(/^(Adv\.\s*)/i, "").trim();
+  const parts = clean.split(/\s+/).filter(Boolean);
+  if (parts.length >= 2) {
+    return (parts[0][0] + parts[1][0]).toUpperCase();
+  }
+  return parts[0].slice(0, 2).toUpperCase();
+}
+
 /** Resolve a lawyer's live presence from the store by name — lets every
  * `<UserAvatar role="lawyer">` show the dot without the caller wiring it. An
  * explicit `status` prop always wins over this. */
@@ -146,23 +157,56 @@ export function UserAvatar({
   className?: string;
 }) {
   const sizeCls = SIZE_CLASSES[size];
-  const src = photoUrl || avatarUrlFor(name, SIZE_PX[size]);
-  const tierKey = resolvePlanTier(name, role, planTier);
+  const [hasPrimaryError, setHasPrimaryError] = useState(false);
+  const [hasFallbackError, setHasFallbackError] = useState(false);
+
+  useEffect(() => {
+    setHasPrimaryError(false);
+    setHasFallbackError(false);
+  }, [photoUrl, name]);
+
+  const cleanPhotoUrl = photoUrl && photoUrl.trim() !== "" ? photoUrl.trim() : null;
+  const fallbackSrc = avatarUrlFor(name || "User", SIZE_PX[size]);
+
+  // Determine current image source
+  const currentSrc = !hasPrimaryError && cleanPhotoUrl ? cleanPhotoUrl : fallbackSrc;
+  const shouldRenderInitials = hasFallbackError || (!cleanPhotoUrl && !fallbackSrc);
+
+  const tierKey = resolvePlanTier(name || "", role, planTier);
   const tier = tierKey ? BADGE_CONFIGS[tierKey] : null;
   const badgeSize = BADGE_SIZE_CLASSES[size];
 
   const presence: LawyerPresence | null =
-    status ?? (role === "lawyer" ? resolveLawyerPresence(name) : null);
+    status ?? (role === "lawyer" ? resolveLawyerPresence(name || "") : null);
   const suspended = presence === "suspended";
   const xSize = PRESENCE_X_CLASSES[size];
 
+  const initials = getInitials(name);
+
   return (
     <div className={`relative inline-flex shrink-0 ${sizeCls}`}>
-      <img
-        src={src}
-        alt={name}
-        className={`h-full w-full rounded-full border border-border object-cover shadow-sm ${tier ? tier.ringCls : ""} ${suspended ? "opacity-70 grayscale" : ""} ${className}`}
-      />
+      {!shouldRenderInitials ? (
+        <img
+          src={currentSrc}
+          alt={name || "User"}
+          onError={() => {
+            if (!hasPrimaryError && cleanPhotoUrl) {
+              setHasPrimaryError(true);
+            } else {
+              setHasFallbackError(true);
+            }
+          }}
+          className={`h-full w-full rounded-full border border-border object-cover shadow-sm ${tier ? tier.ringCls : ""} ${suspended ? "opacity-70 grayscale" : ""} ${className}`}
+        />
+      ) : (
+        <div
+          className={`flex h-full w-full items-center justify-center rounded-full border border-border bg-gradient-to-br from-primary/20 via-primary/10 to-primary/5 text-primary font-bold shadow-xs select-none ${tier ? tier.ringCls : ""} ${suspended ? "opacity-70 grayscale" : ""} ${className}`}
+        >
+          <span className={size === "lg" ? "text-xl" : size === "md" ? "text-sm" : "text-xs"}>
+            {initials}
+          </span>
+        </div>
+      )}
 
       {presence && !suspended && (
         <span

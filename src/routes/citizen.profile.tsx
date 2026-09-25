@@ -7,6 +7,8 @@ import {
   updateCitizenProfile,
   subscribeToStore,
   mergeRemoteCitizens,
+  setProfilePhoto,
+  getProfilePhoto,
 } from "@/data/appStore";
 import type { Citizen } from "@/types";
 import { getCitizenSession, setCitizenSession } from "@/features/citizen/session";
@@ -25,13 +27,21 @@ function CitizenProfilePage() {
   useEffect(() => {
     let mounted = true;
 
+    const session = getCitizenSession();
     citizenService
-      .getMe()
+      .getMe({
+        email: user?.email || session.email || undefined,
+        phone: user?.phone || session.phone || undefined,
+        id: user?.citizenId || user?.id || undefined,
+      })
       .then((me) => {
         if (!mounted || !me) return;
         setRemoteProfile(me as Partial<Citizen>);
         if (me.name) {
           setCitizenSession({ fullName: me.name });
+        }
+        if (me.avatarUrl) {
+          setProfilePhoto("citizen", me.avatarUrl);
         }
         mergeRemoteCitizens([me as Partial<Citizen>]);
       })
@@ -45,7 +55,7 @@ function CitizenProfilePage() {
       mounted = false;
       unsub();
     };
-  }, []);
+  }, [user?.email, user?.phone, user?.id, user?.citizenId]);
 
   const session = getCitizenSession();
 
@@ -77,7 +87,13 @@ function CitizenProfilePage() {
   const currentLocation =
     remoteProfile?.currentLocation || citizen?.currentLocation || `${currentCity}, India`;
 
-  const currentAvatarUrl = remoteProfile?.avatarUrl || citizen?.avatarUrl || undefined;
+  const userAvatar = typeof user?.avatarUrl === "string" ? user.avatarUrl : undefined;
+  const currentAvatarUrl: string | undefined =
+    remoteProfile?.avatarUrl ||
+    citizen?.avatarUrl ||
+    getProfilePhoto("citizen") ||
+    userAvatar ||
+    undefined;
 
   // Requirement 1: Disable email if signup with email; disable phone if signup with phone
   const isEmailSignup =
@@ -94,8 +110,12 @@ function CitizenProfilePage() {
   const disablePhone = isPhoneSignup && !isEmailSignup;
 
   function handleSave(fields: ProfileFormFields) {
-    if (citizen?.id) {
-      updateCitizenProfile(citizen.id, fields);
+    const targetId = citizen?.id || user?.citizenId || user?.id;
+    if (targetId) {
+      updateCitizenProfile(targetId, fields);
+    }
+    if (fields.avatarUrl) {
+      setProfilePhoto("citizen", fields.avatarUrl);
     }
     setCitizenSession({ fullName: fields.name, phone: fields.phone, email: fields.email });
 
@@ -106,6 +126,7 @@ function CitizenProfilePage() {
         phone: fields.phone,
         email: fields.email,
         city: fields.city,
+        avatarUrl: fields.avatarUrl,
       });
     }
 
@@ -127,8 +148,14 @@ function CitizenProfilePage() {
         city: fields.city,
         currentLocation: fields.currentLocation,
         avatarUrl: fields.avatarUrl,
-        phone: fields.phone || undefined,
-        email: fields.email || undefined,
+        phone: fields.phone?.trim() ? fields.phone.trim() : undefined,
+        email: fields.email?.trim() ? fields.email.trim() : undefined,
+      })
+      .then((updated) => {
+        if (updated?.avatarUrl) {
+          setRemoteProfile((prev) => ({ ...prev, avatarUrl: updated.avatarUrl || undefined }));
+          setProfilePhoto("citizen", updated.avatarUrl);
+        }
       })
       .catch((err: unknown) => {
         console.warn("[Citizen Profile] Server update notice:", err);
@@ -137,8 +164,8 @@ function CitizenProfilePage() {
 
   // Key the form by current user/profile to cleanly re-populate when server fetch finishes
   const formKey = remoteProfile?.id
-    ? `server-${remoteProfile.id}-${remoteProfile.name}`
-    : `user-${user?.id || "local"}`;
+    ? `server-${remoteProfile.id}`
+    : `user-${user?.citizenId || user?.id || "local"}`;
 
   return (
     <>
@@ -161,6 +188,7 @@ function CitizenProfilePage() {
           avatarUrl: currentAvatarUrl,
           aadhar: "",
         }}
+        defaultPhotoUrl={currentAvatarUrl}
         wide
         onSave={handleSave}
       />

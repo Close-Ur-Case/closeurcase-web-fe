@@ -709,6 +709,7 @@ export function mergeRemoteCitizens(remote: Partial<Citizen>[]): void {
       email: r.email ?? existing?.email ?? "",
       phone: r.phone ?? existing?.phone ?? "",
       city: r.city ?? existing?.city ?? "",
+      avatarUrl: r.avatarUrl ?? existing?.avatarUrl ?? undefined,
       joinedAt: r.joinedAt ?? existing?.joinedAt ?? new Date().toISOString().slice(0, 10),
       lastLoginAt: r.lastLoginAt ?? existing?.lastLoginAt ?? "",
       status: r.status ?? existing?.status ?? "Active",
@@ -731,7 +732,7 @@ export function updateCitizenStatus(id: string, status: Citizen["status"]) {
 
 export function updateCitizenProfile(
   id: string,
-  fields: Partial<Pick<Citizen, "name" | "email" | "phone" | "city" | "currentLocation">>,
+  fields: Partial<Pick<Citizen, "name" | "email" | "phone" | "city" | "currentLocation" | "avatarUrl">>,
 ) {
   const current = getCitizens();
   const updated = current.map((c) => (c.id === id ? { ...c, ...fields } : c));

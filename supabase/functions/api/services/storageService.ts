@@ -28,7 +28,11 @@ export class StorageService {
       (uploadRes.error.message.toLowerCase().includes("not found") ||
         (uploadRes.error as { statusCode?: number }).statusCode === 404)
     ) {
-      const isPublic = bucket === env.STORAGE.AVATARS || bucket === env.STORAGE.KNOWLEDGE_BASE;
+    const isPublic =
+      bucket === env.STORAGE.AVATARS ||
+      bucket === "avatars" ||
+      bucket === "profile-photos" ||
+      bucket === env.STORAGE.KNOWLEDGE_BASE;
       await supabaseAdmin.storage.createBucket(bucket, {
         public: isPublic,
       });
@@ -43,7 +47,11 @@ export class StorageService {
     }
 
     const data = uploadRes.data;
-    const isPublic = bucket === env.STORAGE.AVATARS || bucket === env.STORAGE.KNOWLEDGE_BASE;
+    const isPublic =
+      bucket === env.STORAGE.AVATARS ||
+      bucket === "avatars" ||
+      bucket === "profile-photos" ||
+      bucket === env.STORAGE.KNOWLEDGE_BASE;
     if (isPublic) {
       const { data: publicData } = supabaseAdmin.storage.from(bucket).getPublicUrl(filePath);
       return { path: data.path, url: publicData.publicUrl };

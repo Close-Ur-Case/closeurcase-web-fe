@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect, useRef } from "react";
 import {
   ShieldCheck,
   MapPin,
@@ -70,6 +70,15 @@ export function ProfileForm({
   const [avatarUrl, setAvatarUrl] = useState(defaults.avatarUrl || defaultPhotoUrl);
   const [isLocating, setIsLocating] = useState(false);
   const [aadhar, setAadhar] = useState(defaults.aadhar ?? "");
+  const prevDefaultAvatarRef = useRef(defaults.avatarUrl || defaultPhotoUrl);
+
+  useEffect(() => {
+    const nextDefault = defaults.avatarUrl || defaultPhotoUrl;
+    if (nextDefault && nextDefault !== prevDefaultAvatarRef.current) {
+      prevDefaultAvatarRef.current = nextDefault;
+      setAvatarUrl(nextDefault);
+    }
+  }, [defaults.avatarUrl, defaultPhotoUrl]);
 
   const [nameTouched, setNameTouched] = useState(false);
   const [emailTouched, setEmailTouched] = useState(false);
@@ -215,10 +224,11 @@ export function ProfileForm({
           <div className="shrink-0">
             <AvatarUploadField
               role={role}
-              name={defaults.name}
+              name={name || defaults.name}
               defaultPhotoUrl={avatarUrl || defaultPhotoUrl}
               centered
               onPhotoChange={(newPhoto) => {
+                prevDefaultAvatarRef.current = newPhoto;
                 setAvatarUrl(newPhoto);
                 onSave?.({
                   name,

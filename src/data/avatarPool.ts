@@ -94,25 +94,28 @@ const FALLBACK_AVATAR_POOL = [
   "photo-1607081692251-d689f1b9af84",
 ];
 
-function hashString(value: string) {
+function hashString(value?: string) {
+  if (!value) return 0;
   let hash = 0;
   for (let i = 0; i < value.length; i++) hash = value.charCodeAt(i) + ((hash << 5) - hash);
   return Math.abs(hash);
 }
 
-export function pickAvatarPhotoId(seed: string) {
-  if (PEOPLE_AVATARS[seed]) {
-    return PEOPLE_AVATARS[seed];
+export function pickAvatarPhotoId(seed?: string) {
+  if (!seed || !seed.trim()) return FALLBACK_AVATAR_POOL[0];
+  const trimmed = seed.trim();
+  if (PEOPLE_AVATARS[trimmed]) {
+    return PEOPLE_AVATARS[trimmed];
   }
   // Try matching the trimmed name without an "Adv." prefix.
-  const cleanSeed = seed.replace(/^(Adv\.\s*)/i, "").trim();
+  const cleanSeed = trimmed.replace(/^(Adv\.\s*)/i, "").trim();
   if (PEOPLE_AVATARS[cleanSeed]) {
     return PEOPLE_AVATARS[cleanSeed];
   }
-  return FALLBACK_AVATAR_POOL[hashString(seed) % FALLBACK_AVATAR_POOL.length];
+  return FALLBACK_AVATAR_POOL[hashString(trimmed) % FALLBACK_AVATAR_POOL.length];
 }
 
-export function avatarUrlFor(seed: string, px = 128) {
+export function avatarUrlFor(seed?: string, px = 128) {
   const photoId = pickAvatarPhotoId(seed);
   return `https://images.unsplash.com/${photoId}?w=${px}&h=${px}&fit=crop&crop=faces&q=80`;
 }

@@ -16,8 +16,12 @@ export const citizenService = {
   /**
    * Get logged-in citizen profile & preferences
    */
-  async getMe<T = CitizenProfile>(): Promise<T> {
-    return apiClient.get<T>("/citizens/me");
+  async getMe<T = CitizenProfile>(params?: {
+    email?: string;
+    phone?: string;
+    id?: string;
+  }): Promise<T> {
+    return apiClient.get<T>("/citizens/me", { params });
   },
 
   /**

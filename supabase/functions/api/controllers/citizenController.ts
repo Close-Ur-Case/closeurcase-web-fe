@@ -66,18 +66,73 @@ export async function getMySubscriptions(c: Context) {
   return ApiResponse.success(c, result, "Subscriptions retrieved successfully");
 }
 
+async function findCitizenForUser(
+  user: any,
+  fallback?: { email?: string; phone?: string; id?: string }
+): Promise<any | null> {
+  const userId = user?.id || fallback?.id;
+  const email = user?.email || fallback?.email;
+  const phone = user?.phone || fallback?.phone;
+  const citizenId = user?.citizenId || fallback?.id;
+
+  // 1. Direct match on citizens.userId or citizens.id
+  if (userId) {
+    const [found] = await db
+      .select()
+      .from(citizens)
+      .where(or(eq(citizens.userId, userId), eq(citizens.id, userId)));
+    if (found) return found;
+  }
+
+  // 2. Match on citizenId if present
+  if (citizenId && citizenId !== userId) {
+    const [found] = await db
+      .select()
+      .from(citizens)
+      .where(eq(citizens.id, citizenId));
+    if (found) return found;
+  }
+
+  // 3. Match on email
+  if (email && typeof email === "string" && email.trim()) {
+    const cleanEmail = email.trim().toLowerCase();
+    const [found] = await db
+      .select()
+      .from(citizens)
+      .where(ilike(citizens.email, cleanEmail));
+    if (found) return found;
+  }
+
+  // 4. Match on last 10 digits of phone
+  if (phone && typeof phone === "string") {
+    const cleanDigits = phone.replace(/\D/g, "").slice(-10);
+    if (cleanDigits.length >= 10) {
+      const all = await db.select().from(citizens);
+      const found = all.find(
+        (c) => c.phone && c.phone.replace(/\D/g, "").slice(-10) === cleanDigits
+      );
+      if (found) return found;
+    }
+  }
+
+  return null;
+}
+
 export async function getMe(c: Context) {
   const user = c.get("user");
-  const userId = user?.id;
+  const queryEmail = c.req.query("email");
+  const queryPhone = c.req.query("phone");
+  const queryId = c.req.query("id");
 
-  let citizen = null;
-  if (userId) {
-    const [found] = await db.select().from(citizens).where(eq(citizens.userId, userId));
-    citizen = found;
-  }
+  let citizen = await findCitizenForUser(user, {
+    email: queryEmail,
+    phone: queryPhone,
+    id: queryId,
+  });
+
   if (!citizen) {
-    // Fallback to first active citizen for local demo/testing
-    const [first] = await db.select().from(citizens).limit(1);
+    // Fallback to first active citizen ordered by joinedAt desc
+    const [first] = await db.select().from(citizens).orderBy(desc(citizens.joinedAt)).limit(1);
     citizen = first;
   }
 
@@ -87,20 +142,21 @@ export async function getMe(c: Context) {
 
 export async function updateMe(c: Context) {
   const user = c.get("user");
-  const userId = user?.id;
   const patch = await c.req.json();
 
-  let citizenId = null;
-  if (userId) {
-    const [found] = await db.select().from(citizens).where(eq(citizens.userId, userId));
-    if (found) citizenId = found.id;
-  }
-  if (!citizenId) {
-    const [first] = await db.select().from(citizens).limit(1);
-    if (first) citizenId = first.id;
+  let citizen = await findCitizenForUser(user, {
+    email: patch.email,
+    phone: patch.phone,
+    id: patch.citizenId,
+  });
+
+  if (!citizen) {
+    const [first] = await db.select().from(citizens).orderBy(desc(citizens.joinedAt)).limit(1);
+    citizen = first;
   }
 
-  if (!citizenId) throw ApiError.notFound("Citizen profile not found");
+  if (!citizen) throw ApiError.notFound("Citizen profile not found");
+  const citizenId = citizen.id;
 
   const updateData: Record<string, any> = { updatedAt: new Date() };
   if (patch.name !== undefined || patch.fullName !== undefined) {
@@ -113,6 +169,10 @@ export async function updateMe(c: Context) {
   if (patch.avatarUrl !== undefined) updateData.avatarUrl = patch.avatarUrl;
   if (patch.state !== undefined) updateData.state = patch.state;
   if (patch.address !== undefined) updateData.address = patch.address;
+
+  if (!citizen.userId && user?.id) {
+    updateData.userId = user.id;
+  }
 
   const [updated] = await db
     .update(citizens)
