@@ -25,8 +25,17 @@ const getKnowledgeBaseRoute = createRoute({
   method: "get",
   path: "/",
   tags: ["Knowledge Base"],
-  summary: "Browse legal knowledge base articles, judgments & statutes",
+  summary: "Browse legal knowledge base articles, judgments & statutes (Global or Personal)",
   middleware: [optionalAuth],
+  request: {
+    query: z.object({
+      category: z.string().optional().openapi({ example: "Criminal" }),
+      type: z.string().optional().openapi({ example: "Act" }),
+      scope: z.enum(["global", "personal", "all"]).optional().openapi({ example: "global", description: "Filter by 'global' (admin-curated) or 'personal' (lawyer My Docs)" }),
+      lawyerId: z.string().optional().openapi({ example: "l_001" }),
+      search: z.string().optional().openapi({ example: "BNS" }),
+    }),
+  },
   responses: {
     200: {
       description: "Knowledge base articles list",
@@ -58,8 +67,8 @@ const addKnowledgeItemRoute = createRoute({
   method: "post",
   path: "/",
   tags: ["Knowledge Base"],
-  summary: "Add new knowledge article (Admin only)",
-  middleware: [requireAdmin],
+  summary: "Add new knowledge article (Global for Admin, Personal for Lawyer)",
+  middleware: [optionalAuth],
   security: [{ bearerAuth: [] }],
   request: {
     body: {
@@ -68,11 +77,13 @@ const addKnowledgeItemRoute = createRoute({
           schema: z.object({
             title: z.string().openapi({ example: "Bharatiya Nyaya Sanhita (BNS) 2023" }),
             type: z.string().default("Act").openapi({ example: "Act" }),
-            category: z.string().default("Criminal").openapi({ example: "Criminal" }),
+            category: z.string().default("General").openapi({ example: "Criminal" }),
             size: z.string().optional().openapi({ example: "2.4 MB" }),
             fileName: z.string().optional().openapi({ example: "bns-2023.pdf" }),
             fileMimeType: z.string().optional().openapi({ example: "application/pdf" }),
             fileUrl: z.string().optional().openapi({ example: "https://closeurcase.app/docs/bns-2023.pdf" }),
+            scope: z.enum(["global", "personal"]).optional().openapi({ example: "global" }),
+            lawyerId: z.string().optional().openapi({ example: "l_001" }),
             content: z.string().optional().openapi({ example: "Document text or summary" }),
           }),
         },
@@ -91,8 +102,8 @@ const deleteKnowledgeItemRoute = createRoute({
   method: "delete",
   path: "/:id",
   tags: ["Knowledge Base"],
-  summary: "Delete knowledge article (Admin only)",
-  middleware: [requireAdmin],
+  summary: "Delete knowledge article (Admin for global, Lawyer for own personal)",
+  middleware: [optionalAuth],
   security: [{ bearerAuth: [] }],
   request: {
     params: z.object({

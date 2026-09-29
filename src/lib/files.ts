@@ -77,6 +77,7 @@ export function openDocumentInNewTab(item: {
   category?: string;
   uploadedAt?: string;
   size?: string;
+  fileUrl?: string | null;
   fileDataUrl?: string;
   fileMimeType?: string;
   fileName?: string;
@@ -85,6 +86,12 @@ export function openDocumentInNewTab(item: {
   const isPdf = item.fileMimeType === "application/pdf" || /\.pdf$/i.test(fileName);
   const isImage =
     item.fileMimeType?.startsWith("image/") || /\.(jpe?g|png|gif|webp|svg)$/i.test(fileName);
+
+  const rawUrl = item.fileUrl;
+  if (rawUrl && (rawUrl.startsWith("http://") || rawUrl.startsWith("https://") || rawUrl.startsWith("/"))) {
+    window.open(rawUrl, "_blank");
+    return;
+  }
 
   if (item.fileDataUrl) {
     try {

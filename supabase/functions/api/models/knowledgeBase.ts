@@ -9,6 +9,9 @@ export const knowledgeItems = pgTable("knowledge_items", {
   fileUrl: text("file_url"),
   fileName: varchar("file_name", { length: 255 }),
   fileMimeType: varchar("file_mime_type", { length: 128 }),
+  scope: varchar("scope", { length: 32 }).notNull().default("global"),
+  uploadedBy: varchar("uploaded_by", { length: 128 }),
+  lawyerId: varchar("lawyer_id", { length: 64 }),
   uploadedAt: varchar("uploaded_at", { length: 64 }).notNull(),
   createdAt: timestamp("created_at").defaultNow().notNull(),
 });

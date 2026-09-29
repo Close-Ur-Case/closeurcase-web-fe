@@ -1051,6 +1051,10 @@ export function mergeRemoteKnowledgeItems(remote: Partial<KnowledgeItem>[]): voi
       summary: r.summary ?? existing?.summary ?? "",
       tags: r.tags ?? existing?.tags ?? [],
       status: r.status ?? existing?.status ?? "Indexed",
+      fileUrl: r.fileUrl ?? existing?.fileUrl ?? null,
+      scope: r.scope ?? existing?.scope ?? "global",
+      uploadedBy: r.uploadedBy ?? existing?.uploadedBy,
+      lawyerId: r.lawyerId ?? existing?.lawyerId,
     };
 
     if (!existing || JSON.stringify(existing) !== JSON.stringify(merged)) {
@@ -1079,7 +1083,7 @@ export function addKnowledgeItem(
     id: item.id || `k_${Date.now()}`,
     uploadedAt: item.uploadedAt || new Date().toISOString().slice(0, 10),
   };
-  saveKnowledgeBase([newItem, ...current]);
+  saveKnowledgeBase([newItem, ...current.filter((k) => k.id !== newItem.id)]);
   return newItem;
 }
 
@@ -1100,14 +1104,21 @@ export function getLawyerDocuments(lawyerId: string): LawyerDocument[] {
   return getAllLawyerDocuments().filter((d) => d.lawyerId === lawyerId);
 }
 
-export function addLawyerDocument(doc: Omit<LawyerDocument, "id" | "uploadedAt">): LawyerDocument {
+export function setLawyerDocuments(lawyerId: string, docs: LawyerDocument[]): void {
+  const otherDocs = getAllLawyerDocuments().filter((d) => d.lawyerId !== lawyerId);
+  save(LAWYER_DOCS_KEY, [...docs, ...otherDocs]);
+}
+
+export function addLawyerDocument(
+  doc: Omit<LawyerDocument, "id" | "uploadedAt"> & { id?: string; uploadedAt?: string },
+): LawyerDocument {
   const current = getAllLawyerDocuments();
   const newDoc: LawyerDocument = {
     ...doc,
-    id: `ld_${Date.now()}`,
-    uploadedAt: new Date().toISOString().slice(0, 10),
+    id: doc.id || `ld_${Date.now()}`,
+    uploadedAt: doc.uploadedAt || new Date().toISOString().slice(0, 10),
   };
-  save(LAWYER_DOCS_KEY, [newDoc, ...current]);
+  save(LAWYER_DOCS_KEY, [newDoc, ...current.filter((d) => d.id !== newDoc.id)]);
   return newDoc;
 }
 

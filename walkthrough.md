@@ -171,5 +171,12 @@ All tests executed via `curl` against `http://localhost:8000`:
 - [x] **Phase 3: Eradicate Mock Data & JSON Files from Frontend** (3,900+ lines of mock data purged, 0 JSON imports, 0 mock dependencies).
 - [x] **Phase 4: Reactive Boot Hydration & Global Synchronization** (`useAppSync` and `useMasterDataSync` mounted at root).
 - [x] **Phase 5: Route & Feature Wiring** (All Citizen, Lawyer, and Admin workflows fully integrated with backend APIs).
+- [x] **Phase 6: Knowledge Base Production Readiness & Role-based Scope Isolation**:
+  - Live PostgreSQL database migration (`20260929190000_knowledge_items_scope_and_lawyer_ownership.sql`): Added `scope` (`'global'` vs `'personal'`), `uploaded_by`, and `lawyer_id` columns with compound indexes.
+  - Supabase Edge API endpoints (`/api/v1/knowledge`): Automatic scope isolation between admin-curated statutory publications and lawyer personal references.
+  - Supabase Cloud Storage integration (`knowledge-base` bucket): Admin files upload to `global-docs/`; lawyer files upload to `lawyers/{lawyerId}/`.
+  - Frontend portal integration: Lawyer Global Docs tab strictly renders admin global documents; Lawyer My Docs tab displays personal documents with remote persistence; Admin Knowledge Base manages verified global statutory index.
+  - Zero TypeScript compile errors (`tsc --noEmit` clean) and verified production Vite build.
+
 
 

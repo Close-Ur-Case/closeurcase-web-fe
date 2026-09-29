@@ -468,23 +468,32 @@ export interface KnowledgeBaseItem {
   fileUrl?: string | null;
   fileName?: string;
   fileMimeType?: string;
+  scope?: "global" | "personal";
+  uploadedBy?: string | null;
+  lawyerId?: string | null;
   uploadedAt?: string;
   createdAt?: string;
 }
 
 export interface CreateKnowledgeItemPayload {
   title: string;
-  type: string;
-  category: string;
+  type?: string;
+  category?: string;
   size?: string;
-  fileUrl?: string;
+  fileUrl?: string | null;
   fileName?: string;
   fileMimeType?: string;
+  scope?: "global" | "personal";
+  lawyerId?: string | null;
+  uploadedBy?: string | null;
 }
 
 export interface KnowledgeQueryParams {
   category?: string;
   type?: string;
+  scope?: "global" | "personal" | "all";
+  lawyerId?: string;
+  search?: string;
 }
 
 // ============================================================================

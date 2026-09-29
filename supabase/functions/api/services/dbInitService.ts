@@ -342,6 +342,12 @@ export class DbInitService {
           created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW() NOT NULL
       );
 
+      ALTER TABLE public.knowledge_items ADD COLUMN IF NOT EXISTS scope VARCHAR(32) NOT NULL DEFAULT 'global';
+      ALTER TABLE public.knowledge_items ADD COLUMN IF NOT EXISTS uploaded_by VARCHAR(128);
+      ALTER TABLE public.knowledge_items ADD COLUMN IF NOT EXISTS lawyer_id VARCHAR(64);
+      CREATE INDEX IF NOT EXISTS idx_knowledge_items_scope ON public.knowledge_items (scope);
+      CREATE INDEX IF NOT EXISTS idx_knowledge_items_lawyer_id ON public.knowledge_items (lawyer_id);
+
       CREATE TABLE IF NOT EXISTS public.case_categories (
           id VARCHAR(64) PRIMARY KEY,
           name VARCHAR(255) NOT NULL,

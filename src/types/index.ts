@@ -394,18 +394,22 @@ export interface VideoCall {
 export interface KnowledgeItem {
   id: string;
   title: string;
-  type: "Act" | "Rule" | "Regulation" | "Amendment" | "Judgement" | "Order";
-  category: LegalCategory;
+  type: "Act" | "Rule" | "Regulation" | "Amendment" | "Judgement" | "Order" | string;
+  category: LegalCategory | string;
   uploadedAt: string;
   size: string;
   fileSize?: string;
   summary?: string;
   tags?: string[];
   status?: string;
+  fileUrl?: string | null;
   /** Data URL of the actual uploaded file, when a real file was selected on upload. */
   fileDataUrl?: string;
   fileName?: string;
   fileMimeType?: string;
+  scope?: "global" | "personal";
+  uploadedBy?: string | null;
+  lawyerId?: string | null;
 }
 
 /** A Lawyer's own personal reference document — separate from the admin-
@@ -416,9 +420,12 @@ export interface LawyerDocument {
   title: string;
   uploadedAt: string;
   size: string;
+  fileUrl?: string | null;
   fileDataUrl?: string;
   fileName?: string;
   fileMimeType?: string;
+  scope?: "personal";
+  uploadedBy?: string | null;
 }
 
 /* ── Admin Data Management Master Interfaces ─────────────────────────────── */

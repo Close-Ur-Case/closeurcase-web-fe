@@ -10,11 +10,13 @@ import {
   addKnowledgeItem,
   getLawyers,
   getLawyerDocuments,
+  setLawyerDocuments,
   addLawyerDocument,
   deleteLawyerDocument,
   subscribeToStore,
 } from "@/data/appStore";
 import { knowledgeService } from "@/services/knowledgeService";
+import { storageService } from "@/services/storageService";
 import { useAuth } from "@/context/useAuth";
 import type { KnowledgeItem, LawyerDocument, LegalCategory } from "@/types";
 import {
@@ -108,15 +110,18 @@ function GlobalDocsTab() {
   const [domainFilter, setDomainFilter] = useState("All");
   const [sortOrder, setSortOrder] = useState<SortOrder>("newest");
   const [showFilters, setShowFilters] = useState(false);
-  const [items, setItems] = useState<KnowledgeItem[]>(getKnowledgeBase);
+  const [items, setItems] = useState<KnowledgeItem[]>(() =>
+    getKnowledgeBase().filter((k) => !k.scope || k.scope === "global"),
+  );
   const [activePdf, setActivePdf] = useState<KnowledgeItem | null>(null);
 
   useEffect(() => {
-    const sync = () => setItems(getKnowledgeBase());
+    const sync = () =>
+      setItems(getKnowledgeBase().filter((k) => !k.scope || k.scope === "global"));
     const unsub = subscribeToStore(sync);
 
     knowledgeService
-      .getKnowledgeItems()
+      .getKnowledgeItems({ scope: "global" })
       .then((remoteItems) => {
         if (remoteItems && Array.isArray(remoteItems) && remoteItems.length > 0) {
           const existingKb = getKnowledgeBase();
@@ -130,9 +135,9 @@ function GlobalDocsTab() {
                 size: r.size || "1.2 MB",
                 fileName: r.fileName || r.title,
                 fileMimeType: r.fileMimeType || "application/pdf",
-                // The API calls this `fileUrl`; `KnowledgeItem` stores it as
-                // `fileDataUrl`, so a plain passthrough silently dropped it.
+                fileUrl: r.fileUrl ?? undefined,
                 fileDataUrl: r.fileUrl ?? undefined,
+                scope: "global",
                 uploadedAt: r.uploadedAt
                   ? r.uploadedAt.split("T")[0]
                   : new Date().toISOString().split("T")[0],
@@ -414,7 +419,7 @@ function GlobalDocsTab() {
             {/* Modal Body — Document Content Preview */}
             <div className="flex-1 min-h-0 overflow-y-auto p-3 sm:p-5 bg-muted/30 space-y-3">
               <DocumentPreviewBody
-                fileDataUrl={activePdf.fileDataUrl}
+                fileDataUrl={activePdf.fileDataUrl || activePdf.fileUrl || undefined}
                 fileMimeType={activePdf.fileMimeType}
                 fileName={activePdf.fileName ?? activePdf.title}
                 showFullScreenButton={false}
@@ -499,7 +504,35 @@ function useMyDocs(lawyerId: string) {
   useEffect(() => {
     const sync = () => setDocs(getLawyerDocuments(lawyerId));
     sync();
-    return subscribeToStore(sync);
+    const unsub = subscribeToStore(sync);
+
+    if (lawyerId) {
+      knowledgeService
+        .getKnowledgeItems({ scope: "personal", lawyerId })
+        .then((remoteItems) => {
+          if (Array.isArray(remoteItems)) {
+            const mapped: LawyerDocument[] = remoteItems.map((r) => ({
+              id: r.id,
+              lawyerId: r.lawyerId || lawyerId,
+              title: r.title,
+              size: r.size || "1.0 MB",
+              fileUrl: r.fileUrl,
+              fileDataUrl: r.fileUrl || undefined,
+              fileName: r.fileName || r.title,
+              fileMimeType: r.fileMimeType || "application/pdf",
+              uploadedAt: r.uploadedAt
+                ? r.uploadedAt.split("T")[0]
+                : new Date().toISOString().split("T")[0],
+              scope: "personal",
+              uploadedBy: r.uploadedBy || lawyerId,
+            }));
+            setLawyerDocuments(lawyerId, mapped);
+          }
+        })
+        .catch((err) => console.warn("Failed to fetch personal documents:", err));
+    }
+
+    return unsub;
   }, [lawyerId]);
 
   return { lawyerId, docs };
@@ -540,13 +573,53 @@ function MyDocsTab({ state }: { state: { lawyerId: string; docs: LawyerDocument[
     try {
       const title = titleFromFileName(fileSelected.name);
       const fileDataUrl = await readFileAsDataUrl(fileSelected);
+
+      // 1. Upload to Cloud Storage
+      let fileUrl = "";
+      try {
+        const uploadRes = await storageService.uploadFile(fileSelected, {
+          bucket: "knowledge-base",
+          folder: `lawyers/${lawyerId || "personal"}`,
+        });
+        if (uploadRes && uploadRes.fileUrl) {
+          fileUrl = uploadRes.fileUrl;
+        }
+      } catch (storageErr) {
+        console.warn("Storage upload fallback to data URL:", storageErr);
+      }
+
+      // 2. Persist to backend database API
+      let remoteId = `ld_${Date.now()}`;
+      try {
+        const created = await knowledgeService.addKnowledgeItem({
+          title,
+          type: "Personal Document",
+          category: "General",
+          size: formatFileSize(fileSelected.size),
+          fileName: fileSelected.name,
+          fileMimeType: fileSelected.type,
+          fileUrl: fileUrl || undefined,
+          scope: "personal",
+          lawyerId,
+        });
+        if (created?.id) {
+          remoteId = created.id;
+        }
+      } catch (apiErr) {
+        console.warn("Backend addKnowledgeItem error:", apiErr);
+      }
+
+      // 3. Update local store
       addLawyerDocument({
+        id: remoteId,
         lawyerId,
         title,
         size: formatFileSize(fileSelected.size),
-        fileDataUrl,
+        fileUrl: fileUrl || undefined,
+        fileDataUrl: fileDataUrl || fileUrl,
         fileName: fileSelected.name,
         fileMimeType: fileSelected.type,
+        scope: "personal",
       });
 
       setSuccessMsg(`"${title}" added to your documents.`);
@@ -799,7 +872,7 @@ function MyDocsTab({ state }: { state: { lawyerId: string; docs: LawyerDocument[
 
             <div className="flex-1 min-h-0 overflow-y-auto p-3 sm:p-5 bg-muted/30 space-y-3">
               <DocumentPreviewBody
-                fileDataUrl={activeDoc.fileDataUrl}
+                fileDataUrl={activeDoc.fileDataUrl || activeDoc.fileUrl || undefined}
                 fileMimeType={activeDoc.fileMimeType}
                 fileName={activeDoc.fileName ?? activeDoc.title}
                 showFullScreenButton={false}
@@ -839,7 +912,12 @@ function MyDocsTab({ state }: { state: { lawyerId: string; docs: LawyerDocument[
         cancelLabel="Cancel"
         variant="danger"
         onConfirm={() => {
-          if (pendingDeleteId) deleteLawyerDocument(pendingDeleteId);
+          if (pendingDeleteId) {
+            deleteLawyerDocument(pendingDeleteId);
+            knowledgeService
+              .deleteKnowledgeItem(pendingDeleteId)
+              .catch((err) => console.warn("Remote personal doc delete error:", err));
+          }
           setPendingDeleteId(null);
         }}
         onCancel={() => setPendingDeleteId(null)}

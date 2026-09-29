@@ -20,10 +20,12 @@ import {
   getKnowledgeBase,
   addKnowledgeItem,
   deleteKnowledgeItem,
+  mergeRemoteKnowledgeItems,
   subscribeToStore,
   getActiveCaseCategories,
 } from "@/data/appStore";
 import { knowledgeService } from "@/services/knowledgeService";
+import { storageService } from "@/services/storageService";
 import type { KnowledgeItem, LegalCategory } from "@/types";
 import {
   MAX_ATTACHMENT_BYTES,
@@ -88,31 +90,12 @@ export function KnowledgeBasePage() {
     };
     const unsub = subscribeToStore(sync);
 
-    // Hydrate remote legal documents from Supabase Edge Function
+    // Hydrate remote legal documents from Supabase Edge Function (scoped to global documents)
     knowledgeService
-      .getKnowledgeItems()
+      .getKnowledgeItems({ scope: "global" })
       .then((remoteItems) => {
         if (remoteItems && Array.isArray(remoteItems) && remoteItems.length > 0) {
-          const existingKb = getKnowledgeBase();
-          remoteItems.forEach((r) => {
-            if (!existingKb.some((k) => k.id === r.id || k.title === r.title)) {
-              addKnowledgeItem({
-                id: r.id,
-                title: r.title,
-                type: (r.type as KnowledgeItem["type"]) || "Act",
-                category: (r.category as LegalCategory) || "Criminal",
-                size: r.size || "1.2 MB",
-                fileName: r.fileName || r.title,
-                fileMimeType: r.fileMimeType || "application/pdf",
-                // The API calls this `fileUrl`; `KnowledgeItem` stores it as
-                // `fileDataUrl`, so a plain passthrough silently dropped it.
-                fileDataUrl: r.fileUrl ?? undefined,
-                uploadedAt: r.uploadedAt
-                  ? r.uploadedAt.split("T")[0]
-                  : new Date().toISOString().split("T")[0],
-              });
-            }
-          });
+          mergeRemoteKnowledgeItems(remoteItems);
         }
       })
       .catch((err) => console.warn("Failed to fetch remote knowledge items:", err));
@@ -123,9 +106,10 @@ export function KnowledgeBasePage() {
   const filtered = useMemo(() => {
     const matches = rows.filter(
       (r) =>
-        r.title.toLowerCase().includes(search.toLowerCase()) ||
-        r.category.toLowerCase().includes(search.toLowerCase()) ||
-        r.type.toLowerCase().includes(search.toLowerCase()),
+        r.scope !== "personal" &&
+        (r.title.toLowerCase().includes(search.toLowerCase()) ||
+          r.category.toLowerCase().includes(search.toLowerCase()) ||
+          r.type.toLowerCase().includes(search.toLowerCase())),
     );
     return matches.sort((a, b) =>
       sortOrder === "newest"
@@ -143,27 +127,56 @@ export function KnowledgeBasePage() {
     try {
       const title = titleFromFileName(fileSelected.name);
       const fileDataUrl = await readFileAsDataUrl(fileSelected);
-      addKnowledgeItem({
-        title,
-        type,
-        category: cat,
-        size: formatFileSize(fileSelected.size),
-        fileDataUrl,
-        fileName: fileSelected.name,
-        fileMimeType: fileSelected.type,
-      });
 
-      // Asynchronously persist to Supabase backend API
-      knowledgeService
-        .addKnowledgeItem({
+      // 1. Upload to Supabase Cloud Storage (bucket: knowledge-base, folder: global-docs)
+      let fileUrl = "";
+      try {
+        const uploadRes = await storageService.uploadFile(fileSelected, {
+          bucket: "knowledge-base",
+          folder: "global-docs",
+        });
+        if (uploadRes && uploadRes.fileUrl) {
+          fileUrl = uploadRes.fileUrl;
+        }
+      } catch (storageErr) {
+        console.warn("Storage upload fallback to data URL:", storageErr);
+      }
+
+      // 2. Persist to backend database API
+      let remoteId = `k_${Date.now()}`;
+      try {
+        const created = await knowledgeService.addKnowledgeItem({
           title,
           type,
           category: cat,
           size: formatFileSize(fileSelected.size),
           fileName: fileSelected.name,
           fileMimeType: fileSelected.type,
-        })
-        .catch((err) => console.warn("Remote knowledge indexing error:", err));
+          fileUrl: fileUrl || undefined,
+          scope: "global",
+          uploadedBy: "admin",
+        });
+        if (created?.id) {
+          remoteId = created.id;
+        }
+      } catch (apiErr) {
+        console.warn("Remote knowledge indexing error:", apiErr);
+      }
+
+      // 3. Update local app store
+      addKnowledgeItem({
+        id: remoteId,
+        title,
+        type,
+        category: cat,
+        size: formatFileSize(fileSelected.size),
+        fileDataUrl,
+        fileUrl: fileUrl || undefined,
+        fileName: fileSelected.name,
+        fileMimeType: fileSelected.type,
+        scope: "global",
+        uploadedBy: "admin",
+      });
 
       setSuccessMsg(`"${title}" successfully indexed into Knowledge Base!`);
       setFileSelected(null);
@@ -177,6 +190,7 @@ export function KnowledgeBasePage() {
       setIsUploading(false);
     }
   };
+
 
   const cols: Column<KnowledgeItem>[] = [
     {
@@ -429,7 +443,7 @@ export function KnowledgeBasePage() {
         {activePdfModal && (
           <PdfModalBody
             item={activePdfModal}
-            hasRealFile={Boolean(activePdfModal.fileDataUrl)}
+            hasRealFile={Boolean(activePdfModal.fileDataUrl || activePdfModal.fileUrl)}
             onClose={() => setActivePdfModal(null)}
           />
         )}
@@ -504,7 +518,7 @@ function PdfModalBody({ item, hasRealFile, onClose }: PdfModalBodyProps) {
       <DialogContent>
         <div className="space-y-4 py-2">
           <DocumentPreviewBody
-            fileDataUrl={hasRealFile ? item.fileDataUrl : undefined}
+            fileDataUrl={hasRealFile ? item.fileDataUrl || item.fileUrl || undefined : undefined}
             fileMimeType={item.fileMimeType}
             fileName={item.fileName ?? item.title}
             showFullScreenButton={false}
