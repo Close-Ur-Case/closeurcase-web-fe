@@ -60,7 +60,7 @@ Other commands inside `supabase/`:
 ```bash
 npm run migrate  # Run all database schema migrations against Supabase PostgreSQL
 npm run seed     # 1-click schema verify & data seed via HTTP
-npm run deploy   # Deploy Edge Function to Supabase Cloud
+npm run deploy   #Deploy Edge Function to Supabase Cloud
 ```
 
 Once running, you can test:
