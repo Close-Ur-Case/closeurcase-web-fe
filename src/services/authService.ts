@@ -158,6 +158,10 @@ export const authService = {
       skipAuth: true,
     });
 
+    if (res?.user?.role === "admin") {
+      throw new Error("This is an Administrator account. Please sign in through the Admin Portal.");
+    }
+
     const token = res?.session?.accessToken || res?.session?.access_token || res?.token;
     const lawyerStatus =
       (res?.lawyer as { status?: string })?.status ||
@@ -203,6 +207,10 @@ export const authService = {
     const res = await apiClient.post<RawAuthResponse>("/auth/admin/login", payload, {
       skipAuth: true,
     });
+
+    if (res?.user?.role === "lawyer") {
+      throw new Error("This is a Lawyer account. Please sign in through the Lawyer sign in page (/login).");
+    }
 
     const token = res?.session?.accessToken || res?.session?.access_token || res?.token;
     const user: AuthUser = {

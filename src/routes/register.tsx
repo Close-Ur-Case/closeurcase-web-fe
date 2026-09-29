@@ -26,9 +26,13 @@ function Register() {
       subtitle="Citizens sign in with a mobile number. Lawyers register separately."
       footer={
         <>
-          Lawyer or admin?{" "}
+          Lawyer?{" "}
           <Link to="/login" className="font-semibold text-primary hover:underline">
-            Email sign in
+            Lawyer sign in
+          </Link>
+          {" · "}
+          <Link to="/admin-login" className="text-muted-foreground hover:underline">
+            Admin portal
           </Link>
         </>
       }

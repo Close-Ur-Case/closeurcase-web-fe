@@ -698,6 +698,8 @@ function LawyerProfileForm({ lawyer }: { lawyer: NonNullable<ReturnType<typeof g
                 type="email"
                 value={email}
                 onChange={setEmail}
+                disabled
+                trailingIcon={<Lock className="h-3.5 w-3.5 text-muted-foreground" />}
                 placeholder="swathi@law.com"
                 leadingIcon={<Mail className="h-4 w-4 text-primary/70" />}
                 className="w-full"

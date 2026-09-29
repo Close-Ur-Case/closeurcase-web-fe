@@ -1,17 +1,16 @@
-import { createFileRoute, Link, useNavigate, redirect } from "@tanstack/react-router";
+import { createFileRoute, useNavigate, redirect } from "@tanstack/react-router";
 import { useState } from "react";
 import { AuthLayout } from "@/layouts/AuthLayout";
 import { PermissionsGate } from "@/components/app/PermissionsGate";
 import { usePermissionsGate } from "@/features/permissions/usePermissionsGate";
-import { Eye, EyeOff, Lock, Mail, AlertCircle, Loader2 } from "lucide-react";
+import { Eye, EyeOff, Lock, Mail, AlertCircle, Loader2, ShieldCheck } from "lucide-react";
 import { TextField, IconButton, Button } from "@/components/m3";
-import { useLawyerLogin } from "@/hooks/queries/useAuth";
+import { useAdminLogin } from "@/hooks/queries/useAuth";
 import { getStoredToken, getStoredUser } from "@/services/apiClient";
 import type { AuthUser } from "@/types/api";
-
 import { validateEmail } from "@/lib/validations";
 
-export const Route = createFileRoute("/login")({
+export const Route = createFileRoute("/admin-login")({
   beforeLoad: () => {
     if (typeof window !== "undefined") {
       const token = getStoredToken();
@@ -22,13 +21,13 @@ export const Route = createFileRoute("/login")({
       }
     }
   },
-  head: () => ({ meta: [{ title: "Lawyer sign in — CloseUrCase" }] }),
-  component: Login,
+  head: () => ({ meta: [{ title: "Admin sign in — CloseUrCase" }] }),
+  component: AdminLogin,
 });
 
-export function Login() {
+export function AdminLogin() {
   const navigate = useNavigate();
-  const lawyerLogin = useLawyerLogin();
+  const adminLogin = useAdminLogin();
   const [email, setEmail] = useState("");
   const [emailTouched, setEmailTouched] = useState(false);
   const [password, setPassword] = useState("");
@@ -36,8 +35,7 @@ export function Login() {
   const [loginError, setLoginError] = useState<string | null>(null);
   const [permissionsAcknowledged, acknowledgePermissions] = usePermissionsGate();
 
-  const isPending = lawyerLogin.isPending;
-
+  const isPending = adminLogin.isPending;
   const emailRes = validateEmail(email);
 
   const handleFormEnterKey = (e: React.KeyboardEvent<HTMLElement>) => {
@@ -58,22 +56,14 @@ export function Login() {
     <AuthLayout
       centerLogoOnMobile
       centerOnMobile
-      title="Lawyer sign in"
-      subtitle="Email and password for Advocates and Legal Counsel."
-      footer={
-        <>
-          Citizen user?{" "}
-          <Link to="/citizen-login" className="font-semibold text-primary hover:underline">
-            Sign in with mobile or email
-          </Link>
-          {" · "}
-          New Lawyer?{" "}
-          <Link to="/lawyer-register" className="font-semibold text-primary hover:underline">
-            Register
-          </Link>
-        </>
-      }
+      title="Admin portal sign in"
+      subtitle="Authorized access for platform administrators and system controllers."
     >
+      <div className="mb-4 inline-flex items-center gap-2 rounded-full border border-indigo-500/20 bg-indigo-500/10 px-3 py-1 text-xs font-semibold text-indigo-700 dark:text-indigo-300">
+        <ShieldCheck className="h-4 w-4" />
+        <span>Platform Administration Console</span>
+      </div>
+
       <form
         className="space-y-5"
         onKeyDown={handleFormEnterKey}
@@ -83,13 +73,13 @@ export function Login() {
           setLoginError(null);
           if (!emailRes.isValid) return;
           try {
-            await lawyerLogin.mutateAsync({ email, password });
-            navigate({ to: "/lawyer" });
+            await adminLogin.mutateAsync({ email, password });
+            navigate({ to: "/admin" });
           } catch (err: unknown) {
             const message =
               err instanceof Error
                 ? err.message
-                : "Authentication failed. Please verify lawyer credentials.";
+                : "Authentication failed. Please verify administrator credentials.";
             setLoginError(message);
           }
         }}
@@ -103,7 +93,7 @@ export function Login() {
 
         <div className="space-y-1">
           <TextField
-            label="Email address"
+            label="Administrator email"
             type="email"
             required
             value={email}
@@ -111,7 +101,7 @@ export function Login() {
               setEmail(v);
               setEmailTouched(true);
             }}
-            placeholder="advocate@example.com"
+            placeholder="admin@closeurcase.in"
             leadingIcon={<Mail className="h-4 w-4" />}
             error={emailTouched && !emailRes.isValid}
             className="w-full"
@@ -151,10 +141,10 @@ export function Login() {
           {isPending ? (
             <span className="flex items-center gap-2">
               <Loader2 className="h-4 w-4 animate-spin" />
-              Signing in…
+              Verifying credentials…
             </span>
           ) : (
-            "Sign in as Lawyer"
+            "Sign in to Admin Console"
           )}
         </Button>
       </form>

@@ -11,6 +11,7 @@
 import { Route as rootRouteImport } from './routes/__root'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as AdminRouteImport } from './routes/admin'
+import { Route as AdminLoginRouteImport } from './routes/admin-login'
 import { Route as ApiDocsRouteImport } from './routes/api-docs'
 import { Route as CitizenRouteImport } from './routes/citizen'
 import { Route as CitizenLoginRouteImport } from './routes/citizen-login'
@@ -57,6 +58,11 @@ const IndexRoute = IndexRouteImport.update({
 const AdminRoute = AdminRouteImport.update({
   id: '/admin',
   path: '/admin',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const AdminLoginRoute = AdminLoginRouteImport.update({
+  id: '/admin-login',
+  path: '/admin-login',
   getParentRoute: () => rootRouteImport,
 } as any)
 const ApiDocsRoute = ApiDocsRouteImport.update({
@@ -248,6 +254,7 @@ const LawyerChatIdRoute = LawyerChatIdRouteImport.update({
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/admin': typeof AdminRouteWithChildren
+  '/admin-login': typeof AdminLoginRoute
   '/api-docs': typeof ApiDocsRoute
   '/citizen': typeof CitizenRouteWithChildren
   '/citizen-login': typeof CitizenLoginRoute
@@ -288,6 +295,7 @@ export interface FileRoutesByFullPath {
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
+  '/admin-login': typeof AdminLoginRoute
   '/api-docs': typeof ApiDocsRoute
   '/citizen-login': typeof CitizenLoginRoute
   '/lawyer-register': typeof LawyerRegisterRoute
@@ -327,6 +335,7 @@ export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
   '/admin': typeof AdminRouteWithChildren
+  '/admin-login': typeof AdminLoginRoute
   '/api-docs': typeof ApiDocsRoute
   '/citizen': typeof CitizenRouteWithChildren
   '/citizen-login': typeof CitizenLoginRoute
@@ -370,6 +379,7 @@ export interface FileRouteTypes {
   fullPaths:
     | '/'
     | '/admin'
+    | '/admin-login'
     | '/api-docs'
     | '/citizen'
     | '/citizen-login'
@@ -410,6 +420,7 @@ export interface FileRouteTypes {
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
+    | '/admin-login'
     | '/api-docs'
     | '/citizen-login'
     | '/lawyer-register'
@@ -448,6 +459,7 @@ export interface FileRouteTypes {
     | '__root__'
     | '/'
     | '/admin'
+    | '/admin-login'
     | '/api-docs'
     | '/citizen'
     | '/citizen-login'
@@ -490,6 +502,7 @@ export interface FileRouteTypes {
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
   AdminRoute: typeof AdminRouteWithChildren
+  AdminLoginRoute: typeof AdminLoginRoute
   ApiDocsRoute: typeof ApiDocsRoute
   CitizenRoute: typeof CitizenRouteWithChildren
   CitizenLoginRoute: typeof CitizenLoginRoute
@@ -513,6 +526,13 @@ declare module '@tanstack/react-router' {
       path: '/admin'
       fullPath: '/admin'
       preLoaderRoute: typeof AdminRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/admin-login': {
+      id: '/admin-login'
+      path: '/admin-login'
+      fullPath: '/admin-login'
+      preLoaderRoute: typeof AdminLoginRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/api-docs': {
@@ -876,6 +896,7 @@ const LawyerRouteWithChildren =
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   AdminRoute: AdminRouteWithChildren,
+  AdminLoginRoute: AdminLoginRoute,
   ApiDocsRoute: ApiDocsRoute,
   CitizenRoute: CitizenRouteWithChildren,
   CitizenLoginRoute: CitizenLoginRoute,

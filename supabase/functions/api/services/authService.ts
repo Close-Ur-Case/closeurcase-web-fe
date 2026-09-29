@@ -619,12 +619,32 @@ export class AuthService {
     if (error || !data?.user) throw ApiError.unauthorized(error?.message || "Invalid email or password");
 
     const user = data.user;
+
+    // Reject administrator accounts from lawyer sign-in
+    const [adminRecord] = await db
+      .select()
+      .from(adminProfiles)
+      .where(or(eq(adminProfiles.userId, user.id), ilike(adminProfiles.email, cleanEmail)));
+
+    const [existingUser] = await db.select().from(users).where(eq(users.id, user.id));
+
+    if (adminRecord || existingUser?.role === "admin") {
+      throw ApiError.forbidden(
+        "This is an Administrator account. Please sign in through the Admin Portal."
+      );
+    }
+
     const [lawyerRecord] = await db
       .select()
       .from(lawyers)
       .where(or(eq(lawyers.userId, user.id), ilike(lawyers.email, cleanEmail)));
 
-    const [existingUser] = await db.select().from(users).where(eq(users.id, user.id));
+    if (!lawyerRecord) {
+      throw ApiError.forbidden(
+        "No advocate or lawyer profile found for this account. Please register as a lawyer."
+      );
+    }
+
     if (!existingUser) {
       await db.insert(users).values({
         id: user.id,
@@ -632,6 +652,8 @@ export class AuthService {
         email: user.email || cleanEmail,
         phone: lawyerRecord?.phone || null,
       });
+    } else if (existingUser.role !== "lawyer") {
+      await db.update(users).set({ role: "lawyer", updatedAt: new Date() }).where(eq(users.id, user.id));
     }
 
     if (lawyerRecord && lawyerRecord.userId !== user.id) {
@@ -672,31 +694,34 @@ export class AuthService {
   static async loginAdmin(email: string, password: string) {
     if (!email || !password) throw ApiError.badRequest("Email and password are required");
 
-    const { data, error } = await supabase.auth.signInWithPassword({ email, password });
+    const cleanEmail = email.trim().toLowerCase();
+    const { data, error } = await supabase.auth.signInWithPassword({ email: cleanEmail, password });
     if (error) throw ApiError.unauthorized(error.message);
 
     const user = data.user!;
 
-    // There is no self-service admin registration — accounts are provisioned
-    // out-of-band in Supabase Auth, so nothing stamps `user_metadata.role`
-    // the way `registerLawyer`'s `signUp` call does for lawyers. Without a
-    // matching `public.users` row either, `authenticateUser`'s role
-    // resolution falls through to its "citizen" default for every admin,
-    // regardless of how long they've been signing in.
-    //
-    // Verified live: signing in with real admin credentials, `GET /auth/me`
-    // resolved `role: "citizen"` from this exact gap, and `admin.me`'s new
-    // role check (added to close a separate leak — see adminController.ts)
-    // then correctly, but unhelpfully, locked out the only real admin
-    // account. Self-healing here, the same way `verifyCitizenOtp` already
-    // does for citizens, is what makes that check able to pass for a genuine
-    // admin at all.
+    const [adminRecord] = await db
+      .select()
+      .from(adminProfiles)
+      .where(or(eq(adminProfiles.userId, user.id), ilike(adminProfiles.email, cleanEmail)));
+
     const [existingUser] = await db.select().from(users).where(eq(users.id, user.id));
+
+    const isAuthorizedAdmin =
+      Boolean(adminRecord) ||
+      existingUser?.role === "admin" ||
+      user.app_metadata?.role === "admin" ||
+      user.user_metadata?.role === "admin";
+
+    if (!isAuthorizedAdmin) {
+      throw ApiError.forbidden("Access denied. This account does not have platform administrator privileges.");
+    }
+
     if (!existingUser) {
       await db.insert(users).values({
         id: user.id,
         role: "admin",
-        email: user.email || email,
+        email: user.email || cleanEmail,
         phone: user.phone || null,
       });
     } else if (existingUser.role !== "admin") {
@@ -705,11 +730,6 @@ export class AuthService {
         .set({ role: "admin", updatedAt: new Date() })
         .where(eq(users.id, user.id));
     }
-
-    const [adminRecord] = await db
-      .select()
-      .from(adminProfiles)
-      .where(eq(adminProfiles.userId, user.id));
 
     return {
       user: { id: user.id, role: "admin", email: user.email },

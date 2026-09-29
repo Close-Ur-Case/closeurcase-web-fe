@@ -311,14 +311,6 @@ export function CitizenLogin() {
       image="/citizen-login.png"
       title={step === "phone" ? translate("citizenLoginLabel") : translate("verifyOtpTitle")}
       subtitle={step === "phone" ? translate("citizenLoginSubtitle") : recipientSubtitle}
-      footer={
-        <>
-          {translate("LawyerAdminSignIn")}{" "}
-          <Link to="/login" className="font-semibold text-primary hover:underline">
-            {translate("lawyerAdminLogin")}
-          </Link>
-        </>
-      }
     >
       <div className="space-y-5">
         <div className="hidden lg:block lg:shrink-0">
@@ -453,6 +445,12 @@ export function CitizenLogin() {
             >
               {isSubmitting ? "Sending OTP…" : translate("continueBtn")}
             </Button>
+
+            <div className="text-center text-xs text-muted-foreground">
+              <Link to="/login" className="font-semibold text-primary hover:underline">
+                Lawyer?
+              </Link>
+            </div>
           </form>
         )}
 

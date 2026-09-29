@@ -616,7 +616,12 @@ export function PublicLayout({ children }: { children: ReactNode }) {
                 </li>
                 <li>
                   <Link to={lawyerDashboardTo} className="transition-colors hover:text-[#a9853f]">
-                    {isLawyer ? "Lawyer Dashboard" : translate("lawyerAdminLogin")}
+                    {isLawyer ? "Lawyer Dashboard" : "Lawyer sign in"}
+                  </Link>
+                </li>
+                <li>
+                  <Link to="/admin-login" className="transition-colors hover:text-[#a9853f]">
+                    Admin portal
                   </Link>
                 </li>
                 <li>
@@ -656,13 +661,27 @@ export function PublicLayout({ children }: { children: ReactNode }) {
 
           <div className="mt-10 flex flex-col gap-3 border-t border-slate-200/70 pt-6 text-center sm:flex-row sm:items-center sm:justify-between sm:text-left">
             <p className="text-xs text-slate-500">© 2026 CloseUrCase. All rights reserved.</p>
-            <Link
-              to={citizenDashboardTo}
-              className="text-xs font-semibold hover:underline"
-              style={{ color: "var(--md-extended-color-citizen)" }}
-            >
-              {isCitizen ? "Citizen Dashboard" : translate("citizenLoginLabel")}
-            </Link>
+            <div className="flex flex-wrap items-center justify-center sm:justify-start gap-3 sm:gap-4 text-xs font-semibold">
+              <Link
+                to={citizenDashboardTo}
+                className="hover:underline"
+                style={{ color: "var(--md-extended-color-citizen)" }}
+              >
+                {isCitizen ? "Citizen Dashboard" : translate("citizenLoginLabel")}
+              </Link>
+              <span className="text-slate-300">•</span>
+              <Link to="/login" className="text-slate-600 hover:text-[#a9853f] hover:underline">
+                Lawyer sign in
+              </Link>
+              <span className="text-slate-300">•</span>
+              <Link
+                to="/admin-login"
+                className="inline-flex items-center gap-1 text-slate-600 hover:text-[#a9853f] hover:underline"
+              >
+                <ShieldCheck className="h-3.5 w-3.5 text-indigo-600" />
+                <span>Admin sign in</span>
+              </Link>
+            </div>
             <p className="text-[11px] text-slate-400">
               Not a law firm. Using this site does not create an attorney–client relationship.
             </p>
