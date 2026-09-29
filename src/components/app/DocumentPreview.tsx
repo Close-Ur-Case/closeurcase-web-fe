@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import { FileText, Maximize2 } from "lucide-react";
+import { FileText, Maximize2, Mic } from "lucide-react";
 import { openDocumentInNewTab } from "@/lib/files";
 
 const DOCX_MIME_TYPES = new Set([
@@ -20,6 +20,11 @@ function looksLikeImage(fileName: string, fileMimeType?: string): boolean {
 function looksLikeDocx(fileName: string, fileMimeType?: string): boolean {
   if (fileMimeType) return DOCX_MIME_TYPES.has(fileMimeType);
   return /\.docx?$/i.test(fileName);
+}
+
+function looksLikeAudio(fileName: string, fileMimeType?: string): boolean {
+  if (fileMimeType) return fileMimeType.startsWith("audio/");
+  return /\.(webm|mp3|wav|ogg|m4a|aac)$/i.test(fileName);
 }
 
 /** Renders a .doc/.docx file's actual content client-side (docx-preview
@@ -224,6 +229,21 @@ export function DocumentPreviewBody({
           title={title}
           showFullScreenButton={showFullScreenButton}
         />
+      </div>
+    );
+  }
+
+  if (looksLikeAudio(fileName, fileMimeType)) {
+    return (
+      <div className="mx-auto flex max-w-md flex-col items-center justify-center gap-4 rounded-xl border border-border bg-background p-6 shadow-sm">
+        <div className="flex h-16 w-16 items-center justify-center rounded-full bg-primary/10 text-primary">
+          <Mic className="h-8 w-8" />
+        </div>
+        <div className="text-center">
+          <p className="text-xs font-semibold text-foreground">{fileName}</p>
+          <p className="text-[11px] text-muted-foreground mt-0.5">Voice Note / Audio Attachment</p>
+        </div>
+        <audio controls src={fileDataUrl} className="w-full mt-2" />
       </div>
     );
   }

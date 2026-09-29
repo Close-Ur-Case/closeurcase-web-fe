@@ -9,6 +9,11 @@ import {
   type UserCaseDocument,
   type UserCaseTimelineEvent,
 } from "./casesUser.ts";
+import {
+  caseDocuments,
+  type CaseDocumentRecord,
+  type NewCaseDocumentRecord,
+} from "./caseDocuments.ts";
 import { lawyerDocuments } from "./documents.ts";
 import { lawyerRatings } from "./ratings.ts";
 import { subscriptions, subscriptionPlans } from "./subscriptions.ts";
@@ -92,6 +97,14 @@ export const caseUserRelations = relations(casesUser, ({ one, many }: any) => ({
   }),
   videoCalls: many(videoCalls),
   messages: many(chatMessages),
+  documents: many(caseDocuments),
+}));
+
+export const caseDocumentRelations = relations(caseDocuments, ({ one }: any) => ({
+  case: one(casesUser, {
+    fields: [caseDocuments.caseId],
+    references: [casesUser.id],
+  }),
 }));
 
 export const caseCategoriesRelations = relations(caseCategories, ({ many }: any) => ({
@@ -171,6 +184,9 @@ export {
   type NewCaseUser,
   type UserCaseDocument,
   type UserCaseTimelineEvent,
+  caseDocuments,
+  type CaseDocumentRecord,
+  type NewCaseDocumentRecord,
   lawyerDocuments,
   lawyerRatings,
   subscriptions,

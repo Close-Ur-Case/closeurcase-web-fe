@@ -103,7 +103,7 @@ export const caseService = {
   },
 
   /**
-   * Add attachment documents to a case docket (persists to backend cases_user.documents)
+   * Add attachment documents to a case docket (persists to backend case_documents table)
    */
   async addAttachments<T = Record<string, unknown>>(
     caseId: string,
@@ -112,6 +112,12 @@ export const caseService = {
     return apiClient.post<T>(`/cases/user/${caseId}/attachments`, { documents: docs });
   },
 
+  /**
+   * Get case documents directly from case_documents table
+   */
+  async getCaseDocuments<T = BackendUserCaseDocument[]>(caseId: string): Promise<T> {
+    return apiClient.get<T>(`/cases/user/${caseId}/documents`);
+  },
 
   /**
    * Permanently delete a case docket
@@ -151,11 +157,16 @@ export const caseService = {
 
 export interface BackendUserCaseDocument {
   id?: string;
+  caseId?: string;
+  uploaderId?: string | null;
   name: string;
   fileUrl: string;
   size?: string;
   fileMimeType?: string;
   uploadedAt?: string;
+  uploadedBy?: "citizen" | "lawyer";
+  createdAt?: string;
+  updatedAt?: string;
 }
 
 export interface BackendUserCaseTimelineEvent {
@@ -268,7 +279,10 @@ export function mapBackendCaseToLegalCase(
     uploadedAt: d.uploadedAt || createdDate,
     fileDataUrl: d.fileUrl || d.fileDataUrl || d.url || "",
     fileMimeType: d.fileMimeType || d.type || undefined,
-    uploadedBy: (d.uploadedBy as "citizen" | "lawyer") || "citizen",
+    uploadedBy:
+      d.uploadedBy === "lawyer" || d.uploaderRole === "lawyer" || d.uploaded_by === "lawyer"
+        ? ("lawyer" as const)
+        : ("citizen" as const),
   }));
 
   const extraFiles: CaseDocument[] = Array.isArray(impFiles)

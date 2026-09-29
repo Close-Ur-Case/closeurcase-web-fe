@@ -14,6 +14,7 @@ import {
   updateUserCase,
   deleteUserCase,
   addCaseAttachments,
+  getCaseDocuments,
 } from "../controllers/caseController.ts";
 import {
   getCaseMessages,
@@ -287,7 +288,7 @@ const addCaseAttachmentsRoute = createRoute({
   method: "post",
   path: "/user/:id/attachments",
   tags: ["Cases - User"],
-  summary: "Add attachments to a case docket (persists to cases_user.documents)",
+  summary: "Add attachments to a case docket (persists to case_documents table)",
   security: [{ bearerAuth: [] }],
   request: {
     params: z.object({
@@ -306,6 +307,25 @@ const addCaseAttachmentsRoute = createRoute({
   responses: {
     200: {
       description: "Attachments added successfully",
+      content: { "application/json": { schema: SuccessResponseSchema } },
+    },
+  },
+});
+
+const getCaseDocumentsRoute = createRoute({
+  method: "get",
+  path: "/user/:id/documents",
+  tags: ["Cases - User"],
+  summary: "Get case documents from case_documents table",
+  security: [{ bearerAuth: [] }],
+  request: {
+    params: z.object({
+      id: z.string().openapi({ example: "CUC-20260831154512" }),
+    }),
+  },
+  responses: {
+    200: {
+      description: "List of case documents",
       content: { "application/json": { schema: SuccessResponseSchema } },
     },
   },
@@ -334,6 +354,25 @@ const addRootCaseAttachmentsRoute = createRoute({
   responses: {
     200: {
       description: "Attachments added successfully",
+      content: { "application/json": { schema: SuccessResponseSchema } },
+    },
+  },
+});
+
+const getRootCaseDocumentsRoute = createRoute({
+  method: "get",
+  path: "/:id/documents",
+  tags: ["Cases - User"],
+  summary: "Get case documents (alias for /user/:id/documents)",
+  security: [{ bearerAuth: [] }],
+  request: {
+    params: z.object({
+      id: z.string().openapi({ example: "CUC-20260831154512" }),
+    }),
+  },
+  responses: {
+    200: {
+      description: "List of case documents",
       content: { "application/json": { schema: SuccessResponseSchema } },
     },
   },
@@ -529,6 +568,7 @@ caseRouter.openapi(getUserCaseRoute, getUserCase as any);
 caseRouter.openapi(updateLawyerStageRoute, updateLawyerStage as any);
 caseRouter.openapi(updateUserCaseRoute, updateUserCase as any);
 caseRouter.openapi(addCaseAttachmentsRoute, addCaseAttachments as any);
+caseRouter.openapi(getCaseDocumentsRoute, getCaseDocuments as any);
 caseRouter.openapi(deleteUserCaseRoute, deleteUserCase as any);
 
 caseRouter.openapi(listRootCasesRoute, listUserCases as any);
@@ -537,6 +577,7 @@ caseRouter.openapi(getRootCaseRoute, getUserCase as any);
 caseRouter.openapi(updateRootCaseStatusRoute, updateLawyerStage as any);
 caseRouter.openapi(updateRootCaseRoute, updateUserCase as any);
 caseRouter.openapi(addRootCaseAttachmentsRoute, addCaseAttachments as any);
+caseRouter.openapi(getRootCaseDocumentsRoute, getCaseDocuments as any);
 caseRouter.openapi(deleteRootCaseRoute, deleteUserCase as any);
 caseRouter.openapi(assignLawyerRoute, assignLawyer as any);
 

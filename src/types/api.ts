@@ -134,11 +134,16 @@ export interface AuthResponseData {
 
 export interface CaseDocumentItem {
   id?: string;
+  caseId?: string;
+  uploaderId?: string | null;
   name: string;
   fileUrl: string;
   size?: string;
   fileMimeType?: string;
   uploadedAt?: string;
+  uploadedBy?: "citizen" | "lawyer";
+  createdAt?: string;
+  updatedAt?: string;
 }
 
 export interface CreateUserCasePayload {

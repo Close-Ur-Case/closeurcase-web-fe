@@ -849,6 +849,7 @@ export function FindLawyerWizard() {
             // upload succeeded, falling back to a data URL, and formatted the size.
             fileUrl: d.fileDataUrl || "",
             size: d.size,
+            uploadedBy: "citizen" as const,
           })),
         })
         .then((res) => {

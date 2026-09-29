@@ -12,6 +12,7 @@ export interface UserCaseDocument {
   size?: string;
   fileMimeType?: string;
   uploadedAt?: string;
+  uploadedBy?: "citizen" | "lawyer";
 }
 
 export interface UserCaseTimelineEvent {
@@ -39,7 +40,6 @@ export const casesUser = pgTable("cases_user", {
   petitioner: varchar("petitioner", { length: 255 }).notNull(),
   respondent: varchar("respondent", { length: 255 }),
   description: text("description").notNull(),
-  documents: jsonb("documents").$type<UserCaseDocument[]>().notNull().default([]),
   practiceArea: varchar("practice_area", { length: 128 }).notNull(),
   specialization: varchar("specialization", { length: 128 }).notNull(),
   legalServices: jsonb("legal_services").$type<string[]>().notNull().default([]),

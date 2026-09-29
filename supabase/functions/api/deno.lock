@@ -8,7 +8,8 @@
     "npm:drizzle-orm@~0.38.4": "0.38.4_postgres@3.4.9",
     "npm:hono@^4.6.14": "4.13.8",
     "npm:postgres@*": "3.4.9",
-    "npm:postgres@^3.4.5": "3.4.9"
+    "npm:postgres@^3.4.5": "3.4.9",
+    "npm:zod@^3.23.8": "3.25.76"
   },
   "npm": {
     "@asteasolutions/zod-to-openapi@7.3.4_zod@3.25.76": {

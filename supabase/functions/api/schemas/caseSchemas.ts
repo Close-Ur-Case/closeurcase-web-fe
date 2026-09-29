@@ -1,5 +1,35 @@
 import { z } from "@hono/zod-openapi";
 
+export const CaseDocumentItemSchema = z
+  .object({
+    id: z.string().optional(),
+    caseId: z.string().optional(),
+    uploaderId: z.string().nullable().optional(),
+    uploadedBy: z.enum(["citizen", "lawyer"]).optional().openapi({ example: "citizen" }),
+    name: z.string().openapi({ example: "sale_deed.pdf" }),
+    fileUrl: z.string().openapi({ example: "https://closeurcase.app/docs/sale_deed.pdf" }),
+    size: z.string().nullable().optional().openapi({ example: "1.2 MB" }),
+    fileMimeType: z.string().nullable().optional().openapi({ example: "application/pdf" }),
+    uploadedAt: z.string().optional().openapi({ example: "2026-08-31T15:45:12.000Z" }),
+  })
+  .openapi("CaseDocumentItem");
+
+export const CaseDocumentSchema = z
+  .object({
+    id: z.string().openapi({ example: "doc_1727600000000_1" }),
+    caseId: z.string().openapi({ example: "CUC-20260831154512" }),
+    uploaderId: z.string().nullable().optional().openapi({ example: "u_001" }),
+    uploadedBy: z.enum(["citizen", "lawyer"]).openapi({ example: "citizen" }),
+    name: z.string().openapi({ example: "sale_deed.pdf" }),
+    fileUrl: z.string().openapi({ example: "https://closeurcase.app/docs/sale_deed.pdf" }),
+    size: z.string().nullable().optional().openapi({ example: "1.2 MB" }),
+    fileMimeType: z.string().nullable().optional().openapi({ example: "application/pdf" }),
+    uploadedAt: z.string().optional().openapi({ example: "2026-08-31T15:45:12.000Z" }),
+    createdAt: z.string().optional(),
+    updatedAt: z.string().optional(),
+  })
+  .openapi("CaseDocument");
+
 export const CreateUserCaseSchema = z
   .object({
     id: z.string().optional().openapi({ example: "CUC-20260831154512" }),
@@ -12,16 +42,7 @@ export const CreateUserCaseSchema = z
     title: z.string().optional().openapi({ example: "Property Handover Dispute" }),
     description: z.string().min(1).openapi({ example: "Builder delay in handover under RERA Section 18." }),
     documents: z
-      .array(
-        z.object({
-          id: z.string().optional(),
-          name: z.string(),
-          fileUrl: z.string(),
-          size: z.string().optional(),
-          fileMimeType: z.string().optional(),
-          uploadedAt: z.string().optional(),
-        })
-      )
+      .array(CaseDocumentItemSchema)
       .default([])
       .openapi({ example: [{ name: "sale_deed.pdf", fileUrl: "https://closeurcase.app/docs/sale_deed.pdf", size: "1.2 MB" }] }),
     practiceArea: z.string().min(1).openapi({ example: "cat_1" }),

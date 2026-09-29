@@ -225,8 +225,37 @@ export async function addCaseAttachments(c: Context) {
   }
   const body = await c.req.json();
   const docs = Array.isArray(body.documents) ? body.documents : body.files || [body];
-  const result = await CaseService.addAttachmentsToUserCase(id, docs);
+  const userRole = user?.role === "lawyer" ? "lawyer" : user?.role === "citizen" ? "citizen" : undefined;
+  const docsWithRole = docs.map((d: any) => ({
+    ...d,
+    uploadedBy: d.uploadedBy || userRole || "citizen",
+  }));
+  const result = await CaseService.addAttachmentsToUserCase(id, docsWithRole);
   return ApiResponse.success(c, result, "Attachments added successfully");
+}
+
+export async function getCaseDocuments(c: Context) {
+  const id = c.req.param("id")!;
+  const user = c.get("user");
+  if (user && user.role === "citizen") {
+    const existing = await CaseService.getUserCaseById(id);
+    const [citizen] = await db
+      .select({ id: citizens.id })
+      .from(citizens)
+      .where(or(eq(citizens.userId, user.id), eq(citizens.id, user.id)));
+    const myCitizenId = citizen?.id || user.id;
+    const userCitizenId = (user as any)?.citizenId;
+    if (
+      existing.citizenId &&
+      existing.citizenId !== myCitizenId &&
+      existing.citizenId !== user.id &&
+      (!userCitizenId || existing.citizenId !== userCitizenId)
+    ) {
+      throw ApiError.forbidden("Access denied: You can only view documents for your own cases");
+    }
+  }
+  const result = await CaseService.getCaseDocuments(id);
+  return ApiResponse.success(c, result, "Case documents retrieved successfully");
 }
 
 

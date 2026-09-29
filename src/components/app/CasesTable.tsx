@@ -20,6 +20,12 @@ import {
   Star,
   Upload,
   MessageSquare,
+  MessageCircle,
+  UploadCloud,
+  Mic,
+  ExternalLink,
+  Loader2,
+  Lock,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import {
@@ -43,6 +49,8 @@ import {
   getLawyerRatingForCase,
 } from "@/data/appStore";
 import { caseService } from "@/services/caseService";
+import { chatService } from "@/services/chatService";
+import type { ChatMessage } from "@/components/app/CaseChat";
 import { storageService } from "@/services/storageService";
 import { UserAvatar } from "@/components/app/UserAvatar";
 import {
@@ -111,6 +119,42 @@ function CaseTypeBadge({ caseItem }: { caseItem: LegalCase }) {
   );
 }
 
+export type AttachmentTab =
+  | "citizen_submitted"
+  | "lawyer_uploaded"
+  | "citizen_shared"
+  | "lawyer_shared";
+
+function chatMessageToDocument(msg: ChatMessage): CaseDocument {
+  const isImage =
+    msg.attachmentType === "image" ||
+    /\.(jpe?g|png|gif|webp|bmp|svg)$/i.test(msg.attachmentName || "") ||
+    Boolean(msg.attachmentUrl?.startsWith("data:image/"));
+  const isAudio =
+    msg.attachmentType === "audio" ||
+    /\.(webm|mp3|wav|ogg|m4a|aac)$/i.test(msg.attachmentName || "");
+  const mimeType = isImage
+    ? "image/jpeg"
+    : isAudio
+      ? "audio/webm"
+      : (msg as any).attachmentMimeType ||
+        (/\.pdf$/i.test(msg.attachmentName || "")
+          ? "application/pdf"
+          : /\.docx?$/i.test(msg.attachmentName || "")
+            ? "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+            : "application/octet-stream");
+
+  return {
+    id: msg.id,
+    name: msg.attachmentName || (isImage ? "Chat Image" : isAudio ? "Voice Note" : "Chat Document"),
+    size: msg.attachmentSize || (isAudio && msg.audioDuration ? `${msg.audioDuration}s` : "Chat Media"),
+    uploadedAt: msg.at ? msg.at.slice(0, 10) : new Date().toISOString().slice(0, 10),
+    fileDataUrl: msg.attachmentUrl || "",
+    fileMimeType: mimeType,
+    uploadedBy: msg.sender,
+  };
+}
+
 /**
  * The cases table shared by citizen "My Cases", lawyer "Assigned Cases", and
  * both dashboards' "Upcoming Hearings" widget — one component, one set of
@@ -133,7 +177,9 @@ export function CasesTable({
   const [editingCase, setEditingCase] = useState<LegalCase | null>(null);
 
   const [attachmentsCaseId, setAttachmentsCaseId] = useState<string | null>(null);
-  const [attachmentTab, setAttachmentTab] = useState<"client" | "mydocs">("client");
+  const [attachmentTab, setAttachmentTab] = useState<AttachmentTab>("citizen_submitted");
+  const [caseChatMessages, setCaseChatMessages] = useState<ChatMessage[]>([]);
+  const [isLoadingChatMessages, setIsLoadingChatMessages] = useState(false);
   const [isUploadingAttachment, setIsUploadingAttachment] = useState(false);
   const [attachmentError, setAttachmentError] = useState("");
   const addAttachmentInputRef = useRef<HTMLInputElement>(null);
@@ -170,6 +216,76 @@ export function CasesTable({
     sync();
     return subscribeToStore(sync);
   }, []);
+
+  // Sync consultation chat messages when opening attachments popup
+  useEffect(() => {
+    if (!attachmentsCaseId) {
+      setCaseChatMessages([]);
+      return;
+    }
+
+    const loadCaseChat = () => {
+      try {
+        const raw = localStorage.getItem("cuc_case_chats_v1");
+        if (raw) {
+          const parsed = JSON.parse(raw);
+          if (Array.isArray(parsed)) {
+            setCaseChatMessages(parsed.filter((m: any) => m.caseId === attachmentsCaseId));
+          }
+        }
+      } catch (err) {
+        console.warn("[CasesTable] Local chat messages read notice:", err);
+      }
+    };
+
+    loadCaseChat();
+    window.addEventListener("cuc_chat_updated", loadCaseChat);
+
+    let active = true;
+    setIsLoadingChatMessages(true);
+    chatService
+      .getMessages(attachmentsCaseId)
+      .then((remoteMsgs) => {
+        if (!active || !Array.isArray(remoteMsgs)) return;
+        const formatted: ChatMessage[] = remoteMsgs.map((rm) => ({
+          id: rm.id,
+          caseId: rm.caseId,
+          text: rm.text || (rm as any).message || undefined,
+          sender: rm.sender as "citizen" | "lawyer",
+          senderName: rm.senderName || (rm.sender === "lawyer" ? "Lawyer" : "Client"),
+          at: rm.at || (rm as any).createdAt || new Date().toISOString(),
+          read: rm.read ?? false,
+          attachmentType: rm.attachmentType as any,
+          attachmentName: rm.attachmentName || undefined,
+          attachmentUrl: rm.attachmentUrl || undefined,
+          attachmentSize: rm.attachmentSize || undefined,
+          audioDuration: rm.audioDuration || undefined,
+        }));
+
+        setCaseChatMessages((prev) => {
+          const merged = [...prev, ...formatted];
+          const seen = new Set<string>();
+          const deduped: ChatMessage[] = [];
+          for (const m of merged) {
+            if (!m.id || seen.has(m.id)) continue;
+            seen.add(m.id);
+            deduped.push(m);
+          }
+          return deduped;
+        });
+      })
+      .catch((err) => {
+        console.warn("[CasesTable] Remote chat messages fetch notice:", err);
+      })
+      .finally(() => {
+        if (active) setIsLoadingChatMessages(false);
+      });
+
+    return () => {
+      active = false;
+      window.removeEventListener("cuc_chat_updated", loadCaseChat);
+    };
+  }, [attachmentsCaseId]);
 
   function handleOpenRatingModal(c: LegalCase) {
     const matchedLawyer = lawyers.find(
@@ -413,7 +529,7 @@ export function CasesTable({
     setAttachmentsCaseId(null);
     setPreviewDoc(null);
     setPreviewFullScreen(false);
-    setAttachmentTab("client");
+    setAttachmentTab("citizen_submitted");
     setAttachmentError("");
     setIsDragging(false);
   }
@@ -466,8 +582,7 @@ export function CasesTable({
     setIsUploadingAttachment(true);
     try {
       const uploadDate = todayISO();
-      const uploaderRole: "citizen" | "lawyer" =
-        isLawyer && attachmentTab === "mydocs" ? "lawyer" : "citizen";
+      const uploaderRole: "citizen" | "lawyer" = isLawyer ? "lawyer" : "citizen";
       const docs: CaseDocument[] = await Promise.all(
         files.map(async (f, i) => {
           let cloudUrl = "";
@@ -523,6 +638,10 @@ export function CasesTable({
         size: d.size,
         fileMimeType: d.fileMimeType,
         uploadedAt: d.uploadedAt,
+        uploadedBy:
+          d.uploadedBy === "lawyer" || (d as any).uploaderRole === "lawyer"
+            ? ("lawyer" as const)
+            : ("citizen" as const),
       }));
 
       try {
@@ -539,6 +658,7 @@ export function CasesTable({
             size: d.size,
             fileMimeType: d.fileMimeType,
             uploadedAt: d.uploadedAt,
+            uploadedBy: d.uploadedBy || uploaderRole,
           }));
           await caseService.addAttachments(attachmentsCaseId, newBackendDocs);
         } catch (fallbackErr) {
@@ -1196,7 +1316,7 @@ export function CasesTable({
           document.body,
         )}
 
-      {/* Attachments Modal */}
+      {/* Attachments Modal with 4 Tabs */}
       {attachmentsCase &&
         createPortal(
           (() => {
@@ -1205,77 +1325,317 @@ export function CasesTable({
               : Array.isArray(attachmentsCase.files?.files)
                 ? attachmentsCase.files.files
                 : [];
-            const clientDocs = allAttachedDocs.filter((d) => d.uploadedBy !== "lawyer");
-            const lawyerDocs = allAttachedDocs.filter((d) => d.uploadedBy === "lawyer");
+            const isLawyerDoc = (d: CaseDocument) =>
+              (d.uploadedBy || (d as any).uploaderRole || (d as any).uploaded_by || "")
+                ?.toString()
+                .trim()
+                .toLowerCase() === "lawyer";
+            const isCitizenDoc = (d: CaseDocument) => !isLawyerDoc(d);
+
+            // Tab 1: Citizen Submitted ('the files which are shared by user during case registration')
+            const citizenSubmittedDocs: CaseDocument[] = allAttachedDocs.filter(isCitizenDoc);
+
+            // Tab 2: Lawyer Uploaded ('the files uploaded by lawyer when case is in progress')
+            const lawyerUploadedDocs: CaseDocument[] = allAttachedDocs.filter(isLawyerDoc);
+
+            // Tab 3: Citizen Shared ('the files which are shared during case chat with lawyer')
+            const citizenSharedDocs: CaseDocument[] = caseChatMessages
+              .filter((m) => Boolean(m.attachmentUrl) && m.sender === "citizen")
+              .map(chatMessageToDocument);
+
+            // Tab 4: Lawyer Shared ('the files which are shared during case chat with citizen')
+            const lawyerSharedDocs: CaseDocument[] = caseChatMessages
+              .filter((m) => Boolean(m.attachmentUrl) && m.sender === "lawyer")
+              .map(chatMessageToDocument);
+
+            const isCitizenViewer = !isLawyer;
+            const caseStatusLower = (attachmentsCase.status || "").toString().trim().toLowerCase();
+            const currentStageKey = (
+              attachmentsFilterStatus ||
+              STORED_STATUS_TO_FILTER[attachmentsCase.status] ||
+              attachmentsCase.status ||
+              ""
+            ).toString().trim();
+            const isCasePendingByLawyer =
+              currentStageKey === "Pending by Lawyer" ||
+              currentStageKey.toLowerCase() === "pending by lawyer" ||
+              caseStatusLower === "submitted" ||
+              caseStatusLower === "pending" ||
+              (attachmentsCase as any).stage === "Pending by Lawyer" ||
+              (attachmentsCase as any).currentStage === "Pending by Lawyer";
+            const isPendingRestricted = isCitizenViewer && isCasePendingByLawyer;
+
+            const renderPendingByLawyerMessage = () => (
+              <div className="rounded-2xl border border-dashed border-border bg-card p-8 sm:p-10 text-center space-y-3.5 animate-in fade-in duration-200">
+                <div className="flex h-12 w-12 sm:h-14 sm:w-14 items-center justify-center rounded-2xl bg-amber-500/10 text-amber-600 dark:text-amber-400 mx-auto ring-1 ring-amber-500/20">
+                  <Lock className="h-6 w-6" />
+                </div>
+                <div className="space-y-1.5">
+                  <p className="text-sm sm:text-base font-semibold text-foreground tracking-tight">
+                    files visible only after case accepted
+                  </p>
+                  <p className="text-xs text-muted-foreground max-w-md mx-auto leading-relaxed">
+                    This case is currently under stage{" "}
+                    <span className="font-semibold text-foreground">[Pending by Lawyer]</span>. Files
+                    will become visible once the case is accepted.
+                  </p>
+                </div>
+                <div className="pt-1 flex items-center justify-center">
+                  <span className="inline-flex items-center gap-1.5 rounded-full bg-amber-500/10 px-3 py-1 text-[11px] font-semibold text-amber-600 dark:text-amber-400 border border-amber-500/25">
+                    <Lock className="h-3 w-3" />
+                    Stage: Pending by Lawyer
+                  </span>
+                </div>
+              </div>
+            );
+
+            const chatTargetRoute =
+              role === "citizen"
+                ? `/citizen/chat/${attachmentsCase.id}`
+                : `/lawyer/chat/${attachmentsCase.id}`;
+
+            const renderDocItem = (d: CaseDocument, badgeLabel: string, badgeStyle: string) => {
+              const isImage =
+                d.fileMimeType?.startsWith("image/") ||
+                /\.(jpe?g|png|gif|webp|bmp|svg)$/i.test(d.name);
+              const isAudio =
+                d.fileMimeType?.startsWith("audio/") ||
+                /\.(webm|mp3|wav|ogg|m4a|aac)$/i.test(d.name);
+
+              return (
+                <li
+                  key={d.id}
+                  className="flex items-center justify-between gap-3 rounded-xl border border-border bg-card p-3 shadow-2xs hover:border-primary/40 transition-colors"
+                >
+                  <div className="flex min-w-0 items-center gap-2.5">
+                    <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-primary/10 text-primary">
+                      {isImage ? (
+                        <ImageIcon className="h-4.5 w-4.5" />
+                      ) : isAudio ? (
+                        <Mic className="h-4.5 w-4.5" />
+                      ) : (
+                        <FileText className="h-4.5 w-4.5" />
+                      )}
+                    </span>
+                    <div className="min-w-0">
+                      <div
+                        className="truncate text-xs font-semibold text-foreground"
+                        title={d.name}
+                      >
+                        {d.name}
+                      </div>
+                      <div className="text-[10px] text-muted-foreground flex items-center gap-2 mt-0.5">
+                        <span>
+                          {d.size} · {d.uploadedAt}
+                        </span>
+                        <span
+                          className={cn(
+                            "inline-flex items-center px-1.5 py-0.5 rounded text-[9.5px] font-medium",
+                            badgeStyle,
+                          )}
+                        >
+                          {badgeLabel}
+                        </span>
+                      </div>
+                    </div>
+                  </div>
+                  <div className="flex shrink-0 items-center gap-1">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setPreviewDoc(d);
+                        setPreviewFullScreen(false);
+                      }}
+                      title="Preview"
+                      className="flex h-8 w-8 items-center justify-center rounded-full text-muted-foreground hover:bg-black/5 hover:text-foreground transition-colors cursor-pointer"
+                    >
+                      <Eye className="h-4 w-4" />
+                    </button>
+                    <a
+                      href={
+                        d.fileDataUrl ??
+                        `data:text/plain;charset=utf-8,${encodeURIComponent(d.name)}`
+                      }
+                      download={d.fileDataUrl ? d.name : `${d.name}.txt`}
+                      title="Download"
+                      className="flex h-8 w-8 items-center justify-center rounded-full text-muted-foreground hover:bg-black/5 hover:text-foreground transition-colors"
+                    >
+                      <Download className="h-4 w-4" />
+                    </a>
+                  </div>
+                </li>
+              );
+            };
+
+            const TABS: {
+              id: AttachmentTab;
+              label: string;
+              count: number;
+              icon: React.ReactNode;
+              hint: string;
+            }[] = [
+              {
+                id: "citizen_submitted",
+                label: "Citizen Submitted",
+                count: citizenSubmittedDocs.length,
+                icon: <FileText className="h-3.5 w-3.5 shrink-0" />,
+                hint: "Files shared by user during case registration",
+              },
+              {
+                id: "lawyer_uploaded",
+                label: "Lawyer Uploaded",
+                count: isPendingRestricted ? 0 : lawyerUploadedDocs.length,
+                icon: isPendingRestricted ? (
+                  <Lock className="h-3.5 w-3.5 shrink-0 text-amber-600 dark:text-amber-400" />
+                ) : (
+                  <UploadCloud className="h-3.5 w-3.5 shrink-0" />
+                ),
+                hint: isPendingRestricted
+                  ? "files visible only after case accepted"
+                  : "Files uploaded by lawyer when case is in progress",
+              },
+              {
+                id: "citizen_shared",
+                label: "Citizen Shared",
+                count: isPendingRestricted ? 0 : citizenSharedDocs.length,
+                icon: isPendingRestricted ? (
+                  <Lock className="h-3.5 w-3.5 shrink-0 text-amber-600 dark:text-amber-400" />
+                ) : (
+                  <MessageSquare className="h-3.5 w-3.5 shrink-0" />
+                ),
+                hint: isPendingRestricted
+                  ? "files visible only after case accepted"
+                  : "Files shared during case chat with lawyer",
+              },
+              {
+                id: "lawyer_shared",
+                label: "Lawyer Shared",
+                count: isPendingRestricted ? 0 : lawyerSharedDocs.length,
+                icon: isPendingRestricted ? (
+                  <Lock className="h-3.5 w-3.5 shrink-0 text-amber-600 dark:text-amber-400" />
+                ) : (
+                  <MessageCircle className="h-3.5 w-3.5 shrink-0" />
+                ),
+                hint: isPendingRestricted
+                  ? "files visible only after case accepted"
+                  : "Files shared during case chat with citizen",
+              },
+            ];
 
             return (
               <div
-                className="fixed inset-0 top-0 left-0 right-0 bottom-0 z-[100] flex h-screen w-screen min-h-[100dvh] items-center justify-center bg-black/60 p-4 sm:p-6 overflow-y-auto backdrop-blur-sm animate-in fade-in duration-150"
+                className="fixed inset-0 top-0 left-0 right-0 bottom-0 z-[100] flex h-screen w-screen min-h-[100dvh] items-center justify-center bg-black/60 p-3 sm:p-6 overflow-y-auto backdrop-blur-sm animate-in fade-in duration-150"
                 onClick={(e) => {
                   if (e.target === e.currentTarget) closeAttachmentsModal();
                 }}
               >
-                <div className="my-auto flex max-h-[90vh] w-full max-w-[640px] flex-col rounded-[28px] bg-[var(--md-sys-color-surface-container-low,#f5f3f7)] shadow-2xl border border-border/80 overflow-hidden text-foreground">
-                  {/* Header with Top-Right Tabs for Lawyer */}
-                  <div className="flex items-start justify-between gap-4 p-6 pb-2 shrink-0">
+                <div className="my-auto flex max-h-[92vh] w-full max-w-[760px] flex-col rounded-[28px] bg-[var(--md-sys-color-surface-container-low,#f5f3f7)] shadow-2xl border border-border/80 overflow-hidden text-foreground">
+                  {/* Modal Header */}
+                  <div className="flex items-start justify-between gap-4 p-5 sm:p-6 pb-3 shrink-0 border-b border-border/60">
                     <div>
-                      <h2 className="text-2xl font-normal text-foreground leading-snug">
-                        Attachments
+                      <h2 className="text-xl sm:text-2xl font-bold text-foreground leading-snug tracking-tight">
+                        Case Attachments
                       </h2>
-                      <div className="text-xs text-muted-foreground mt-1">
-                        {attachmentsCase.title || "Untitled Matter"}
+                      <div className="text-xs text-muted-foreground mt-1 flex flex-wrap items-center gap-1.5">
+                        <span className="font-semibold text-foreground/90">
+                          {attachmentsCase.title || "Untitled Matter"}
+                        </span>
+                        <span>•</span>
+                        <span className="font-mono text-[11px] text-primary">
+                          {attachmentsCase.id}
+                        </span>
+                        {attachmentsCase.caseDetails?.cnr && (
+                          <>
+                            <span>•</span>
+                            <span className="font-mono text-[11px] text-muted-foreground">
+                              CNR: {attachmentsCase.caseDetails.cnr}
+                            </span>
+                          </>
+                        )}
                       </div>
                     </div>
 
-                    {/* Top Right: Tabs (Client / My Docs) for Lawyer + Close button */}
-                    <div className="flex items-center gap-2">
-                      {isLawyer && (
-                        <div className="inline-flex rounded-full bg-surface border border-border/80 p-0.5 text-xs shadow-2xs">
-                          <button
-                            type="button"
-                            onClick={() => setAttachmentTab("client")}
-                            className={cn(
-                              "rounded-full px-3 py-1 font-semibold text-xs transition-all cursor-pointer",
-                              attachmentTab === "client"
-                                ? "bg-primary text-white shadow-xs"
-                                : "text-muted-foreground hover:text-foreground",
-                            )}
-                          >
-                            Client ({clientDocs.length})
-                          </button>
-                          <button
-                            type="button"
-                            onClick={() => setAttachmentTab("mydocs")}
-                            className={cn(
-                              "rounded-full px-3 py-1 font-semibold text-xs transition-all cursor-pointer",
-                              attachmentTab === "mydocs"
-                                ? "bg-primary text-white shadow-xs"
-                                : "text-muted-foreground hover:text-foreground",
-                            )}
-                          >
-                            My Docs ({lawyerDocs.length})
-                          </button>
-                        </div>
-                      )}
+                    <button
+                      type="button"
+                      onClick={closeAttachmentsModal}
+                      className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full text-muted-foreground hover:bg-black/5 hover:text-foreground transition-colors cursor-pointer"
+                      title="Close"
+                    >
+                      <X className="h-5 w-5" />
+                    </button>
+                  </div>
 
-                      <button
-                        type="button"
-                        onClick={closeAttachmentsModal}
-                        className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full text-muted-foreground hover:bg-black/5 hover:text-foreground transition-colors cursor-pointer"
-                        title="Close"
-                      >
-                        <X className="h-5 w-5" />
-                      </button>
+                  {/* 4 Tabs Bar — Full length names auto-adjusting to next line */}
+                  <div className="px-5 sm:px-6 pt-3 pb-2 shrink-0">
+                    <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 p-1.5 bg-surface rounded-2xl border border-border/80 shadow-2xs items-stretch">
+                      {TABS.map((t) => {
+                        const isActive = attachmentTab === t.id;
+                        return (
+                          <button
+                            key={t.id}
+                            type="button"
+                            onClick={() => setAttachmentTab(t.id)}
+                            className={cn(
+                              "flex h-full min-h-[50px] items-center justify-between gap-2 p-2.5 sm:px-3 sm:py-2.5 rounded-xl transition-all cursor-pointer text-left",
+                              isActive
+                                ? "bg-primary text-white shadow-sm ring-1 ring-primary/30"
+                                : "text-muted-foreground hover:text-foreground hover:bg-muted/40",
+                            )}
+                            title={t.hint}
+                          >
+                            <div className="flex items-center gap-2 min-w-0 flex-1">
+                              <span
+                                className={cn(
+                                  "flex h-7 w-7 shrink-0 items-center justify-center rounded-lg transition-colors",
+                                  isActive
+                                    ? "bg-white/20 text-white"
+                                    : "bg-primary/10 text-primary",
+                                )}
+                              >
+                                {t.icon}
+                              </span>
+                              <span className="text-xs font-bold leading-tight whitespace-normal break-words">
+                                {t.label}
+                              </span>
+                            </div>
+                            <span
+                              className={cn(
+                                "inline-flex items-center justify-center px-1.5 py-0.5 rounded-full text-[10px] font-bold shrink-0 ml-1 self-center",
+                                isActive
+                                  ? "bg-white/25 text-white"
+                                  : "bg-muted text-muted-foreground",
+                              )}
+                            >
+                              {t.count}
+                            </span>
+                          </button>
+                        );
+                      })}
                     </div>
                   </div>
 
-                  {/* Modal Body */}
-                  <div className="p-6 pt-2 overflow-y-auto space-y-4 min-h-0 flex-1">
-                    {!isLawyer || attachmentTab === "client" ? (
-                      <>
+                  {/* Modal Body with 4 Tab Panels */}
+                  <div className="p-5 sm:p-6 pt-2 overflow-y-auto space-y-4 min-h-0 flex-1">
+                    {/* ── TAB 1: Citizen Submitted ─────────────────────── */}
+                    {attachmentTab === "citizen_submitted" && (
+                      <div className="space-y-4">
+                        {/* Info Banner */}
+                        <div className="rounded-xl bg-teal-500/10 border border-teal-500/20 p-3 text-xs flex items-start gap-2.5">
+                          <FileText className="h-4 w-4 shrink-0 text-teal-600 dark:text-teal-400 mt-0.5" />
+                          <div className="flex-1">
+                            <p className="font-semibold text-foreground">
+                              Citizen Submitted Registration Files
+                            </p>
+                            <p className="text-muted-foreground text-[11px] mt-0.5">
+                              The files and initial documents shared by the user during case
+                              registration &amp; booking.
+                            </p>
+                          </div>
+                        </div>
+
                         {/* Case Description */}
                         <div>
-                          <div className="text-[11px] font-bold uppercase tracking-wider text-primary mb-2">
+                          <div className="text-[11px] font-bold uppercase tracking-wider text-primary mb-1.5">
                             Case Description
                           </div>
                           <div className="rounded-2xl border border-border bg-card p-3.5 text-xs leading-relaxed text-foreground whitespace-pre-wrap">
@@ -1283,83 +1643,35 @@ export function CasesTable({
                           </div>
                         </div>
 
-                        {/* Client Documents & Images */}
+                        {/* Document List */}
                         <div>
                           <div className="text-[11px] font-bold uppercase tracking-wider text-primary mb-2">
-                            Documents &amp; Images ({clientDocs.length})
+                            Submitted Documents ({citizenSubmittedDocs.length})
                           </div>
-                          {clientDocs.length === 0 ? (
-                            <p className="text-xs text-muted-foreground italic">
-                              No attachments uploaded yet.
-                            </p>
+                          {citizenSubmittedDocs.length === 0 ? (
+                            <div className="rounded-2xl border border-dashed border-border bg-card p-6 text-center">
+                              <p className="text-xs text-muted-foreground italic">
+                                No registration documents were submitted by citizen.
+                              </p>
+                            </div>
                           ) : (
                             <ul className="space-y-2">
-                              {clientDocs.map((d) => {
-                                const isImage =
-                                  d.fileMimeType?.startsWith("image/") ||
-                                  /\.(jpe?g|png|gif|webp|bmp|svg)$/i.test(d.name);
-                                return (
-                                  <li
-                                    key={d.id}
-                                    className="flex items-center justify-between gap-3 rounded-xl border border-border bg-card p-3 shadow-2xs"
-                                  >
-                                    <div className="flex min-w-0 items-center gap-2.5">
-                                      <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-primary/10 text-primary">
-                                        {isImage ? (
-                                          <ImageIcon className="h-4 w-4" />
-                                        ) : (
-                                          <FileText className="h-4 w-4" />
-                                        )}
-                                      </span>
-                                      <div className="min-w-0">
-                                        <div
-                                          className="truncate text-xs font-semibold text-foreground"
-                                          title={d.name}
-                                        >
-                                          {d.name}
-                                        </div>
-                                        <div className="text-[10px] text-muted-foreground">
-                                          {d.size} · {d.uploadedAt}
-                                          {d.uploadedBy ? ` · added by ${d.uploadedBy}` : ""}
-                                        </div>
-                                      </div>
-                                    </div>
-                                    <div className="flex shrink-0 items-center gap-1">
-                                      <button
-                                        type="button"
-                                        onClick={() => {
-                                          setPreviewDoc(d);
-                                          setPreviewFullScreen(false);
-                                        }}
-                                        title="Preview"
-                                        className="flex h-8 w-8 items-center justify-center rounded-full text-muted-foreground hover:bg-black/5 hover:text-foreground transition-colors cursor-pointer"
-                                      >
-                                        <Eye className="h-4 w-4" />
-                                      </button>
-                                      <a
-                                        href={
-                                          d.fileDataUrl ??
-                                          `data:text/plain;charset=utf-8,${encodeURIComponent(d.name)}`
-                                        }
-                                        download={d.fileDataUrl ? d.name : `${d.name}.txt`}
-                                        title="Download"
-                                        className="flex h-8 w-8 items-center justify-center rounded-full text-muted-foreground hover:bg-black/5 hover:text-foreground transition-colors"
-                                      >
-                                        <Download className="h-4 w-4" />
-                                      </a>
-                                    </div>
-                                  </li>
-                                );
-                              })}
+                              {citizenSubmittedDocs.map((d) =>
+                                renderDocItem(
+                                  d,
+                                  "Citizen Submitted",
+                                  "bg-teal-500/10 text-teal-600 dark:text-teal-400 border border-teal-500/20",
+                                ),
+                              )}
                             </ul>
                           )}
                         </div>
 
-                        {/* Add Attachment — citizen only */}
+                        {/* Add Attachment — citizen only before case acceptance */}
                         {!isLawyer && (
                           <div className="rounded-2xl bg-[var(--md-sys-color-surface-container,#efedf1)] p-4 space-y-2.5">
                             <div className="text-[11px] font-bold uppercase tracking-wider text-muted-foreground">
-                              Add Attachment
+                              Add Registration Attachment
                             </div>
                             <input
                               ref={addAttachmentInputRef}
@@ -1386,21 +1698,20 @@ export function CasesTable({
                                 <MessageSquare className="h-4 w-4 shrink-0 text-primary mt-0.5" />
                                 <div className="flex-1 space-y-1.5">
                                   <p className="font-medium text-foreground leading-relaxed">
-                                    Your case is accepted by lawyer so you can share message and documents from chat.
+                                    Your case is accepted by lawyer so you can share messages and
+                                    documents from chat.
                                   </p>
-                                  {attachmentsCase && (
-                                    <button
-                                      type="button"
-                                      onClick={() => {
-                                        closeAttachmentsModal();
-                                        navigate({ to: `/citizen/chat/${attachmentsCase.id}` });
-                                      }}
-                                      className="inline-flex items-center gap-1.5 font-semibold text-primary hover:underline cursor-pointer text-xs"
-                                    >
-                                      <MessageSquare className="h-3.5 w-3.5" />
-                                      <span>Open Case Chat</span>
-                                    </button>
-                                  )}
+                                  <button
+                                    type="button"
+                                    onClick={() => {
+                                      closeAttachmentsModal();
+                                      navigate({ to: chatTargetRoute });
+                                    }}
+                                    className="inline-flex items-center gap-1.5 font-semibold text-primary hover:underline cursor-pointer text-xs"
+                                  >
+                                    <MessageSquare className="h-3.5 w-3.5" />
+                                    <span>Open Case Chat</span>
+                                  </button>
                                 </div>
                               </div>
                             )}
@@ -1411,153 +1722,295 @@ export function CasesTable({
                             )}
                           </div>
                         )}
-                      </>
-                    ) : (
-                      <>
-                        {/* Lawyer "My Docs" Tab */}
-                        {/* Top: Upload Feature */}
-                        <div className="rounded-2xl bg-[var(--md-sys-color-surface-container,#efedf1)] p-4 space-y-2.5 border border-border/70">
-                          <div className="flex items-center justify-between">
-                            <div className="text-[11px] font-bold uppercase tracking-wider text-primary">
-                              Upload Document or Image
-                            </div>
-                            <span className="text-[10px] text-muted-foreground">
-                              PDF, Images, DOCX (Max 4MB)
-                            </span>
-                          </div>
-                          <p className="text-xs text-muted-foreground">
-                            Attach your filings, draft petitions, vakalatnama, evidence photos, or
-                            case notes for this matter.
-                          </p>
-                          <input
-                            ref={lawyerUploadInputRef}
-                            type="file"
-                            multiple
-                            accept="application/pdf,image/*,.doc,.docx,.txt"
-                            className="hidden"
-                            onChange={handleAddAttachments}
-                          />
-                          <div
-                            onDragOver={(e) => {
-                              e.preventDefault();
-                              setIsDragging(true);
-                            }}
-                            onDragLeave={() => setIsDragging(false)}
-                            onDrop={(e) => {
-                              e.preventDefault();
-                              setIsDragging(false);
-                              if (e.dataTransfer.files) {
-                                handleAddAttachments(e.dataTransfer.files);
-                              }
-                            }}
-                            onClick={() => lawyerUploadInputRef.current?.click()}
-                            className={cn(
-                              "flex flex-col items-center justify-center rounded-2xl border-2 border-dashed p-6 text-center cursor-pointer transition-colors bg-card",
-                              isDragging
-                                ? "border-primary bg-primary/5"
-                                : "border-border hover:border-primary/50 hover:bg-muted/30",
-                            )}
-                          >
-                            <div className="flex h-12 w-12 items-center justify-center rounded-full bg-primary/10 text-primary mb-3">
-                              <Upload className="h-6 w-6" />
-                            </div>
-                            <p className="text-sm font-semibold text-foreground">
-                              Click to upload or drag &amp; drop
-                            </p>
-                            <p className="text-xs text-muted-foreground mt-1">
-                              PDF, DOC, DOCX, TXT or Images (PNG, JPG, WEBP)
-                            </p>
-                          </div>
-                          {attachmentError && (
-                            <p className="text-[11px] font-semibold text-destructive">
-                              {attachmentError}
-                            </p>
-                          )}
-                        </div>
+                      </div>
+                    )}
 
-                        {/* Bottom: Previous Uploaded Documents */}
-                        <div>
-                          <div className="text-[11px] font-bold uppercase tracking-wider text-primary mb-2">
-                            My Uploaded Documents ({lawyerDocs.length})
-                          </div>
-                          {lawyerDocs.length === 0 ? (
-                            <div className="rounded-2xl border border-dashed border-border bg-card p-6 text-center">
-                              <p className="text-xs text-muted-foreground italic">
-                                No documents uploaded by you yet. Use the upload area above to
-                                attach filings, draft petitions, or evidence photos.
-                              </p>
+                    {/* ── TAB 2: Lawyer Uploaded ───────────────────────── */}
+                    {attachmentTab === "lawyer_uploaded" && (
+                      <div className="space-y-4">
+                        {isPendingRestricted ? (
+                          renderPendingByLawyerMessage()
+                        ) : (
+                          <>
+                            {/* Info Banner */}
+                            <div className="rounded-xl bg-primary/10 border border-primary/20 p-3 text-xs flex items-start gap-2.5">
+                              <UploadCloud className="h-4 w-4 shrink-0 text-primary mt-0.5" />
+                              <div className="flex-1">
+                                <p className="font-semibold text-foreground">
+                                  Lawyer Uploaded Documents
+                                </p>
+                                <p className="text-muted-foreground text-[11px] mt-0.5">
+                                  The files uploaded by lawyer when case is in progress (e.g. draft
+                                  petitions, vakalatnama, filing receipts, evidence photos).
+                                </p>
+                              </div>
                             </div>
-                          ) : (
-                            <ul className="space-y-2">
-                              {lawyerDocs.map((d) => {
-                                const isImage =
-                                  d.fileMimeType?.startsWith("image/") ||
-                                  /\.(jpe?g|png|gif|webp|bmp|svg)$/i.test(d.name);
-                                return (
-                                  <li
-                                    key={d.id}
-                                    className="flex items-center justify-between gap-3 rounded-xl border border-border bg-card p-3 shadow-2xs"
-                                  >
-                                    <div className="flex min-w-0 items-center gap-2.5">
-                                      <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-primary/10 text-primary">
-                                        {isImage ? (
-                                          <ImageIcon className="h-4 w-4" />
-                                        ) : (
-                                          <FileText className="h-4 w-4" />
-                                        )}
-                                      </span>
-                                      <div className="min-w-0">
-                                        <div
-                                          className="truncate text-xs font-semibold text-foreground"
-                                          title={d.name}
-                                        >
-                                          {d.name}
-                                        </div>
-                                        <div className="text-[10px] text-muted-foreground flex items-center gap-2">
-                                          <span>
-                                            {d.size} · {d.uploadedAt}
-                                          </span>
-                                          <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[9.5px] font-medium bg-primary/10 text-primary">
-                                            Lawyer File
-                                          </span>
-                                        </div>
-                                      </div>
-                                    </div>
-                                    <div className="flex shrink-0 items-center gap-1">
-                                      <button
-                                        type="button"
-                                        onClick={() => {
-                                          setPreviewDoc(d);
-                                          setPreviewFullScreen(false);
-                                        }}
-                                        title="Preview"
-                                        className="flex h-8 w-8 items-center justify-center rounded-full text-muted-foreground hover:bg-black/5 hover:text-foreground transition-colors cursor-pointer"
-                                      >
-                                        <Eye className="h-4 w-4" />
-                                      </button>
-                                      <a
-                                        href={
-                                          d.fileDataUrl ??
-                                          `data:text/plain;charset=utf-8,${encodeURIComponent(d.name)}`
-                                        }
-                                        download={d.fileDataUrl ? d.name : `${d.name}.txt`}
-                                        title="Download"
-                                        className="flex h-8 w-8 items-center justify-center rounded-full text-muted-foreground hover:bg-black/5 hover:text-foreground transition-colors"
-                                      >
-                                        <Download className="h-4 w-4" />
-                                      </a>
-                                    </div>
-                                  </li>
-                                );
-                              })}
-                            </ul>
-                          )}
-                        </div>
-                      </>
+
+                            {/* Lawyer Upload Feature */}
+                            {isLawyer && (
+                              <div className="rounded-2xl bg-[var(--md-sys-color-surface-container,#efedf1)] p-4 space-y-2.5 border border-border/70">
+                                <div className="flex items-center justify-between">
+                                  <div className="text-[11px] font-bold uppercase tracking-wider text-primary">
+                                    Upload Document or Image
+                                  </div>
+                                  <span className="text-[10px] text-muted-foreground">
+                                    PDF, Images, DOCX (Max 4MB)
+                                  </span>
+                                </div>
+                                <p className="text-xs text-muted-foreground">
+                                  Attach your filings, draft petitions, vakalatnama, evidence photos, or
+                                  case notes for this matter.
+                                </p>
+                                <input
+                                  ref={lawyerUploadInputRef}
+                                  type="file"
+                                  multiple
+                                  accept="application/pdf,image/*,.doc,.docx,.txt"
+                                  className="hidden"
+                                  onChange={handleAddAttachments}
+                                />
+                                <div
+                                  onDragOver={(e) => {
+                                    e.preventDefault();
+                                    setIsDragging(true);
+                                  }}
+                                  onDragLeave={() => setIsDragging(false)}
+                                  onDrop={(e) => {
+                                    e.preventDefault();
+                                    setIsDragging(false);
+                                    if (e.dataTransfer.files) {
+                                      handleAddAttachments(e.dataTransfer.files);
+                                    }
+                                  }}
+                                  onClick={() => lawyerUploadInputRef.current?.click()}
+                                  className={cn(
+                                    "flex flex-col items-center justify-center rounded-2xl border-2 border-dashed p-6 text-center cursor-pointer transition-colors bg-card",
+                                    isDragging
+                                      ? "border-primary bg-primary/5"
+                                      : "border-border hover:border-primary/50 hover:bg-muted/30",
+                                  )}
+                                >
+                                  <div className="flex h-12 w-12 items-center justify-center rounded-full bg-primary/10 text-primary mb-3">
+                                    <Upload className="h-6 w-6" />
+                                  </div>
+                                  <p className="text-sm font-semibold text-foreground">
+                                    Click to upload or drag &amp; drop
+                                  </p>
+                                  <p className="text-xs text-muted-foreground mt-1">
+                                    PDF, DOC, DOCX, TXT or Images (PNG, JPG, WEBP)
+                                  </p>
+                                </div>
+                                {attachmentError && (
+                                  <p className="text-[11px] font-semibold text-destructive">
+                                    {attachmentError}
+                                  </p>
+                                )}
+                              </div>
+                            )}
+
+                            {/* Lawyer Documents List */}
+                            <div>
+                              <div className="text-[11px] font-bold uppercase tracking-wider text-primary mb-2">
+                                Case Progress Documents ({lawyerUploadedDocs.length})
+                              </div>
+                              {lawyerUploadedDocs.length === 0 ? (
+                                <div className="rounded-2xl border border-dashed border-border bg-card p-6 text-center">
+                                  <p className="text-xs text-muted-foreground italic">
+                                    No documents uploaded by lawyer yet.
+                                    {isLawyer &&
+                                      " Use the upload area above to attach filings or draft petitions."}
+                                  </p>
+                                </div>
+                              ) : (
+                                <ul className="space-y-2">
+                                  {lawyerUploadedDocs.map((d) =>
+                                    renderDocItem(
+                                      d,
+                                      "Lawyer Uploaded",
+                                      "bg-primary/10 text-primary border border-primary/20",
+                                    ),
+                                  )}
+                                </ul>
+                              )}
+                            </div>
+                          </>
+                        )}
+                      </div>
+                    )}
+
+                    {/* ── TAB 3: Citizen Shared (Chat) ─────────────────── */}
+                    {attachmentTab === "citizen_shared" && (
+                      <div className="space-y-4">
+                        {isPendingRestricted ? (
+                          renderPendingByLawyerMessage()
+                        ) : (
+                          <>
+                            {/* Info Banner */}
+                            <div className="rounded-xl bg-amber-500/10 border border-amber-500/20 p-3 text-xs flex items-start justify-between gap-2.5">
+                              <div className="flex items-start gap-2.5">
+                                <MessageSquare className="h-4 w-4 shrink-0 text-amber-600 dark:text-amber-400 mt-0.5" />
+                                <div className="flex-1">
+                                  <p className="font-semibold text-foreground">
+                                    Citizen Shared in Case Chat
+                                  </p>
+                                  <p className="text-muted-foreground text-[11px] mt-0.5">
+                                    The files which are shared during case chat with lawyer.
+                                  </p>
+                                </div>
+                              </div>
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  closeAttachmentsModal();
+                                  navigate({ to: chatTargetRoute });
+                                }}
+                                className="inline-flex items-center gap-1 font-semibold text-primary hover:underline text-xs shrink-0 cursor-pointer"
+                              >
+                                <span>Open Chat</span>
+                                <ExternalLink className="h-3 w-3" />
+                              </button>
+                            </div>
+
+                            {/* Loading or Document List */}
+                            {isLoadingChatMessages ? (
+                              <div className="flex items-center justify-center py-10 gap-2 text-xs text-muted-foreground">
+                                <Loader2 className="h-4 w-4 animate-spin text-primary" />
+                                <span>Loading consultation files…</span>
+                              </div>
+                            ) : citizenSharedDocs.length === 0 ? (
+                              <div className="rounded-2xl border border-dashed border-border bg-card p-8 text-center space-y-3">
+                                <div className="flex h-12 w-12 items-center justify-center rounded-full bg-amber-500/10 text-amber-600 dark:text-amber-400 mx-auto">
+                                  <MessageSquare className="h-6 w-6" />
+                                </div>
+                                <div>
+                                  <p className="text-xs font-semibold text-foreground">
+                                    No files shared by citizen in chat yet
+                                  </p>
+                                  <p className="text-[11px] text-muted-foreground mt-1 max-w-sm mx-auto">
+                                    Any documents, pictures, or voice notes shared by the citizen in
+                                    case chat will automatically appear here.
+                                  </p>
+                                </div>
+                                <Button
+                                  variant="tonal"
+                                  icon={<MessageSquare className="h-4 w-4" />}
+                                  onClick={() => {
+                                    closeAttachmentsModal();
+                                    navigate({ to: chatTargetRoute });
+                                  }}
+                                >
+                                  Go to Case Chat
+                                </Button>
+                              </div>
+                            ) : (
+                              <div>
+                                <div className="text-[11px] font-bold uppercase tracking-wider text-primary mb-2">
+                                  Chat Files from Citizen ({citizenSharedDocs.length})
+                                </div>
+                                <ul className="space-y-2">
+                                  {citizenSharedDocs.map((d) =>
+                                    renderDocItem(
+                                      d,
+                                      "Citizen Shared",
+                                      "bg-amber-500/10 text-amber-600 dark:text-amber-400 border border-amber-500/20",
+                                    ),
+                                  )}
+                                </ul>
+                              </div>
+                            )}
+                          </>
+                        )}
+                      </div>
+                    )}
+
+                    {/* ── TAB 4: Lawyer Shared (Chat) ──────────────────── */}
+                    {attachmentTab === "lawyer_shared" && (
+                      <div className="space-y-4">
+                        {isPendingRestricted ? (
+                          renderPendingByLawyerMessage()
+                        ) : (
+                          <>
+                            {/* Info Banner */}
+                            <div className="rounded-xl bg-indigo-500/10 border border-indigo-500/20 p-3 text-xs flex items-start justify-between gap-2.5">
+                              <div className="flex items-start gap-2.5">
+                                <MessageCircle className="h-4 w-4 shrink-0 text-indigo-600 dark:text-indigo-400 mt-0.5" />
+                                <div className="flex-1">
+                                  <p className="font-semibold text-foreground">
+                                    Lawyer Shared in Case Chat
+                                  </p>
+                                  <p className="text-muted-foreground text-[11px] mt-0.5">
+                                    The files which are shared during case chat with citizen.
+                                  </p>
+                                </div>
+                              </div>
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  closeAttachmentsModal();
+                                  navigate({ to: chatTargetRoute });
+                                }}
+                                className="inline-flex items-center gap-1 font-semibold text-primary hover:underline text-xs shrink-0 cursor-pointer"
+                              >
+                                <span>Open Chat</span>
+                                <ExternalLink className="h-3 w-3" />
+                              </button>
+                            </div>
+
+                            {/* Loading or Document List */}
+                            {isLoadingChatMessages ? (
+                              <div className="flex items-center justify-center py-10 gap-2 text-xs text-muted-foreground">
+                                <Loader2 className="h-4 w-4 animate-spin text-primary" />
+                                <span>Loading consultation files…</span>
+                              </div>
+                            ) : lawyerSharedDocs.length === 0 ? (
+                              <div className="rounded-2xl border border-dashed border-border bg-card p-8 text-center space-y-3">
+                                <div className="flex h-12 w-12 items-center justify-center rounded-full bg-indigo-500/10 text-indigo-600 dark:text-indigo-400 mx-auto">
+                                  <MessageCircle className="h-6 w-6" />
+                                </div>
+                                <div>
+                                  <p className="text-xs font-semibold text-foreground">
+                                    No files shared by lawyer in chat yet
+                                  </p>
+                                  <p className="text-[11px] text-muted-foreground mt-1 max-w-sm mx-auto">
+                                    Any documents, pictures, or voice notes shared by the lawyer in case
+                                    chat will automatically appear here.
+                                  </p>
+                                </div>
+                                <Button
+                                  variant="tonal"
+                                  icon={<MessageCircle className="h-4 w-4" />}
+                                  onClick={() => {
+                                    closeAttachmentsModal();
+                                    navigate({ to: chatTargetRoute });
+                                  }}
+                                >
+                                  Go to Case Chat
+                                </Button>
+                              </div>
+                            ) : (
+                              <div>
+                                <div className="text-[11px] font-bold uppercase tracking-wider text-primary mb-2">
+                                  Chat Files from Lawyer ({lawyerSharedDocs.length})
+                                </div>
+                                <ul className="space-y-2">
+                                  {lawyerSharedDocs.map((d) =>
+                                    renderDocItem(
+                                      d,
+                                      "Lawyer Shared",
+                                      "bg-indigo-500/10 text-indigo-600 dark:text-indigo-400 border border-indigo-500/20",
+                                    ),
+                                  )}
+                                </ul>
+                              </div>
+                            )}
+                          </>
+                        )}
+                      </div>
                     )}
                   </div>
 
-                  <div className="flex items-center justify-end p-6 pt-3 border-t border-border/80 shrink-0">
+                  {/* Modal Footer */}
+                  <div className="flex items-center justify-end p-5 sm:p-6 pt-3 border-t border-border/80 shrink-0">
                     <Button variant="text" onClick={closeAttachmentsModal}>
                       Close
                     </Button>

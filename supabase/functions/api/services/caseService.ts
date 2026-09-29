@@ -1,13 +1,27 @@
 import { db } from "../config/db.ts";
 import { casesImported } from "../models/casesImported.ts";
 import { casesUser } from "../models/casesUser.ts";
+import { caseDocuments, type CaseDocumentRecord, type NewCaseDocumentRecord } from "../models/caseDocuments.ts";
 import { lookups } from "../models/lookups.ts";
-import { eq, desc, and, or, ilike, sql, inArray } from "drizzle-orm";
+import { eq, desc, asc, and, or, ilike, sql, inArray } from "drizzle-orm";
 import { ApiError } from "../utils/apiError.ts";
 import { NotificationService } from "./notificationService.ts";
 import { LawyerCategoryService } from "./lawyerCategoryService.ts";
 
 export class CaseService {
+  static mapDocRecord(d: CaseDocumentRecord | any) {
+    return {
+      id: d.id,
+      caseId: d.caseId,
+      name: d.name,
+      fileUrl: d.fileUrl || d.fileDataUrl || "",
+      size: d.size || undefined,
+      fileMimeType: d.fileMimeType || undefined,
+      uploadedAt: d.uploadedAt,
+      uploadedBy: (d.uploadedBy === "lawyer" ? "lawyer" : "citizen") as "citizen" | "lawyer",
+    };
+  }
+
   /**
    * Normalizes CNR string to uppercase and trimmed format
    */
@@ -310,7 +324,6 @@ export class CaseService {
       petitioner,
       respondent,
       description: caseData.description,
-      documents: Array.isArray(caseData.documents) ? caseData.documents : [],
       practiceArea: normalizedPracticeArea,
       specialization: normalizedSpecialization,
       legalServices,
@@ -324,6 +337,28 @@ export class CaseService {
     };
 
     const [created] = await db.insert(casesUser).values(newCase).returning();
+
+    // Insert documents into dedicated case_documents table
+    const incomingDocs = Array.isArray(caseData.documents) ? caseData.documents : [];
+    const insertedDocs: any[] = [];
+    if (incomingDocs.length > 0) {
+      const recordsToInsert: NewCaseDocumentRecord[] = incomingDocs.map((d: any, idx: number) => ({
+        id: d.id || `doc_${Date.now()}_${idx}`,
+        caseId: created.id,
+        uploaderId: created.citizenId,
+        uploadedBy: d.uploadedBy === "lawyer" ? "lawyer" : "citizen",
+        name: d.name || `Document ${idx + 1}`,
+        fileUrl: d.fileUrl || d.fileDataUrl || "",
+        size: d.size || undefined,
+        fileMimeType: d.fileMimeType || d.type || undefined,
+        uploadedAt: d.uploadedAt || new Date().toISOString().slice(0, 10),
+      }));
+
+      for (const rec of recordsToInsert) {
+        const [inserted] = await db.insert(caseDocuments).values(rec).onConflictDoNothing().returning();
+        if (inserted) insertedDocs.push(inserted);
+      }
+    }
 
     const caseDisplayTitle = created.petitioner
       ? created.respondent ? `${created.petitioner} vs ${created.respondent}` : created.petitioner
@@ -345,6 +380,7 @@ export class CaseService {
 
     return {
       ...created,
+      documents: insertedDocs.map(CaseService.mapDocRecord),
       title: caseDisplayTitle,
     };
   }
@@ -369,13 +405,15 @@ export class CaseService {
       ? foundCase.respondent ? `${foundCase.petitioner} vs ${foundCase.respondent}` : foundCase.petitioner
       : "Legal Matter";
 
+    const docs = await db
+      .select()
+      .from(caseDocuments)
+      .where(eq(caseDocuments.caseId, id))
+      .orderBy(asc(caseDocuments.createdAt));
+
     return {
       ...foundCase,
-      documents: Array.isArray(foundCase.documents)
-        ? foundCase.documents
-        : typeof foundCase.documents === "string"
-          ? JSON.parse(foundCase.documents)
-          : (foundCase.documents || []),
+      documents: docs.map(CaseService.mapDocRecord),
       title: caseTitle,
       importedCase: importedRecord,
     };
@@ -440,14 +478,25 @@ export class CaseService {
     }
 
     const rows = await query.orderBy(desc(casesUser.createdAt)).limit(limit).offset(offset);
+    const caseIds = rows.map((r) => r.id);
+    const docsByCaseId = new Map<string, any[]>();
+    if (caseIds.length > 0) {
+      const allDocs = await db
+        .select()
+        .from(caseDocuments)
+        .where(inArray(caseDocuments.caseId, caseIds))
+        .orderBy(asc(caseDocuments.createdAt));
+      allDocs.forEach((d) => {
+        const list = docsByCaseId.get(d.caseId) || [];
+        list.push(CaseService.mapDocRecord(d));
+        docsByCaseId.set(d.caseId, list);
+      });
+    }
+
     const cnrs = Array.from(new Set(rows.map((r) => r.cnr).filter(Boolean)));
     const formatRow = (r: any, imp: any) => ({
       ...r,
-      documents: Array.isArray(r.documents)
-        ? r.documents
-        : typeof r.documents === "string"
-          ? JSON.parse(r.documents)
-          : (r.documents || []),
+      documents: docsByCaseId.get(r.id) || [],
       title: r.petitioner
         ? r.respondent ? `${r.petitioner} vs ${r.respondent}` : r.petitioner
         : "Legal Matter",
@@ -610,14 +659,37 @@ export class CaseService {
     if (updates.isEmergency !== undefined) updateFields.isEmergency = Boolean(updates.isEmergency);
     if (updates.documents !== undefined) {
       const incomingDocs = Array.isArray(updates.documents) ? updates.documents : [];
-      updateFields.documents = incomingDocs.map((d: any, idx: number) => ({
-        id: d.id || `doc_${Date.now()}_${idx}`,
-        name: d.name || `Document ${idx + 1}`,
-        fileUrl: d.fileUrl || d.fileDataUrl || "",
-        size: d.size || undefined,
-        fileMimeType: d.fileMimeType || d.type || undefined,
-        uploadedAt: d.uploadedAt || new Date().toISOString().slice(0, 10),
-      }));
+      if (incomingDocs.length > 0) {
+        for (const [idx, d] of incomingDocs.entries()) {
+          const docId = d.id || `doc_${Date.now()}_${idx}`;
+          const docRecord: NewCaseDocumentRecord = {
+            id: docId,
+            caseId,
+            uploaderId: existing.lawyerId || existing.citizenId,
+            uploadedBy: d.uploadedBy === "lawyer" ? "lawyer" : "citizen",
+            name: d.name || `Document ${idx + 1}`,
+            fileUrl: d.fileUrl || d.fileDataUrl || "",
+            size: d.size || undefined,
+            fileMimeType: d.fileMimeType || d.type || undefined,
+            uploadedAt: d.uploadedAt || new Date().toISOString().slice(0, 10),
+          };
+          await db
+            .insert(caseDocuments)
+            .values(docRecord)
+            .onConflictDoUpdate({
+              target: caseDocuments.id,
+              set: {
+                name: docRecord.name,
+                fileUrl: docRecord.fileUrl,
+                size: docRecord.size,
+                fileMimeType: docRecord.fileMimeType,
+                uploadedAt: docRecord.uploadedAt,
+                uploadedBy: docRecord.uploadedBy,
+                updatedAt: new Date(),
+              },
+            });
+        }
+      }
     }
     if (updates.timeline !== undefined) updateFields.timeline = updates.timeline;
     if (updates.notes !== undefined) updateFields.notes = updates.notes;
@@ -638,7 +710,16 @@ export class CaseService {
       .where(eq(casesUser.id, caseId))
       .returning();
 
-    return updated;
+    const caseDocs = await db
+      .select()
+      .from(caseDocuments)
+      .where(eq(caseDocuments.caseId, caseId))
+      .orderBy(asc(caseDocuments.createdAt));
+
+    return {
+      ...updated,
+      documents: caseDocs.map(CaseService.mapDocRecord),
+    };
   }
 
   static async addAttachmentsToUserCase(caseId: string, docs: any[]) {
@@ -647,13 +728,11 @@ export class CaseService {
       throw ApiError.notFound(`Case docket '${caseId}' not found`);
     }
 
-    const currentDocs = Array.isArray(existing.documents)
-      ? [...existing.documents]
-      : typeof existing.documents === "string"
-        ? JSON.parse(existing.documents)
-        : [];
     const formattedDocs = (Array.isArray(docs) ? docs : [docs]).map((d: any, idx: number) => ({
       id: d.id || `doc_${Date.now()}_${idx}`,
+      caseId,
+      uploaderId: existing.lawyerId || existing.citizenId,
+      uploadedBy: (d.uploadedBy === "lawyer" ? "lawyer" : "citizen") as string,
       name: d.name || `Document ${idx + 1}`,
       fileUrl: d.fileUrl || d.fileDataUrl || "",
       size: d.size || undefined,
@@ -661,23 +740,54 @@ export class CaseService {
       uploadedAt: d.uploadedAt || new Date().toISOString().slice(0, 10),
     }));
 
-    const existingIds = new Set(currentDocs.map((x) => x.id).filter(Boolean));
     for (const item of formattedDocs) {
-      if (!existingIds.has(item.id)) {
-        currentDocs.push(item);
-      }
+      await db
+        .insert(caseDocuments)
+        .values(item)
+        .onConflictDoUpdate({
+          target: caseDocuments.id,
+          set: {
+            name: item.name,
+            fileUrl: item.fileUrl,
+            size: item.size,
+            fileMimeType: item.fileMimeType,
+            uploadedAt: item.uploadedAt,
+            uploadedBy: item.uploadedBy,
+            updatedAt: new Date(),
+          },
+        });
     }
 
-    const [updated] = await db
+    await db
       .update(casesUser)
-      .set({
-        documents: currentDocs,
-        updatedAt: new Date(),
-      })
-      .where(eq(casesUser.id, caseId))
-      .returning();
+      .set({ updatedAt: new Date() })
+      .where(eq(casesUser.id, caseId));
 
-    return updated;
+    const allDocs = await db
+      .select()
+      .from(caseDocuments)
+      .where(eq(caseDocuments.caseId, caseId))
+      .orderBy(asc(caseDocuments.createdAt));
+
+    return {
+      caseId,
+      documents: allDocs.map(CaseService.mapDocRecord),
+    };
+  }
+
+  static async getCaseDocuments(caseId: string) {
+    const [existing] = await db.select().from(casesUser).where(eq(casesUser.id, caseId));
+    if (!existing) {
+      throw ApiError.notFound(`Case docket '${caseId}' not found`);
+    }
+
+    const docs = await db
+      .select()
+      .from(caseDocuments)
+      .where(eq(caseDocuments.caseId, caseId))
+      .orderBy(asc(caseDocuments.createdAt));
+
+    return docs.map(CaseService.mapDocRecord);
   }
 
 
