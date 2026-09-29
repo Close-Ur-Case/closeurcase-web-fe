@@ -1,9 +1,12 @@
 import { createFileRoute, useNavigate, useRouter } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
-import { getCases, subscribeToStore } from "@/data/appStore";
+import { getCases, subscribeToStore, getCitizens, getLawyers } from "@/data/appStore";
 import { useAuth } from "@/context/useAuth";
 import type { LegalCase } from "@/types";
 import { CaseChat } from "@/components/app/CaseChat";
+import { caseService, mapBackendCaseToLegalCase } from "@/services/caseService";
+import type { BackendUserCase } from "@/types/api";
+import { Loader2 } from "lucide-react";
 
 export const Route = createFileRoute("/citizen/chat/$id")({
   component: CitizenChatRoute,
@@ -15,27 +18,51 @@ function CitizenChatRoute() {
   const router = useRouter();
   const { user } = useAuth();
   const [allCases, setAllCases] = useState<LegalCase[]>(getCases);
+  const [remoteCase, setRemoteCase] = useState<LegalCase | null>(null);
+  const [loading, setLoading] = useState(false);
 
   useEffect(() => {
     const sync = () => setAllCases(getCases());
     return subscribeToStore(sync);
   }, []);
 
-  const currentCitizenId = user?.citizenId;
-  const currentUserId = user?.id;
-  const citizenName = user?.name?.toLowerCase();
-  const citizenEmail = user?.email?.toLowerCase();
+  const localCase = allCases.find((c) => c.id === id);
+  const caseItem = localCase || remoteCase;
 
-  const caseItem = allCases.find((c) => {
-    if (c.id !== id) return false;
-    if (currentCitizenId && c.citizenId === currentCitizenId) return true;
-    if (currentUserId && (c.citizenId === currentUserId || c.id?.includes(currentUserId)))
-      return true;
-    if (citizenName && c.citizenName && c.citizenName.toLowerCase() === citizenName) return true;
-    if (citizenEmail && c.citizenName && c.citizenName.toLowerCase() === citizenEmail.split("@")[0])
-      return true;
-    return !currentCitizenId && !currentUserId;
-  });
+  useEffect(() => {
+    if (!caseItem && id) {
+      setLoading(true);
+      caseService
+        .getUserCase<BackendUserCase>(id)
+        .then((backendCase) => {
+          if (backendCase) {
+            const citizens = getCitizens();
+            const lawyers = getLawyers();
+            const mapped = mapBackendCaseToLegalCase(backendCase, citizens, lawyers);
+            setRemoteCase(mapped);
+          }
+        })
+        .catch((err) => console.warn("[CitizenChat] Case fetch error:", err))
+        .finally(() => setLoading(false));
+    }
+  }, [caseItem, id]);
+
+  const goBack = () => {
+    if (router.history.canGoBack()) {
+      router.history.back();
+    } else {
+      navigate({ to: "/citizen/my-cases" });
+    }
+  };
+
+  if (loading && !caseItem) {
+    return (
+      <div className="flex h-full flex-col items-center justify-center gap-3 px-6 text-center">
+        <Loader2 className="h-8 w-8 animate-spin text-primary" />
+        <p className="text-xs text-muted-foreground">Connecting to case consultation chat…</p>
+      </div>
+    );
+  }
 
   if (!caseItem) {
     return (
@@ -45,22 +72,14 @@ function CitizenChatRoute() {
           This case may have been removed, or the link is incorrect.
         </p>
         <button
-          onClick={() => navigate({ to: "/citizen" })}
+          onClick={() => navigate({ to: "/citizen/my-cases" })}
           className="rounded-lg bg-primary px-4 py-2 text-xs font-semibold text-primary-foreground hover:bg-primary/90"
         >
-          Back to dashboard
+          Back to my cases
         </button>
       </div>
     );
   }
-
-  const goBack = () => {
-    if (router.history.canGoBack()) {
-      router.history.back();
-    } else {
-      navigate({ to: "/citizen" });
-    }
-  };
 
   return <CaseChat caseItem={caseItem} role="citizen" onClose={goBack} />;
 }

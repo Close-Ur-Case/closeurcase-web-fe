@@ -302,6 +302,8 @@ export interface CitizenProfile {
   stateId?: string | null;
   districtId?: string | null;
   status?: string;
+  planTier?: "bronze" | "silver" | "gold" | "micropass" | string;
+  activeSubscription?: CitizenSubscription | null;
   avatarUrl?: string | null;
   joinedAt?: string;
   lastLoginAt?: string | null;
@@ -798,3 +800,9 @@ export interface UploadFileOptions {
   bucket?: "case-documents" | "id-proofs" | "avatars" | "knowledge-base" | string;
   folder?: string;
 }
+
+export type {
+  BackendUserCase,
+  BackendUserCaseDocument,
+  BackendUserCaseTimelineEvent,
+} from "@/services/caseService";

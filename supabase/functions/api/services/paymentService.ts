@@ -121,6 +121,14 @@ export class PaymentService {
         .where(eq(subscriptions.citizenId, citizenId));
 
       const subId = `sub_${Date.now()}`;
+      const now = new Date();
+      const startIso = now.toISOString();
+      const exp = new Date(now);
+      if (planId === "daily") exp.setDate(exp.getDate() + 1);
+      else if (planId === "monthly") exp.setMonth(exp.getMonth() + 1);
+      else if (planId === "yearly") exp.setFullYear(exp.getFullYear() + 1);
+      else exp.setDate(exp.getDate() + 30);
+
       [subscriptionRecord] = await db
         .insert(subscriptions)
         .values({
@@ -129,7 +137,8 @@ export class PaymentService {
           planId: planId || "monthly",
           planLabel: planLabel || "Monthly Plan",
           amount: grossAmount,
-          startedAt: today,
+          startedAt: startIso,
+          expiresAt: exp.toISOString(),
           status: "Active",
           caseId: caseId || null,
         })

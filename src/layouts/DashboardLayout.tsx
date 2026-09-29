@@ -27,7 +27,9 @@ import {
   getProfilePhoto,
   mergeRemoteNotifications,
   subscribeToStore,
+  planTierForCitizen,
 } from "@/data/appStore";
+import { SUBSCRIPTION_TIERS, type SubscriptionTierId } from "@/data/subscriptionTiers";
 import { notificationService } from "@/services/notificationService";
 import type { AppNotification } from "@/types";
 import { LexBot } from "@/components/app/LexBot";
@@ -224,6 +226,7 @@ export function DashboardLayout({
   fullBleed = false,
   hideBottomNav = false,
   hideFloatingWidgets = false,
+  planTier,
 }: {
   role: "citizen" | "lawyer" | "admin";
   roleLabel: string;
@@ -245,6 +248,7 @@ export function DashboardLayout({
    *  with their own bottom-right action button(s) (e.g. the Find a Lawyer
    *  wizard's Continue button) that these would otherwise sit on top of. */
   hideFloatingWidgets?: boolean;
+  planTier?: SubscriptionTierId;
 }) {
   const router = useRouter();
   const pathname = useRouterState({ select: (s) => s.location.pathname });
@@ -306,6 +310,17 @@ export function DashboardLayout({
   const defaultPhotoUrl = role === "admin" ? "/logo.svg" : undefined;
   const [photoUrl, setPhotoUrl] = useState(() => getProfilePhoto(role) ?? defaultPhotoUrl);
   const [showLocationToast, setShowLocationToast] = useState(false);
+  const [citizenTier, setCitizenTier] = useState<SubscriptionTierId | null>(() =>
+    planTier ?? (role === "citizen" ? (planTierForCitizen(userName) ?? "bronze") : null),
+  );
+
+  useEffect(() => {
+    if (planTier) {
+      setCitizenTier(planTier);
+    } else if (role === "citizen") {
+      setCitizenTier(planTierForCitizen(userName) ?? "bronze");
+    }
+  }, [planTier, role, userName]);
 
   useEffect(() => {
     notificationService
@@ -323,9 +338,12 @@ export function DashboardLayout({
     const sync = () => {
       setUnreadCount(getNotifications(role).filter((n) => !n.read).length);
       setPhotoUrl(getProfilePhoto(role) ?? defaultPhotoUrl);
+      if (role === "citizen") {
+        setCitizenTier(planTier ?? (planTierForCitizen(userName) ?? "bronze"));
+      }
     };
     return subscribeToStore(sync);
-  }, [role, defaultPhotoUrl]);
+  }, [role, defaultPhotoUrl, planTier, userName]);
 
   // Every time a citizen/lawyer session lands on the dashboard, briefly show
   // a "Detecting location…" card so the location-based matching feels alive.
@@ -482,8 +500,15 @@ export function DashboardLayout({
                 <button
                   onClick={() => setProfileOpen((v) => !v)}
                   className="flex cursor-pointer items-center gap-2 rounded-[var(--md-sys-shape-corner-full)] px-2 py-1.5 text-sm transition-colors hover:bg-[var(--md-sys-color-on-surface)]/8"
+                  aria-label="Open profile menu"
                 >
-                  <UserAvatar name={userName} photoUrl={photoUrl} size="sm" role={role} />
+                  <UserAvatar
+                    name={userName}
+                    photoUrl={photoUrl}
+                    size="sm"
+                    role={role}
+                    planTier={citizenTier ?? undefined}
+                  />
                   <ChevronDown className="h-3.5 w-3.5 text-muted-foreground" />
                 </button>
 
@@ -495,13 +520,32 @@ export function DashboardLayout({
                     />
                     <div className="absolute right-0 top-full z-50 mt-1 w-56 rounded-[var(--md-sys-shape-corner-medium)] bg-[var(--md-sys-color-surface-container)] shadow-[var(--md-sys-elevation-level2)]">
                       <div className="flex items-center gap-2.5 border-b border-[var(--md-sys-color-outline-variant)] px-4 py-3">
-                        <UserAvatar name={userName} photoUrl={photoUrl} size="md" role={role} />
+                        <UserAvatar
+                          name={userName}
+                          photoUrl={photoUrl}
+                          size="md"
+                          role={role}
+                          planTier={citizenTier ?? undefined}
+                        />
                         <div className="min-w-0">
                           <div className="truncate text-sm font-semibold text-foreground">
                             {userName}
                           </div>
-                          <div className="text-xs text-muted-foreground capitalize">
-                            {roleLabel}
+                          <div className="flex items-center gap-1.5 mt-0.5">
+                            <span className="text-xs text-muted-foreground capitalize">
+                              {roleLabel}
+                            </span>
+                            {role === "citizen" && (() => {
+                              const tierId = citizenTier ?? "bronze";
+                              const tierCfg = SUBSCRIPTION_TIERS[tierId] || SUBSCRIPTION_TIERS.bronze;
+                              const TierIcon = tierCfg.icon;
+                              return (
+                                <span className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[9px] font-black uppercase tracking-wider ${tierCfg.badgeCls}`}>
+                                  <TierIcon className="h-2.5 w-2.5" />
+                                  <span>{tierCfg.shortLabel}</span>
+                                </span>
+                              );
+                            })()}
                           </div>
                         </div>
                       </div>

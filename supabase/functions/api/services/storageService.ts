@@ -59,11 +59,18 @@ export class StorageService {
 
     const { data: signedData, error: signedError } = await supabaseAdmin.storage
       .from(bucket)
-      .createSignedUrl(filePath, 7200);
+      .createSignedUrl(filePath, 315360000); // 10 years validity
+
+    // If bucket is public or public URL is available, prefer public URL if signed URL failed
+    let finalUrl = signedData?.signedUrl;
+    if (!finalUrl || signedError) {
+      const { data: pub } = supabaseAdmin.storage.from(bucket).getPublicUrl(filePath);
+      finalUrl = pub?.publicUrl || data.path;
+    }
 
     return {
       path: data.path,
-      url: signedError || !signedData?.signedUrl ? data.path : signedData.signedUrl,
+      url: finalUrl,
     };
   }
 

@@ -13,6 +13,7 @@ import {
   assignLawyer,
   updateUserCase,
   deleteUserCase,
+  addCaseAttachments,
 } from "../controllers/caseController.ts";
 import {
   getCaseMessages,
@@ -282,6 +283,62 @@ const updateUserCaseRoute = createRoute({
   },
 });
 
+const addCaseAttachmentsRoute = createRoute({
+  method: "post",
+  path: "/user/:id/attachments",
+  tags: ["Cases - User"],
+  summary: "Add attachments to a case docket (persists to cases_user.documents)",
+  security: [{ bearerAuth: [] }],
+  request: {
+    params: z.object({
+      id: z.string().openapi({ example: "CUC-20260831154512" }),
+    }),
+    body: {
+      content: {
+        "application/json": {
+          schema: z.object({
+            documents: z.array(z.any()),
+          }),
+        },
+      },
+    },
+  },
+  responses: {
+    200: {
+      description: "Attachments added successfully",
+      content: { "application/json": { schema: SuccessResponseSchema } },
+    },
+  },
+});
+
+const addRootCaseAttachmentsRoute = createRoute({
+  method: "post",
+  path: "/:id/attachments",
+  tags: ["Cases - User"],
+  summary: "Add attachments to a case docket (alias for /user/:id/attachments)",
+  security: [{ bearerAuth: [] }],
+  request: {
+    params: z.object({
+      id: z.string().openapi({ example: "CUC-20260831154512" }),
+    }),
+    body: {
+      content: {
+        "application/json": {
+          schema: z.object({
+            documents: z.array(z.any()),
+          }),
+        },
+      },
+    },
+  },
+  responses: {
+    200: {
+      description: "Attachments added successfully",
+      content: { "application/json": { schema: SuccessResponseSchema } },
+    },
+  },
+});
+
 const deleteUserCaseRoute = createRoute({
   method: "delete",
   path: "/user/:id",
@@ -424,6 +481,39 @@ const markCaseMessagesReadRoute = createRoute({
   responses: { 200: { description: "Messages read", content: { "application/json": { schema: SuccessResponseSchema } } } },
 });
 
+const getUserCaseMessagesRoute = createRoute({
+  method: "get",
+  path: "/user/:id/messages",
+  tags: ["Chat"],
+  summary: "Get consultation chat messages for a user case",
+  security: [{ bearerAuth: [] }],
+  request: { params: z.object({ id: z.string() }) },
+  responses: { 200: { description: "Chat messages", content: { "application/json": { schema: SuccessResponseSchema } } } },
+});
+
+const sendUserCaseMessageRoute = createRoute({
+  method: "post",
+  path: "/user/:id/messages",
+  tags: ["Chat"],
+  summary: "Send message in case chat",
+  security: [{ bearerAuth: [] }],
+  request: {
+    params: z.object({ id: z.string() }),
+    body: { content: { "application/json": { schema: SendChatMessageSchema } } },
+  },
+  responses: { 201: { description: "Message sent", content: { "application/json": { schema: SuccessResponseSchema } } } },
+});
+
+const markUserCaseMessagesReadRoute = createRoute({
+  method: "patch",
+  path: "/user/:id/messages/read",
+  tags: ["Chat"],
+  summary: "Mark messages as read",
+  security: [{ bearerAuth: [] }],
+  request: { params: z.object({ id: z.string() }) },
+  responses: { 200: { description: "Messages read", content: { "application/json": { schema: SuccessResponseSchema } } } },
+});
+
 // Register routes
 caseRouter.openapi(getLookupsRoute, getLookups as any);
 caseRouter.openapi(getCaseTypesRoute, getCaseTypes as any);
@@ -438,6 +528,7 @@ caseRouter.openapi(createUserCaseRoute, createUserCase as any);
 caseRouter.openapi(getUserCaseRoute, getUserCase as any);
 caseRouter.openapi(updateLawyerStageRoute, updateLawyerStage as any);
 caseRouter.openapi(updateUserCaseRoute, updateUserCase as any);
+caseRouter.openapi(addCaseAttachmentsRoute, addCaseAttachments as any);
 caseRouter.openapi(deleteUserCaseRoute, deleteUserCase as any);
 
 caseRouter.openapi(listRootCasesRoute, listUserCases as any);
@@ -445,11 +536,16 @@ caseRouter.openapi(createRootCaseRoute, createUserCase as any);
 caseRouter.openapi(getRootCaseRoute, getUserCase as any);
 caseRouter.openapi(updateRootCaseStatusRoute, updateLawyerStage as any);
 caseRouter.openapi(updateRootCaseRoute, updateUserCase as any);
+caseRouter.openapi(addRootCaseAttachmentsRoute, addCaseAttachments as any);
 caseRouter.openapi(deleteRootCaseRoute, deleteUserCase as any);
 caseRouter.openapi(assignLawyerRoute, assignLawyer as any);
 
 caseRouter.openapi(getCaseMessagesRoute, getCaseMessages as any);
 caseRouter.openapi(sendCaseMessageRoute, sendCaseMessage as any);
 caseRouter.openapi(markCaseMessagesReadRoute, markCaseMessagesRead as any);
+
+caseRouter.openapi(getUserCaseMessagesRoute, getCaseMessages as any);
+caseRouter.openapi(sendUserCaseMessageRoute, sendCaseMessage as any);
+caseRouter.openapi(markUserCaseMessagesReadRoute, markCaseMessagesRead as any);
 
 export default caseRouter;

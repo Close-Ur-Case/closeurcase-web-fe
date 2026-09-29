@@ -14,6 +14,8 @@ import {
   XCircle,
   AlertTriangle,
   AlertCircle,
+  Clock,
+  Award,
 } from "lucide-react";
 import { PageHeader } from "@/components/app/PageHeader";
 import { SegmentedControl } from "@/components/app/SegmentedControl";
@@ -31,9 +33,17 @@ import {
   addSubscription,
   getPayments,
   getSubscriptions,
+  isSubscriptionActive,
   mergeRemotePayments,
   subscribeToStore,
 } from "@/data/appStore";
+import {
+  SUBSCRIPTION_TIERS,
+  getTierConfig,
+  normalizeSubscriptionTier,
+  type SubscriptionTierId,
+} from "@/data/subscriptionTiers";
+import { SubscriptionExpiryModal } from "@/components/app/SubscriptionExpiryModal";
 import { FREE_PLAN, SUBSCRIPTION_PLANS } from "@/data/subscriptionPlans";
 import { useAuth } from "@/context/useAuth";
 import { subscriptionService } from "@/services/subscriptionService";
@@ -45,6 +55,7 @@ import type { SubscriptionPlanItem } from "@/types/api";
 interface TierConfig {
   tierName: string;
   badgeText: string;
+  icon: typeof Award;
   cardClasses: string;
   badgeClasses: string;
   iconBgClasses: string;
@@ -61,11 +72,12 @@ const TIER_THEMES: Record<string, TierConfig> = {
   free: {
     tierName: "Bronze Tier",
     badgeText: "BRONZE TIER",
+    icon: Award,
     cardClasses:
       "border-2 border-[#8B5E3C]/60 dark:border-[#A06830]/70 bg-gradient-to-b from-[#8B5E3C]/10 via-[#8B5E3C]/5 to-card dark:from-[#7A4B1B]/30 dark:via-card dark:to-card p-6 rounded-3xl shadow-sm hover:border-[#8B5E3C] hover:shadow-md transition-all",
     badgeClasses: "bg-[#7A4B1B] text-white font-extrabold shadow-xs border border-[#A06830]/50",
     iconBgClasses: "bg-[#7A4B1B] text-white shadow-md border border-[#A06830]",
-    iconColorClasses: "text-white fill-white",
+    iconColorClasses: "text-white fill-white/20",
     titleColorClasses: "text-[#7A4B1B] dark:text-[#D4A373] font-extrabold text-2xl",
     featureCheckClasses: "text-[#8B5E3C] dark:text-[#D4A373]",
     dividerClasses: "border-border text-foreground font-bold",
@@ -76,6 +88,7 @@ const TIER_THEMES: Record<string, TierConfig> = {
   daily: {
     tierName: "Copper Tier",
     badgeText: "₹1/DAY • MICRO PASS",
+    icon: Zap,
     cardClasses:
       "border-2 border-teal-500/60 dark:border-teal-400/60 bg-gradient-to-b from-teal-500/15 via-teal-500/5 to-card dark:from-teal-950/40 dark:via-card dark:to-card p-6 rounded-3xl shadow-sm hover:border-teal-500 hover:shadow-md transition-all",
     badgeClasses: "bg-teal-600 dark:bg-teal-500 text-white font-extrabold shadow-xs",
@@ -97,12 +110,13 @@ const TIER_THEMES: Record<string, TierConfig> = {
   monthly: {
     tierName: "Silver Tier",
     badgeText: "SILVER • POPULAR",
+    icon: ShieldCheck,
     cardClasses:
       "border-2 border-slate-400 dark:border-slate-500 bg-gradient-to-b from-slate-200/50 via-slate-100/20 to-card dark:from-slate-900/60 dark:via-card dark:to-card p-6 rounded-3xl shadow-md hover:border-slate-500 hover:shadow-lg transition-all",
     badgeClasses:
       "bg-slate-800 dark:bg-slate-200 text-white dark:text-slate-950 font-extrabold shadow-xs",
     iconBgClasses: "bg-slate-800 dark:bg-slate-200 text-white dark:text-slate-950 shadow-md",
-    iconColorClasses: "text-white dark:text-slate-950 fill-current",
+    iconColorClasses: "text-white dark:text-slate-950 fill-white/20 dark:fill-slate-950/20",
     titleColorClasses: "text-slate-900 dark:text-slate-100 font-extrabold text-2xl",
     featureCheckClasses: "text-slate-700 dark:text-slate-300",
     dividerClasses: "border-border text-foreground font-bold",
@@ -119,6 +133,7 @@ const TIER_THEMES: Record<string, TierConfig> = {
   yearly: {
     tierName: "Gold Tier",
     badgeText: "GOLD • SAVE 17%",
+    icon: Crown,
     cardClasses:
       "border-2 border-amber-400 dark:border-yellow-400 bg-gradient-to-b from-amber-400/20 via-amber-400/5 to-card dark:from-amber-950/40 dark:via-card dark:to-card p-6 rounded-3xl shadow-lg hover:border-yellow-400 hover:shadow-xl transition-all",
     badgeClasses: "bg-amber-500 dark:bg-yellow-400 text-slate-950 font-black shadow-xs",
@@ -194,6 +209,55 @@ const CONSULTATION_STATUS_STYLE: Record<Payment["status"], string> = {
   Processing: "bg-amber-500/15 text-amber-600 dark:text-amber-400 border border-amber-500/25",
 };
 
+export function getSubscriptionDateTimes(sub: Subscription & { createdAt?: string }) {
+  let startObj: Date;
+  if (sub.createdAt && !isNaN(new Date(sub.createdAt).getTime())) {
+    startObj = new Date(sub.createdAt);
+  } else if (sub.startedAt && !isNaN(new Date(sub.startedAt).getTime())) {
+    startObj = new Date(sub.startedAt);
+  } else {
+    startObj = new Date();
+  }
+
+  let expiryObj: Date;
+  if (
+    sub.expiresAt &&
+    !isNaN(new Date(sub.expiresAt).getTime()) &&
+    (sub.expiresAt.includes("T") || sub.expiresAt.includes(":"))
+  ) {
+    expiryObj = new Date(sub.expiresAt);
+  } else if (sub.expiresAt && !isNaN(new Date(sub.expiresAt).getTime())) {
+    expiryObj = new Date(sub.expiresAt);
+    expiryObj.setHours(startObj.getHours(), startObj.getMinutes(), startObj.getSeconds());
+  } else {
+    expiryObj = new Date(startObj);
+    if (sub.planId === "daily") {
+      expiryObj.setDate(expiryObj.getDate() + 1);
+    } else if (sub.planId === "monthly") {
+      expiryObj.setMonth(expiryObj.getMonth() + 1);
+    } else if (sub.planId === "yearly") {
+      expiryObj.setFullYear(expiryObj.getFullYear() + 1);
+    } else {
+      expiryObj.setDate(expiryObj.getDate() + 30);
+    }
+  }
+
+  const fmt = (d: Date) =>
+    d.toLocaleString("en-IN", {
+      day: "2-digit",
+      month: "short",
+      year: "numeric",
+      hour: "2-digit",
+      minute: "2-digit",
+      hour12: true,
+    });
+
+  return {
+    subscribedOn: fmt(startObj),
+    expiresOn: fmt(expiryObj),
+  };
+}
+
 export function MySubscriptions() {
   const navigate = useNavigate();
   const searchParams = Route.useSearch();
@@ -261,8 +325,27 @@ export function MySubscriptions() {
     [citizenId],
   );
 
-  const activeSub = subscriptions.find((s) => s.status === "Active");
+  const activeSub = subscriptions.find((s) => isSubscriptionActive(s));
   const activePlanId = activeSub?.planId;
+  const activeDates = activeSub ? getSubscriptionDateTimes(activeSub) : null;
+  const activeTierConfig = activeSub ? getTierConfig(activeSub.planId) : null;
+  const ActiveTierIcon = activeTierConfig?.icon || Crown;
+
+  const latestExpiredSub = !activeSub
+    ? subscriptions.find((s) => s.status === "Expired" || !isSubscriptionActive(s))
+    : null;
+  const expiredDates = latestExpiredSub ? getSubscriptionDateTimes(latestExpiredSub) : null;
+
+  const [showExpiryModal, setShowExpiryModal] = useState(false);
+
+  useEffect(() => {
+    if (latestExpiredSub && !activeSub) {
+      const dismissedKey = `cuc_dismissed_expiry_modal_${latestExpiredSub.id}`;
+      if (typeof window !== "undefined" && !sessionStorage.getItem(dismissedKey)) {
+        setShowExpiryModal(true);
+      }
+    }
+  }, [latestExpiredSub, activeSub]);
 
   async function handleSubscribe(planId: SubscriptionPlanId, label: string, amount: number) {
     setSubscribingPlan(planId);
@@ -384,63 +467,165 @@ export function MySubscriptions() {
 
       {/* ── ACTIVE VIP MEMBERSHIP CARD / HERO BANNER ──────────────── */}
       {activeSub ? (
-        <div className="relative overflow-hidden rounded-3xl border border-indigo-500/40 bg-gradient-to-br from-slate-950 via-indigo-950 to-slate-900 text-white p-6 sm:p-8 shadow-2xl">
+        <div className="relative overflow-hidden rounded-3xl border border-indigo-500/40 bg-gradient-to-br from-slate-950 via-indigo-950 to-slate-900 text-white p-5 sm:p-6 shadow-xl">
           {/* Ambient Glows */}
           <div className="absolute -top-20 -right-20 h-56 w-56 rounded-full bg-indigo-500/20 blur-3xl pointer-events-none" />
           <div className="absolute -bottom-20 -left-20 h-56 w-56 rounded-full bg-purple-500/20 blur-3xl pointer-events-none" />
 
-          <div className="relative z-10 flex flex-col md:flex-row md:items-center justify-between gap-6">
-            <div className="space-y-3">
+          <div className="relative z-10 flex flex-col lg:flex-row lg:items-center justify-between gap-5">
+            <div className="space-y-2.5 min-w-0 flex-1">
               <div className="flex items-center gap-2">
-                <span className="flex h-2.5 w-2.5 rounded-full bg-emerald-400 ring-4 ring-emerald-400/25 animate-pulse" />
-                <span className="inline-flex items-center gap-1.5 rounded-full bg-indigo-500/20 border border-indigo-400/30 px-3 py-0.5 text-[10px] font-black uppercase tracking-widest text-indigo-300">
-                  <Crown className="h-3 w-3 text-amber-400" /> ACTIVE VIP SUBSCRIPTION
+                <span className="flex h-2 w-2 rounded-full bg-emerald-400 ring-4 ring-emerald-400/25 animate-pulse" />
+                <span className="inline-flex items-center gap-1.5 rounded-full bg-indigo-500/20 border border-indigo-400/30 px-2.5 py-0.5 text-[10px] font-black uppercase tracking-widest text-indigo-300">
+                  <ActiveTierIcon className="h-3 w-3 text-amber-400" /> ACTIVE VIP SUBSCRIPTION
                 </span>
               </div>
 
               <div>
-                <h2 className="text-2xl sm:text-3xl font-black tracking-tight text-white flex items-center gap-3">
+                <h2 className="text-xl sm:text-2xl font-black tracking-tight text-white flex items-center gap-2.5">
                   {activeSub.planLabel} Priority Pass
                 </h2>
-                <p className="mt-1 text-xs sm:text-sm text-indigo-200/80 leading-relaxed max-w-xl">
+                <p className="mt-1 text-xs text-indigo-200/80 leading-relaxed max-w-xl">
                   Your active membership routes all your legal cases straight to senior legal admins
                   for instant specialist advocate allocation.
                 </p>
               </div>
 
               {/* VIP Perks Chips */}
-              <div className="flex flex-wrap items-center gap-2 pt-1 text-xs">
-                <span className="inline-flex items-center gap-1.5 rounded-xl bg-white/10 backdrop-blur-md px-3 py-1 font-semibold text-white border border-white/15">
-                  <Zap className="h-3.5 w-3.5 text-amber-400" /> Fast-Track Admin Match
+              <div className="flex flex-wrap items-center gap-2 pt-0.5 text-xs">
+                <span className="inline-flex items-center gap-1.5 rounded-xl bg-white/10 backdrop-blur-md px-2.5 py-1 text-[11px] font-semibold text-white border border-white/15">
+                  <Zap className="h-3 w-3 text-amber-400" /> Fast-Track Admin Match
                 </span>
-                <span className="inline-flex items-center gap-1.5 rounded-xl bg-white/10 backdrop-blur-md px-3 py-1 font-semibold text-white border border-white/15">
-                  <ShieldCheck className="h-3.5 w-3.5 text-emerald-400" /> Verified Advocates
+                <span className="inline-flex items-center gap-1.5 rounded-xl bg-white/10 backdrop-blur-md px-2.5 py-1 text-[11px] font-semibold text-white border border-white/15">
+                  <ShieldCheck className="h-3 w-3 text-emerald-400" /> Verified Advocates
                 </span>
-                <span className="inline-flex items-center gap-1.5 rounded-xl bg-white/10 backdrop-blur-md px-3 py-1 font-semibold text-white border border-white/15">
-                  <Calendar className="h-3.5 w-3.5 text-purple-300" /> Billed {activeSub.planLabel}
+                <span className="inline-flex items-center gap-1.5 rounded-xl bg-white/10 backdrop-blur-md px-2.5 py-1 text-[11px] font-semibold text-white border border-white/15">
+                  <Calendar className="h-3 w-3 text-purple-300" /> Billed {activeSub.planLabel}
                 </span>
+                {activeDates && (
+                  <span className="inline-flex items-center gap-1.5 rounded-xl bg-emerald-500/20 backdrop-blur-md px-2.5 py-1 text-[11px] font-semibold text-emerald-300 border border-emerald-400/30">
+                    <Clock className="h-3 w-3 text-emerald-400" /> Active until {activeDates.expiresOn}
+                  </span>
+                )}
               </div>
             </div>
 
-            <div className="shrink-0 flex flex-col items-start md:items-end gap-2 border-t md:border-t-0 md:border-l border-indigo-800/60 pt-4 md:pt-0 md:pl-6">
-              <div className="text-[11px] uppercase tracking-wider font-bold text-indigo-300">
-                Subscription Status
+            <div className="shrink-0 flex flex-col justify-between gap-3 border-t lg:border-t-0 lg:border-l border-indigo-800/60 pt-4 lg:pt-0 lg:pl-6 w-full lg:w-72">
+              <div className="flex items-center justify-between">
+                <span className="text-[11px] uppercase tracking-wider font-bold text-indigo-300">
+                  Status
+                </span>
+                <div className="text-xl font-black text-white flex items-baseline gap-1">
+                  ₹{activeSub.amount}
+                  <span className="text-xs font-normal text-indigo-300">/ period</span>
+                </div>
               </div>
-              <div className="text-2xl font-black text-white flex items-baseline gap-1">
-                ₹{activeSub.amount}
-                <span className="text-xs font-normal text-indigo-300">/ period</span>
+
+              {/* Subscribed on datetime & Expiry datetime */}
+              <div className="w-full space-y-1.5 rounded-xl bg-white/5 border border-white/10 p-2.5 text-xs text-indigo-200/90">
+                <div className="flex items-center justify-between gap-3">
+                  <span className="text-indigo-300/80 font-medium text-[11px]">Subscribed on:</span>
+                  <span className="font-semibold text-white text-[11px]">
+                    {activeDates?.subscribedOn}
+                  </span>
+                </div>
+                <div className="flex items-center justify-between gap-3 border-t border-white/10 pt-1.5">
+                  <span className="text-indigo-300/80 font-medium text-[11px]">Expires on:</span>
+                  <span className="font-bold text-emerald-400 text-[11px] flex items-center gap-1">
+                    <Clock className="h-3 w-3" />
+                    {activeDates?.expiresOn}
+                  </span>
+                </div>
               </div>
-              <div className="text-[11px] text-indigo-300/80">
-                Subscribed on {activeSub.startedAt}
-              </div>
+
               <Button
                 variant="outlined"
-                className="mt-2 text-xs font-bold h-9 px-4 rounded-xl"
+                className="text-xs font-bold h-9 px-4 rounded-xl w-full flex items-center justify-center gap-1.5"
                 style={vipManageButtonStyle}
                 onClick={() => setShowManageModal(true)}
               >
-                Manage Subscription
+                <CreditCard className="h-3.5 w-3.5" />
+                <span>Manage Subscription</span>
               </Button>
+            </div>
+          </div>
+        </div>
+      ) : latestExpiredSub ? (
+        <div className="relative overflow-hidden rounded-3xl border border-rose-500/40 bg-gradient-to-br from-slate-950 via-rose-950/30 to-slate-900 text-white p-5 sm:p-6 shadow-xl">
+          {/* Ambient Glows */}
+          <div className="absolute -top-20 -right-20 h-56 w-56 rounded-full bg-rose-500/20 blur-3xl pointer-events-none" />
+          <div className="absolute -bottom-20 -left-20 h-56 w-56 rounded-full bg-amber-500/15 blur-3xl pointer-events-none" />
+
+          <div className="relative z-10 flex flex-col lg:flex-row lg:items-center justify-between gap-5">
+            <div className="space-y-2.5 min-w-0 flex-1">
+              <div className="flex items-center gap-2">
+                <span className="flex h-2 w-2 rounded-full bg-rose-500 ring-4 ring-rose-500/25 animate-pulse" />
+                <span className="inline-flex items-center gap-1.5 rounded-full bg-rose-500/20 border border-rose-400/30 px-2.5 py-0.5 text-[10px] font-black uppercase tracking-widest text-rose-300">
+                  <AlertCircle className="h-3 w-3 text-rose-400" /> PLAN EXPIRED — RENEWAL REQUIRED
+                </span>
+              </div>
+
+              <div>
+                <div className="flex flex-wrap items-center gap-2 mb-1.5">
+                  <h2 className="text-xl sm:text-2xl font-black tracking-tight text-white flex items-center gap-2.5">
+                    {latestExpiredSub.planLabel} Expired
+                  </h2>
+                  <span className="inline-flex items-center gap-1.5 rounded-full bg-amber-500/20 border border-amber-400/40 px-3 py-0.5 text-xs font-bold text-amber-300 shadow-sm">
+                    <Award className="h-3.5 w-3.5 text-amber-400" />
+                    Account Auto-Set to Bronze Free Tier
+                  </span>
+                </div>
+                <p className="mt-1 text-xs text-rose-200/80 leading-relaxed max-w-xl">
+                  Your Auto-Assign membership has expired. Your account has been automatically set to the{" "}
+                  <strong className="text-amber-300 font-bold">Bronze Free Tier</strong>. Priority lawyer
+                  matching is paused. Choose a plan below to renew or upgrade and reactivate instant advocate allocation.
+                </p>
+              </div>
+
+              <div className="flex flex-wrap items-center gap-2 pt-0.5 text-xs">
+                {expiredDates && (
+                  <span className="inline-flex items-center gap-1.5 rounded-xl bg-rose-500/20 backdrop-blur-md px-2.5 py-1 text-[11px] font-semibold text-rose-300 border border-rose-400/30">
+                    <Clock className="h-3.5 w-3.5 text-rose-400" /> Expired on {expiredDates.expiresOn}
+                  </span>
+                )}
+                {expiredDates && (
+                  <span className="inline-flex items-center gap-1.5 rounded-xl bg-white/10 backdrop-blur-md px-2.5 py-1 text-[11px] font-semibold text-white border border-white/15">
+                    <Calendar className="h-3.5 w-3.5 text-slate-300" /> Subscribed on {expiredDates.subscribedOn}
+                  </span>
+                )}
+              </div>
+            </div>
+
+            <div className="shrink-0 flex flex-col justify-between gap-3 border-t lg:border-t-0 lg:border-l border-rose-800/60 pt-4 lg:pt-0 lg:pl-6 w-full lg:w-72">
+              <div className="flex items-center justify-between">
+                <span className="text-[11px] uppercase tracking-wider font-bold text-rose-300">
+                  Subscription Status
+                </span>
+                <div className="text-lg font-black text-rose-400 flex items-center gap-1.5">
+                  <AlertCircle className="h-4 w-4" /> Expired
+                </div>
+              </div>
+
+              <div className="flex items-center gap-2 w-full">
+                <Button
+                  variant="outlined"
+                  className="text-xs font-bold h-9 px-3 rounded-xl flex-1"
+                  style={vipManageButtonStyle}
+                  onClick={() => setShowExpiryModal(true)}
+                >
+                  View Details
+                </Button>
+                <Button
+                  variant="filled"
+                  className="text-xs font-extrabold h-9 px-4 rounded-xl flex-1 bg-indigo-600 text-white shadow-md hover:bg-indigo-700"
+                  onClick={() => {
+                    const el = document.getElementById("subscription-plans");
+                    el?.scrollIntoView({ behavior: "smooth" });
+                  }}
+                >
+                  Renew Plan
+                </Button>
+              </div>
             </div>
           </div>
         </div>
@@ -469,7 +654,7 @@ export function MySubscriptions() {
       )}
 
       {/* ── SUBSCRIPTION PLANS GRID ─────────────────────────────────── */}
-      <div className="space-y-4">
+      <div id="subscription-plans" className="space-y-4">
         <div>
           <h2 className="text-base font-extrabold text-foreground flex items-center gap-2">
             <CreditCard className="h-4.5 w-4.5 text-primary" />
@@ -493,17 +678,17 @@ export function MySubscriptions() {
                 variant="outlined"
                 className={`relative flex h-full flex-col p-6 rounded-3xl transition-all duration-300 ${theme.cardClasses}`}
               >
-                {/* Circle Star Icon & Tier Badge */}
+                {/* Circle Constant Tier Icon & Tier Badge */}
                 <div className="flex items-center justify-between gap-2 mb-3">
                   <div
                     className={`flex h-10 w-10 items-center justify-center rounded-full ${theme.iconBgClasses}`}
                   >
-                    <Star className={`h-5 w-5 ${theme.iconColorClasses}`} />
+                    <theme.icon className={`h-5 w-5 ${theme.iconColorClasses}`} />
                   </div>
                   <span
                     className={`rounded-full px-3 py-1 text-[10px] tracking-wider ${theme.badgeClasses}`}
                   >
-                    {theme.badgeText}
+                    {isFree && !activePlanId && latestExpiredSub ? "Auto-Set Active" : theme.badgeText}
                   </span>
                 </div>
 
@@ -579,6 +764,8 @@ export function MySubscriptions() {
                       "Current plan"
                     ) : isFree ? (
                       "Included"
+                    ) : latestExpiredSub?.planId === plan.id ? (
+                      `Renew plan (₹${plan.price})`
                     ) : (
                       `Get started (₹${plan.price})`
                     )}
@@ -657,9 +844,17 @@ export function MySubscriptions() {
                   className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 rounded-2xl border border-border/70 bg-background/80 hover:bg-accent/40 p-4 transition-all text-xs"
                 >
                   <div className="flex items-center gap-3.5 min-w-0">
-                    <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-indigo-500/10 text-indigo-600 dark:text-indigo-400 font-bold border border-indigo-500/20">
-                      <CreditCard className="h-5 w-5" />
-                    </div>
+                    {(() => {
+                      const itemTier = getTierConfig(sub.planId);
+                      const ItemIcon = itemTier.icon;
+                      return (
+                        <div
+                          className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-xl ${itemTier.iconBgClasses}`}
+                        >
+                          <ItemIcon className={`h-5 w-5 ${itemTier.iconColorClasses}`} />
+                        </div>
+                      );
+                    })()}
                     <div className="min-w-0">
                       <div className="font-extrabold text-foreground text-sm truncate flex items-center gap-2">
                         {sub.planLabel} Subscription Pass
@@ -669,11 +864,20 @@ export function MySubscriptions() {
                           </span>
                         )}
                       </div>
-                      <div className="mt-0.5 text-[11px] text-muted-foreground flex items-center gap-2">
-                        <span>Purchased on {sub.startedAt}</span>
-                        <span>•</span>
-                        <span>Transaction ID: #{sub.id}</span>
-                      </div>
+                      {(() => {
+                        const itemDates = getSubscriptionDateTimes(sub);
+                        return (
+                          <div className="mt-0.5 text-[11px] text-muted-foreground flex flex-wrap items-center gap-2">
+                            <span>Subscribed on {itemDates.subscribedOn}</span>
+                            <span>•</span>
+                            <span className="font-semibold text-emerald-600 dark:text-emerald-400">
+                              Expires on {itemDates.expiresOn}
+                            </span>
+                            <span>•</span>
+                            <span>Transaction ID: #{sub.id}</span>
+                          </div>
+                        );
+                      })()}
                     </div>
                   </div>
 
@@ -762,64 +966,95 @@ export function MySubscriptions() {
 
       {/* ── MANAGE SUBSCRIPTION DIALOG ──────────────────────────── */}
       {showManageModal && activeSub && (
-        <Dialog open={showManageModal} onOpenChange={setShowManageModal}>
-          <DialogContent className="max-w-md">
-            <DialogHeader>
-              <div className="flex items-center gap-2">
-                <Crown className="h-5 w-5 text-amber-500" />
-                <DialogTitle>Manage VIP Subscription</DialogTitle>
+        <Dialog open={showManageModal} onOpenChange={setShowManageModal} maxWidth="480px">
+          <DialogHeader>
+            <div className="flex items-center gap-3">
+              <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-amber-500/15 border border-amber-500/30 text-amber-500 shrink-0">
+                <ActiveTierIcon className="h-5 w-5" />
               </div>
-            </DialogHeader>
-
-            <div className="space-y-4 py-3 text-xs">
-              <div className="rounded-2xl border border-border bg-muted/20 p-4 space-y-2">
-                <div className="flex items-center justify-between">
-                  <span className="text-muted-foreground font-medium">Plan</span>
-                  <span className="font-bold text-foreground text-sm">
-                    {activeSub.planLabel} Priority Pass
-                  </span>
-                </div>
-                <div className="flex items-center justify-between">
-                  <span className="text-muted-foreground font-medium">Status</span>
-                  <span className="inline-flex items-center gap-1 rounded-full bg-emerald-500/15 px-2 py-0.5 text-[11px] font-bold text-emerald-600 border border-emerald-500/25">
-                    Active
-                  </span>
-                </div>
-                <div className="flex items-center justify-between">
-                  <span className="text-muted-foreground font-medium">Billing Amount</span>
-                  <span className="font-bold text-foreground text-sm">₹{activeSub.amount}</span>
-                </div>
-                <div className="flex items-center justify-between">
-                  <span className="text-muted-foreground font-medium">Subscribed Date</span>
-                  <span className="font-medium text-foreground">{activeSub.startedAt}</span>
-                </div>
-              </div>
-
-              <div className="rounded-xl border border-amber-500/20 bg-amber-500/5 p-3 flex items-start gap-2.5">
-                <AlertTriangle className="h-4 w-4 text-amber-600 shrink-0 mt-0.5" />
-                <p className="text-[11px] text-amber-800 dark:text-amber-300 leading-relaxed">
-                  Cancelling your subscription will discontinue auto-dispatch privileges on future
-                  cases. Existing assigned cases will remain active with their allocated advocates.
+              <div>
+                <DialogTitle className="text-base font-extrabold text-foreground">
+                  Manage VIP Subscription
+                </DialogTitle>
+                <p className="text-[11px] text-muted-foreground">
+                  Active membership details and billing controls
                 </p>
               </div>
             </div>
+          </DialogHeader>
 
-            <DialogFooter>
-              <Button variant="tonal" onClick={() => setShowManageModal(false)}>
-                Keep Plan
-              </Button>
-              <Button
-                variant="outlined"
-                disabled={isCancelling}
-                className="text-destructive border-destructive/40 hover:bg-destructive/10"
-                onClick={() => handleCancelSubscription(activeSub.id)}
-              >
-                {isCancelling ? "Cancelling..." : "Cancel Subscription"}
-              </Button>
-            </DialogFooter>
+          <DialogContent className="space-y-3 pt-1 text-xs">
+            <div className="divide-y divide-border/60 rounded-2xl border border-border/80 bg-muted/20 px-3.5 py-0.5 text-xs">
+              <div className="flex items-center justify-between py-2">
+                <span className="text-muted-foreground font-medium">Plan</span>
+                <span className="font-extrabold text-foreground">
+                  {activeSub.planLabel} Priority Pass
+                </span>
+              </div>
+              <div className="flex items-center justify-between py-2">
+                <span className="text-muted-foreground font-medium">Status</span>
+                <span className="inline-flex items-center gap-1 rounded-full bg-emerald-500/15 px-2 py-0.5 text-[11px] font-bold text-emerald-600 dark:text-emerald-400 border border-emerald-500/25">
+                  <span className="h-1.5 w-1.5 rounded-full bg-emerald-500 animate-pulse" />
+                  Active VIP
+                </span>
+              </div>
+              <div className="flex items-center justify-between py-2">
+                <span className="text-muted-foreground font-medium">Billing Amount</span>
+                <span className="font-extrabold text-foreground">₹{activeSub.amount}</span>
+              </div>
+              <div className="flex items-center justify-between py-2">
+                <span className="text-muted-foreground font-medium">Subscribed Date</span>
+                <span className="font-semibold text-foreground">{activeDates?.subscribedOn}</span>
+              </div>
+              <div className="flex items-center justify-between py-2">
+                <span className="text-muted-foreground font-medium">Expiry Date</span>
+                <span className="font-bold text-emerald-600 dark:text-emerald-400 flex items-center gap-1">
+                  <Clock className="h-3.5 w-3.5" />
+                  {activeDates?.expiresOn}
+                </span>
+              </div>
+            </div>
+
+            <div className="rounded-xl border border-amber-500/25 bg-amber-500/10 p-3 flex items-start gap-2.5 text-amber-900 dark:text-amber-200">
+              <AlertTriangle className="h-4 w-4 text-amber-600 shrink-0 mt-0.5" />
+              <p className="text-[11px] leading-relaxed">
+                Cancelling your subscription will discontinue auto-dispatch privileges on future
+                cases. Existing assigned cases will remain active with their allocated advocates.
+              </p>
+            </div>
           </DialogContent>
+
+          <DialogFooter className="flex items-center justify-end gap-2.5 pt-2">
+            <Button variant="tonal" onClick={() => setShowManageModal(false)}>
+              Keep Plan
+            </Button>
+            <Button
+              variant="outlined"
+              disabled={isCancelling}
+              className="text-destructive border-destructive/40 hover:bg-destructive/10"
+              onClick={() => handleCancelSubscription(activeSub.id)}
+            >
+              {isCancelling ? "Cancelling..." : "Cancel Subscription"}
+            </Button>
+          </DialogFooter>
         </Dialog>
       )}
+
+      {/* ── SUBSCRIPTION EXPIRY POPUP MODAL ───────────────────────── */}
+      <SubscriptionExpiryModal
+        open={showExpiryModal}
+        onOpenChange={(open) => {
+          setShowExpiryModal(open);
+          if (!open && latestExpiredSub && typeof window !== "undefined") {
+            sessionStorage.setItem(`cuc_dismissed_expiry_modal_${latestExpiredSub.id}`, "true");
+          }
+        }}
+        subscription={latestExpiredSub}
+        onRenew={() => {
+          const el = document.getElementById("subscription-plans");
+          el?.scrollIntoView({ behavior: "smooth" });
+        }}
+      />
     </div>
   );
 }

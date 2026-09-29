@@ -103,6 +103,17 @@ export const caseService = {
   },
 
   /**
+   * Add attachment documents to a case docket (persists to backend cases_user.documents)
+   */
+  async addAttachments<T = Record<string, unknown>>(
+    caseId: string,
+    docs: BackendUserCaseDocument[],
+  ): Promise<T> {
+    return apiClient.post<T>(`/cases/user/${caseId}/attachments`, { documents: docs });
+  },
+
+
+  /**
    * Permanently delete a case docket
    */
   async deleteCase<T = Record<string, unknown>>(id: string): Promise<T> {
@@ -238,14 +249,26 @@ export function mapBackendCaseToLegalCase(
   const impAiAnalysis = (imp.caseAiAnalysis || imp.case_ai_analysis || null) as AIReport | null;
 
   // Files: merge user documents and eCourts imported files
-  const baseFiles: CaseDocument[] = (backend.documents || []).map((d, i) => ({
+  const rawDocs: any[] = Array.isArray(backend.documents)
+    ? backend.documents
+    : typeof backend.documents === "string"
+      ? (() => {
+          try {
+            return JSON.parse(backend.documents);
+          } catch {
+            return [];
+          }
+        })()
+      : [];
+
+  const baseFiles: CaseDocument[] = rawDocs.map((d: any, i: number) => ({
     id: d.id || `doc_${i}`,
-    name: d.name,
+    name: d.name || `Document ${i + 1}`,
     size: d.size || "1.0 MB",
     uploadedAt: d.uploadedAt || createdDate,
-    fileDataUrl: d.fileUrl,
-    fileMimeType: d.fileMimeType,
-    uploadedBy: "citizen",
+    fileDataUrl: d.fileUrl || d.fileDataUrl || d.url || "",
+    fileMimeType: d.fileMimeType || d.type || undefined,
+    uploadedBy: (d.uploadedBy as "citizen" | "lawyer") || "citizen",
   }));
 
   const extraFiles: CaseDocument[] = Array.isArray(impFiles)
@@ -254,15 +277,18 @@ export function mapBackendCaseToLegalCase(
         name: (f.name as string) || (f.fileName as string) || `Court Document ${i + 1}`,
         size: (f.size as string) || "1.5 MB",
         uploadedAt: (f.uploadedAt as string) || createdDate,
-        fileDataUrl: (f.fileDataUrl as string) || (f.fileUrl as string) || (f.url as string),
+        fileDataUrl: (f.fileDataUrl as string) || (f.fileUrl as string) || (f.url as string) || "",
         fileMimeType: (f.fileMimeType as string) || "application/pdf",
         uploadedBy: "citizen" as const,
       }))
     : [];
 
   const filesMap = new Map<string, CaseDocument>();
-  [...baseFiles, ...extraFiles].forEach((f) => {
-    if (f.name) filesMap.set(f.name.toLowerCase(), f);
+  [...baseFiles, ...extraFiles].forEach((f, idx) => {
+    const key = f.id || `${f.name}_${f.fileDataUrl || f.uploadedAt || ""}_${idx}`;
+    if (!filesMap.has(key)) {
+      filesMap.set(key, f);
+    }
   });
   const files: CaseDocument[] = Array.from(filesMap.values());
 

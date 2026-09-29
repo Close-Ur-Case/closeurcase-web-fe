@@ -446,7 +446,13 @@ export function CaseDocketRegister({
         />
       )}
 
-      <CasesTable cases={displayCases} role={role} />
+      <CasesTable
+        cases={displayCases}
+        role={role}
+        onCaseUpdate={(updatedCase) => {
+          setCases((prev) => prev.map((c) => (c.id === updatedCase.id ? updatedCase : c)));
+        }}
+      />
     </div>
   );
 }

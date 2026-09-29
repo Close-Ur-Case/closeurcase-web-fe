@@ -13,6 +13,7 @@ import {
   Clock,
   Download,
   Link2,
+  MessageCircle,
 } from "lucide-react";
 import { getCases, subscribeToStore } from "@/data/appStore";
 import { useCaseDetailSync } from "@/hooks/useCaseSync";
@@ -141,13 +142,23 @@ function CitizenCaseDetailBody({ caseItem: c }: { caseItem: LegalCase }) {
       <PageHeader
         title={c.title}
         actions={
-          <Button
-            variant="outlined"
-            icon={<Printer className="h-4 w-4" />}
-            onClick={() => window.print()}
-          >
-            Print
-          </Button>
+          <div className="flex items-center gap-2">
+            <Link
+              to="/citizen/chat/$id"
+              params={{ id: c.id }}
+              className="inline-flex cursor-pointer items-center gap-1.5 rounded-full bg-primary px-3.5 py-2 text-xs font-semibold text-primary-foreground hover:bg-primary/90 transition-all shadow-xs"
+            >
+              <MessageCircle className="h-3.5 w-3.5" />
+              <span>Chat with Advocate</span>
+            </Link>
+            <Button
+              variant="outlined"
+              icon={<Printer className="h-4 w-4" />}
+              onClick={() => window.print()}
+            >
+              Print
+            </Button>
+          </div>
         }
       />
 

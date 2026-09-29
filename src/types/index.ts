@@ -34,6 +34,7 @@ export interface Citizen {
   joinedAt: string;
   lastLoginAt: string;
   status: "Active" | "Inactive";
+  planTier?: "bronze" | "silver" | "gold" | "micropass";
 }
 
 export interface LawyerPracticeArea {

@@ -19,12 +19,15 @@ export function AvatarUploadField({
   defaultPhotoUrl,
   centered = false,
   status,
+  planTier,
   onPhotoChange,
 }: {
   role: UserRole;
   name: string;
   /** Lawyer presence indicator, forwarded to the avatar (see UserAvatar). */
   status?: LawyerPresence;
+  /** Explicit subscription tier (bronze, silver, gold, micropass). */
+  planTier?: "bronze" | "silver" | "gold" | "micropass" | "free" | "daily" | "monthly" | "yearly";
   /** Shown until the user uploads their own photo — overrides the generic
    * name-hashed avatar fallback for seed profiles where that hash picks a
    * mismatched photo. */
@@ -116,6 +119,7 @@ export function AvatarUploadField({
             size="lg"
             role={role}
             status={status}
+            planTier={planTier}
           />
           {photoUrl && (
             <button
@@ -166,7 +170,13 @@ export function AvatarUploadField({
   return (
     <div className="flex items-center gap-4">
       <div className="relative inline-block">
-        <UserAvatar name={name} photoUrl={photoUrl ?? defaultPhotoUrl} size="lg" role={role} />
+        <UserAvatar
+          name={name}
+          photoUrl={photoUrl ?? defaultPhotoUrl}
+          size="lg"
+          role={role}
+          planTier={planTier}
+        />
         {photoUrl && (
           <button
             type="button"

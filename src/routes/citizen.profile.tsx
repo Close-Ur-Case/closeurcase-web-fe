@@ -1,19 +1,28 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useState, useEffect, useMemo } from "react";
 import { PageHeader } from "@/components/app/PageHeader";
-import { ProfileForm, type ProfileFormFields } from "@/components/app/ProfileForm";
+import {
+  ProfileForm,
+  type ProfileFormFields,
+  type CitizenPlanTier,
+} from "@/components/app/ProfileForm";
 import {
   getCitizens,
+  getSubscriptions,
+  isSubscriptionActive,
+  planTierForCitizen,
   updateCitizenProfile,
   subscribeToStore,
   mergeRemoteCitizens,
   setProfilePhoto,
   getProfilePhoto,
 } from "@/data/appStore";
-import type { Citizen } from "@/types";
+import type { Citizen, Subscription } from "@/types";
 import { getCitizenSession, setCitizenSession } from "@/features/citizen/session";
 import { citizenService } from "@/services/citizenService";
+import { subscriptionService } from "@/services/subscriptionService";
 import { useAuth } from "@/context/useAuth";
+import { normalizeSubscriptionTier } from "@/data/subscriptionTiers";
 
 export const Route = createFileRoute("/citizen/profile")({
   component: CitizenProfilePage,
@@ -58,6 +67,28 @@ function CitizenProfilePage() {
   }, [user?.email, user?.phone, user?.id, user?.citizenId]);
 
   const session = getCitizenSession();
+  const citizenId = user?.citizenId || user?.id || "u_001";
+  const [subscriptions, setSubscriptions] = useState<Subscription[]>(() =>
+    getSubscriptions(citizenId),
+  );
+
+  useEffect(() => {
+    subscriptionService.listSubscriptions(citizenId).then((items) => {
+      if (Array.isArray(items) && items.length > 0) {
+        setSubscriptions(items as unknown as Subscription[]);
+      }
+    });
+  }, [citizenId]);
+
+  useEffect(
+    () => subscribeToStore(() => setSubscriptions(getSubscriptions(citizenId))),
+    [citizenId],
+  );
+
+  const activeSubscription = subscriptions.find((s) => isSubscriptionActive(s));
+  const planTier: CitizenPlanTier = activeSubscription
+    ? normalizeSubscriptionTier(activeSubscription.planId)
+    : (planTierForCitizen(citizenId) as CitizenPlanTier) ?? "bronze";
 
   // Find existing record safely without crashing on null/undefined values
   const citizen = useMemo(() => {
@@ -179,6 +210,8 @@ function CitizenProfilePage() {
         role="citizen"
         disableEmail={disableEmail}
         disablePhone={disablePhone}
+        planTier={planTier}
+        activeSubscription={activeSubscription}
         defaults={{
           name: currentName,
           email: currentEmail,

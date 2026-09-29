@@ -47,6 +47,7 @@ import {
   subscribeToStore,
   mergeRemotePayments,
   getSubscriptions,
+  isSubscriptionActive,
 } from "@/data/appStore";
 import { caseService } from "@/services/caseService";
 import { lawyerService } from "@/services/lawyerService";
@@ -59,7 +60,7 @@ import { SUBSCRIPTION_PLANS } from "@/data/subscriptionPlans";
 import { useSpeechToText } from "@/features/citizen/useSpeechToText";
 import { distanceToCity } from "@/lib/geo";
 import { useUserLocation } from "@/lib/useUserLocation";
-import { MAX_ATTACHMENT_BYTES, readFileAsDataUrl } from "@/lib/files";
+import { MAX_ATTACHMENT_BYTES, readFileAsDataUrl, isPdfOrDocxFile, isJpgOrPngFile } from "@/lib/files";
 import { sanitizeName, sanitizeCNR } from "@/lib/validations";
 import type {
   CaseDocument,
@@ -156,8 +157,11 @@ export function FindLawyerWizard() {
     [currentCitizenId],
   );
 
-  const activeSubscription = subscriptions.find((s) => s.status === "Active");
+  const activeSubscription = subscriptions.find((s) => isSubscriptionActive(s));
   const hasActiveSubscription = Boolean(activeSubscription);
+  const expiredSubscription = !hasActiveSubscription
+    ? subscriptions.find((s) => s.status === "Expired" || !isSubscriptionActive(s))
+    : null;
 
   const matchedAreaObj = useMemo(() => {
     if (initialAreaParam) {
@@ -217,6 +221,8 @@ export function FindLawyerWizard() {
   const [description, setDescription] = useState("");
   const [images, setImages] = useState<File[]>([]);
   const [documents, setDocuments] = useState<File[]>([]);
+  const [docError, setDocError] = useState<string | null>(null);
+  const [imageError, setImageError] = useState<string | null>(null);
   // Whether the citizen knows their case's legal category already — if so,
   // skip the automatic classification and let them pick it directly via the
   // same Practice Area -> Specialization -> Legal Service cascade used to
@@ -1165,7 +1171,10 @@ export function FindLawyerWizard() {
                         <Button
                           variant="outlined"
                           icon={<ImageIcon className="h-3.5 w-3.5" />}
-                          onClick={() => imageInputRef.current?.click()}
+                          onClick={() => {
+                            setImageError(null);
+                            imageInputRef.current?.click();
+                          }}
                           className="!h-8 !px-3 !text-xs"
                         >
                           Add Photos
@@ -1173,7 +1182,10 @@ export function FindLawyerWizard() {
                         <Button
                           variant="outlined"
                           icon={<Paperclip className="h-3.5 w-3.5" />}
-                          onClick={() => docInputRef.current?.click()}
+                          onClick={() => {
+                            setDocError(null);
+                            docInputRef.current?.click();
+                          }}
                           className="!h-8 !px-3 !text-xs"
                         >
                           Add Document
@@ -1195,29 +1207,64 @@ export function FindLawyerWizard() {
                         <input
                           ref={imageInputRef}
                           type="file"
-                          accept="image/*"
+                          accept=".jpg,.jpeg,.png,image/jpeg,image/png"
                           multiple
                           className="hidden"
                           onChange={(e) => {
                             const sel = Array.from(e.target.files ?? []);
-                            setImages((prev) => [...prev, ...sel]);
+                            const validFiles: File[] = [];
+                            let hasInvalid = false;
+                            for (const file of sel) {
+                              if (isJpgOrPngFile(file)) {
+                                validFiles.push(file);
+                              } else {
+                                hasInvalid = true;
+                              }
+                            }
+                            if (hasInvalid) {
+                              setImageError("Only JPG, JPEG, and PNG images are allowed.");
+                            } else {
+                              setImageError(null);
+                            }
+                            if (validFiles.length > 0) {
+                              setImages((prev) => [...prev, ...validFiles]);
+                            }
                             e.target.value = "";
                           }}
                         />
                         <input
                           ref={docInputRef}
                           type="file"
+                          accept=".pdf,.docx,application/pdf,application/vnd.openxmlformats-officedocument.wordprocessingml.document"
                           multiple
                           className="hidden"
                           onChange={(e) => {
                             const sel = Array.from(e.target.files ?? []);
-                            setDocuments((prev) => [...prev, ...sel]);
+                            const validFiles: File[] = [];
+                            let hasInvalid = false;
+                            for (const file of sel) {
+                              if (isPdfOrDocxFile(file)) {
+                                validFiles.push(file);
+                              } else {
+                                hasInvalid = true;
+                              }
+                            }
+                            if (hasInvalid) {
+                              setDocError("Only PDF (.pdf) and Word (.docx) documents are allowed.");
+                            } else {
+                              setDocError(null);
+                            }
+                            if (validFiles.length > 0) {
+                              setDocuments((prev) => [...prev, ...validFiles]);
+                            }
                             e.target.value = "";
                           }}
                         />
                       </div>
 
                       {voiceError && <p className="text-[11px] text-destructive">{voiceError}</p>}
+                      {docError && <p className="text-[11px] text-destructive">{docError}</p>}
+                      {imageError && <p className="text-[11px] text-destructive">{imageError}</p>}
                       {isRecording && (
                         <p className="text-[11px] text-muted-foreground">
                           Listening… speak now, then tap the button again to stop.
@@ -1846,7 +1893,7 @@ export function FindLawyerWizard() {
                       <div className="flex items-center gap-2">
                         <span className="flex h-2 w-2 rounded-full bg-amber-500 animate-pulse" />
                         <span className="text-[10px] font-black uppercase tracking-wider text-amber-600 dark:text-amber-400 bg-amber-500/10 px-2.5 py-0.5 rounded-full border border-amber-500/20">
-                          Subscription Required
+                          {expiredSubscription ? "Plan Expired — Renewal Required" : "Subscription Required"}
                         </span>
                       </div>
                       <h3 className="text-base font-extrabold text-foreground flex items-center gap-2 mt-1">
@@ -1854,9 +1901,9 @@ export function FindLawyerWizard() {
                         Auto-Assign Advocate
                       </h3>
                       <p className="text-xs text-muted-foreground max-w-xl leading-relaxed">
-                        Auto-assign is an exclusive service for subscribed members. Our legal admin
-                        team matches and assigns the best verified specialist advocate for your
-                        case.
+                        {expiredSubscription
+                          ? `Your ${expiredSubscription.planLabel} subscription has expired. Auto-assign priority dispatch is reserved for active subscribed members. Please renew your plan to reactivate free advocate assignment, or proceed to standard paid filing.`
+                          : "Auto-assign is an exclusive service for subscribed members. Our legal admin team matches and assigns the best verified specialist advocate for your case."}
                       </p>
                     </div>
 
@@ -1867,7 +1914,7 @@ export function FindLawyerWizard() {
                         onClick={handleSubscribeClick}
                         className="bg-indigo-600 hover:bg-indigo-700 text-white font-extrabold px-6 py-2.5 rounded-xl shadow-md cursor-pointer"
                       >
-                        Subscribe
+                        {expiredSubscription ? "Renew Plan" : "Subscribe"}
                       </Button>
                     </div>
                   </div>

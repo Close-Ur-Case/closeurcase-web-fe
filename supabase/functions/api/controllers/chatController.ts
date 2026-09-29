@@ -1,9 +1,11 @@
 import type { Context } from "hono";
 import { db } from "../config/db.ts";
 import { chatMessages } from "../models/chat.ts";
+import { casesUser } from "../models/casesUser.ts";
 import { eq, and } from "drizzle-orm";
 import { ApiResponse } from "../utils/apiResponse.ts";
 import { ApiError } from "../utils/apiError.ts";
+import { NotificationService } from "../services/notificationService.ts";
 
 export async function getCaseMessages(c: Context) {
   const caseId = c.req.param("id")!;
@@ -58,13 +60,41 @@ export async function sendCaseMessage(c: Context) {
     })
     .returning();
 
+  // Best-effort in-app notification dispatch for recipient
+  try {
+    const [caseRecord] = await db.select().from(casesUser).where(eq(casesUser.id, caseId));
+    if (caseRecord) {
+      const isCitizenSender = actualSender === "citizen";
+      const recipientUserId = isCitizenSender ? caseRecord.lawyerId : caseRecord.citizenId;
+      const recipientRole = isCitizenSender ? "lawyer" : "citizen";
+      if (recipientUserId) {
+        const preview = actualText
+          ? actualText.length > 50
+            ? `${actualText.slice(0, 50)}…`
+            : actualText
+          : attachmentName
+            ? `Shared file: ${attachmentName}`
+            : "Sent an attachment";
+        await NotificationService.createInAppNotification({
+          userId: recipientUserId,
+          role: recipientRole,
+          title: `New message from ${actualSenderName}`,
+          body: `${preview} (Case ${caseId})`,
+        });
+      }
+    }
+  } catch (notifErr) {
+    console.warn("[ChatController] Notification dispatch notice:", notifErr);
+  }
+
   return ApiResponse.created(c, created, "Message sent successfully");
 }
 
 export async function markCaseMessagesRead(c: Context) {
   const caseId = c.req.param("id")!;
+  const body = await c.req.json().catch(() => ({}));
   const user = c.get("user");
-  const readerRole = user?.role || "citizen";
+  const readerRole = body.role || user?.role || "citizen";
   const oppositeSender = readerRole === "lawyer" ? "citizen" : "lawyer";
 
   const updated = await db

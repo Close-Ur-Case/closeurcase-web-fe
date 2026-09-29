@@ -5,6 +5,7 @@ import { subscriptions } from "../models/subscriptions.ts";
 import { eq, desc, or, ilike } from "drizzle-orm";
 import { ApiResponse } from "../utils/apiResponse.ts";
 import { ApiError } from "../utils/apiError.ts";
+import { syncExpiredSubscriptions } from "./subscriptionController.ts";
 
 export async function getCitizens(c: Context) {
   const search = c.req.query("search")?.trim();
@@ -38,7 +39,21 @@ export async function getCitizenById(c: Context) {
     .where(eq(subscriptions.citizenId, id))
     .orderBy(desc(subscriptions.startedAt));
 
-  return ApiResponse.success(c, { ...citizen, subscriptions: subs }, "Citizen profile retrieved");
+  const syncedSubs = await syncExpiredSubscriptions(subs);
+  const activeSub = syncedSubs.find((s) => s.status === "Active");
+  let planTier = "bronze";
+  if (activeSub) {
+    const p = (activeSub.planId || "").toLowerCase();
+    if (p === "yearly" || p === "gold") planTier = "gold";
+    else if (p === "monthly" || p === "silver") planTier = "silver";
+    else if (p === "daily" || p === "micropass") planTier = "micropass";
+  }
+
+  return ApiResponse.success(
+    c,
+    { ...citizen, planTier, subscriptions: syncedSubs, activeSubscription: activeSub || null },
+    "Citizen profile retrieved",
+  );
 }
 
 export async function updateCitizenProfile(c: Context) {
@@ -63,7 +78,8 @@ export async function getMySubscriptions(c: Context) {
     query = query.where(eq(subscriptions.citizenId, citizenId)) as any;
   }
   const result = await query.orderBy(desc(subscriptions.startedAt));
-  return ApiResponse.success(c, result, "Subscriptions retrieved successfully");
+  const synced = await syncExpiredSubscriptions(result);
+  return ApiResponse.success(c, synced, "Subscriptions retrieved successfully");
 }
 
 async function findCitizenForUser(
@@ -137,7 +153,27 @@ export async function getMe(c: Context) {
   }
 
   if (!citizen) throw ApiError.notFound("Citizen profile not found");
-  return ApiResponse.success(c, citizen, "Citizen profile retrieved");
+
+  const subs = await db
+    .select()
+    .from(subscriptions)
+    .where(eq(subscriptions.citizenId, citizen.id))
+    .orderBy(desc(subscriptions.startedAt));
+  const syncedSubs = await syncExpiredSubscriptions(subs);
+  const activeSub = syncedSubs.find((s) => s.status === "Active");
+  let planTier = "bronze";
+  if (activeSub) {
+    const p = (activeSub.planId || "").toLowerCase();
+    if (p === "yearly" || p === "gold") planTier = "gold";
+    else if (p === "monthly" || p === "silver") planTier = "silver";
+    else if (p === "daily" || p === "micropass") planTier = "micropass";
+  }
+
+  return ApiResponse.success(
+    c,
+    { ...citizen, planTier, subscriptions: syncedSubs, activeSubscription: activeSub || null },
+    "Citizen profile retrieved",
+  );
 }
 
 export async function updateMe(c: Context) {

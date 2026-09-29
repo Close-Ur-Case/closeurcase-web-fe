@@ -371,6 +371,11 @@ export class CaseService {
 
     return {
       ...foundCase,
+      documents: Array.isArray(foundCase.documents)
+        ? foundCase.documents
+        : typeof foundCase.documents === "string"
+          ? JSON.parse(foundCase.documents)
+          : (foundCase.documents || []),
       title: caseTitle,
       importedCase: importedRecord,
     };
@@ -438,6 +443,11 @@ export class CaseService {
     const cnrs = Array.from(new Set(rows.map((r) => r.cnr).filter(Boolean)));
     const formatRow = (r: any, imp: any) => ({
       ...r,
+      documents: Array.isArray(r.documents)
+        ? r.documents
+        : typeof r.documents === "string"
+          ? JSON.parse(r.documents)
+          : (r.documents || []),
       title: r.petitioner
         ? r.respondent ? `${r.petitioner} vs ${r.respondent}` : r.petitioner
         : "Legal Matter",
@@ -598,7 +608,17 @@ export class CaseService {
     if (updates.practiceArea !== undefined) updateFields.practiceArea = updates.practiceArea;
     if (updates.specialization !== undefined) updateFields.specialization = updates.specialization;
     if (updates.isEmergency !== undefined) updateFields.isEmergency = Boolean(updates.isEmergency);
-    if (updates.documents !== undefined) updateFields.documents = updates.documents;
+    if (updates.documents !== undefined) {
+      const incomingDocs = Array.isArray(updates.documents) ? updates.documents : [];
+      updateFields.documents = incomingDocs.map((d: any, idx: number) => ({
+        id: d.id || `doc_${Date.now()}_${idx}`,
+        name: d.name || `Document ${idx + 1}`,
+        fileUrl: d.fileUrl || d.fileDataUrl || "",
+        size: d.size || undefined,
+        fileMimeType: d.fileMimeType || d.type || undefined,
+        uploadedAt: d.uploadedAt || new Date().toISOString().slice(0, 10),
+      }));
+    }
     if (updates.timeline !== undefined) updateFields.timeline = updates.timeline;
     if (updates.notes !== undefined) updateFields.notes = updates.notes;
     if (updates.status !== undefined || updates.caseStatus !== undefined) {
@@ -620,6 +640,46 @@ export class CaseService {
 
     return updated;
   }
+
+  static async addAttachmentsToUserCase(caseId: string, docs: any[]) {
+    const [existing] = await db.select().from(casesUser).where(eq(casesUser.id, caseId));
+    if (!existing) {
+      throw ApiError.notFound(`Case docket '${caseId}' not found`);
+    }
+
+    const currentDocs = Array.isArray(existing.documents)
+      ? [...existing.documents]
+      : typeof existing.documents === "string"
+        ? JSON.parse(existing.documents)
+        : [];
+    const formattedDocs = (Array.isArray(docs) ? docs : [docs]).map((d: any, idx: number) => ({
+      id: d.id || `doc_${Date.now()}_${idx}`,
+      name: d.name || `Document ${idx + 1}`,
+      fileUrl: d.fileUrl || d.fileDataUrl || "",
+      size: d.size || undefined,
+      fileMimeType: d.fileMimeType || d.type || undefined,
+      uploadedAt: d.uploadedAt || new Date().toISOString().slice(0, 10),
+    }));
+
+    const existingIds = new Set(currentDocs.map((x) => x.id).filter(Boolean));
+    for (const item of formattedDocs) {
+      if (!existingIds.has(item.id)) {
+        currentDocs.push(item);
+      }
+    }
+
+    const [updated] = await db
+      .update(casesUser)
+      .set({
+        documents: currentDocs,
+        updatedAt: new Date(),
+      })
+      .where(eq(casesUser.id, caseId))
+      .returning();
+
+    return updated;
+  }
+
 
   static async deleteUserCase(caseId: string) {
     const [existing] = await db.select().from(casesUser).where(eq(casesUser.id, caseId));

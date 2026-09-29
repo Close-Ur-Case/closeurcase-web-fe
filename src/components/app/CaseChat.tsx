@@ -15,6 +15,9 @@ import {
   UploadCloud,
   Loader2,
   Video,
+  Download,
+  X,
+  ExternalLink,
 } from "lucide-react";
 import { Link } from "@tanstack/react-router";
 import type { LegalCase } from "@/types";
@@ -42,23 +45,76 @@ export interface ChatMessage {
 }
 
 /* ══════════════════════════════════════════════════════════
-   LOCAL STORAGE
+   MESSAGE DEDUPLICATION & LOCAL STORAGE
 ══════════════════════════════════════════════════════════ */
 const CHAT_KEY = "cuc_case_chats_v1";
+
+export function dedupeMessages(msgs: ChatMessage[]): ChatMessage[] {
+  const seenIds = new Set<string>();
+  const result: ChatMessage[] = [];
+
+  for (const m of msgs) {
+    if (!m || !m.id) continue;
+    // 1. Exact ID match check
+    if (seenIds.has(m.id)) continue;
+
+    // 2. Check for temporary vs confirmed duplicate or duplicate content sent in same window
+    const dupIdx = result.findIndex((existing) => {
+      if (existing.caseId !== m.caseId || existing.sender !== m.sender) return false;
+      const textMatches = m.text && existing.text && m.text.trim() === existing.text.trim();
+      const attachMatches =
+        m.attachmentUrl &&
+        existing.attachmentUrl &&
+        m.attachmentUrl === existing.attachmentUrl;
+      if (!textMatches && !attachMatches) return false;
+
+      const timeDiff = Math.abs(new Date(existing.at).getTime() - new Date(m.at).getTime());
+      // Reconcile optimistic temp message with confirmed server message
+      if ((existing.id.startsWith("temp_") || m.id.startsWith("temp_")) && timeDiff < 30000) {
+        return true;
+      }
+      // Or if two messages have identical content sent within 4 seconds (duplicate click/dispatch)
+      if (timeDiff < 4000) {
+        return true;
+      }
+      return false;
+    });
+
+    if (dupIdx !== -1) {
+      // If incoming message is confirmed server message (not temp) and existing is temp, upgrade it!
+      if (!m.id.startsWith("temp_") && result[dupIdx].id.startsWith("temp_")) {
+        seenIds.delete(result[dupIdx].id);
+        result[dupIdx] = m;
+        seenIds.add(m.id);
+      }
+      continue;
+    }
+
+    seenIds.add(m.id);
+    result.push(m);
+  }
+
+  return result;
+}
 
 function loadMessages(): ChatMessage[] {
   try {
     const raw = localStorage.getItem(CHAT_KEY);
-    return raw ? (JSON.parse(raw) as ChatMessage[]) : [];
+    if (!raw) return [];
+    const parsed = JSON.parse(raw) as ChatMessage[];
+    return Array.isArray(parsed) ? dedupeMessages(parsed) : [];
   } catch {
     return [];
   }
 }
 
-function saveMessages(msgs: ChatMessage[]) {
+function saveMessages(msgs: ChatMessage[], notify: boolean = true) {
   try {
-    localStorage.setItem(CHAT_KEY, JSON.stringify(msgs));
-    window.dispatchEvent(new Event("cuc_chat_updated"));
+    const deduped = dedupeMessages(msgs);
+    localStorage.setItem(CHAT_KEY, JSON.stringify(deduped));
+    if (notify) {
+      window.dispatchEvent(new Event("cuc_chat_updated"));
+    }
   } catch {
     // localStorage write failed — ignore, chat still works in-memory
   }
@@ -70,86 +126,103 @@ function saveMessages(msgs: ChatMessage[]) {
 function fmtTime(iso: string) {
   return new Date(iso).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
 }
+
 function fmtDate(iso: string) {
   const diff = Math.floor((Date.now() - new Date(iso).getTime()) / 86400000);
   if (diff === 0) return "Today";
   if (diff === 1) return "Yesterday";
   return new Date(iso).toLocaleDateString([], { day: "numeric", month: "short", year: "numeric" });
 }
+
 function fmtBytes(b: number) {
   if (b < 1024) return `${b} B`;
   if (b < 1048576) return `${(b / 1024).toFixed(1)} KB`;
   return `${(b / 1048576).toFixed(1)} MB`;
 }
+
 function fmtDur(sec: number) {
   return `${Math.floor(sec / 60)}:${String(Math.floor(sec % 60)).padStart(2, "0")}`;
 }
 
 /* ══════════════════════════════════════════════════════════
-   DEMO SEED DATA — gives a case its first few messages so the
-   chat box isn't empty on first open. Only used when a case has
-   zero stored messages; real messages always take priority.
+   IMAGE LIGHTBOX MODAL
 ══════════════════════════════════════════════════════════ */
-function seedDemoMessages(caseItem: LegalCase): ChatMessage[] {
-  const citizenName = caseItem.citizenName || "Client";
-  const lawyerName = caseItem.lawyerName || "Your Lawyer";
-  const now = Date.now();
-  const minsAgo = (n: number) => new Date(now - n * 60000).toISOString();
+function ImageLightbox({
+  url,
+  name,
+  onClose,
+}: {
+  url: string;
+  name?: string;
+  onClose: () => void;
+}) {
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") onClose();
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [onClose]);
 
-  const seed: Omit<ChatMessage, "id">[] = [
-    {
-      caseId: caseItem.id,
-      sender: "lawyer",
-      senderName: lawyerName,
-      read: true,
-      at: minsAgo(180),
-      text: `Hi ${citizenName}, I've reviewed case ${caseItem.id} and started preparing the initial paperwork.`,
-    },
-    {
-      caseId: caseItem.id,
-      sender: "citizen",
-      senderName: citizenName,
-      read: true,
-      at: minsAgo(170),
-      text: "Thank you! Please let me know if you need anything from my side.",
-    },
-    {
-      caseId: caseItem.id,
-      sender: "lawyer",
-      senderName: lawyerName,
-      read: true,
-      at: minsAgo(140),
-      text: "Could you share a copy of the relevant documents when you get a chance?",
-    },
-    {
-      caseId: caseItem.id,
-      sender: "citizen",
-      senderName: citizenName,
-      read: true,
-      at: minsAgo(135),
-      text: "Sure — I'll upload it here shortly.",
-    },
-    {
-      caseId: caseItem.id,
-      sender: "lawyer",
-      senderName: lawyerName,
-      read: false,
-      at: minsAgo(20),
-      text: "Great — once I have it, I'll draft a response and share it for your review.",
-    },
-  ];
+  return (
+    <div
+      className="fixed inset-0 z-50 flex flex-col items-center justify-center bg-black/90 p-4 backdrop-blur-sm animate-in fade-in duration-200"
+      onClick={onClose}
+    >
+      <div
+        className="absolute top-4 right-4 flex items-center gap-3 z-10"
+        onClick={(e) => e.stopPropagation()}
+      >
+        <a
+          href={url}
+          download={name || "image"}
+          target="_blank"
+          rel="noopener noreferrer"
+          className="flex h-10 w-10 items-center justify-center rounded-full bg-white/20 text-white hover:bg-white/30 transition-colors"
+          title="Download file"
+        >
+          <Download className="h-5 w-5" />
+        </a>
+        <button
+          onClick={onClose}
+          className="flex h-10 w-10 items-center justify-center rounded-full bg-white/20 text-white hover:bg-white/30 transition-colors cursor-pointer"
+          title="Close preview"
+        >
+          <X className="h-5 w-5" />
+        </button>
+      </div>
 
-  return seed.map((m, i) => ({ ...m, id: `seed_${caseItem.id}_${i}` }));
+      <div
+        className="max-h-[85vh] max-w-[92vw] overflow-hidden rounded-xl shadow-2xl flex flex-col items-center justify-center"
+        onClick={(e) => e.stopPropagation()}
+      >
+        <img
+          src={url}
+          alt={name || "Preview"}
+          className="max-h-[80vh] max-w-[90vw] object-contain rounded-lg"
+        />
+        {name && (
+          <div className="mt-3 text-center text-xs font-medium text-white/80 max-w-[80vw] truncate">
+            {name}
+          </div>
+        )}
+      </div>
+    </div>
+  );
 }
 
 /* ══════════════════════════════════════════════════════════
-   READ TICKS — tuned to sit on the primary-colored bubble
+   READ TICKS
 ══════════════════════════════════════════════════════════ */
 function Ticks({ read }: { read: boolean }) {
   return read ? (
-    <CheckCheck className="h-3.5 w-3.5 shrink-0 text-sky-300" />
+    <span title="Read" className="inline-flex items-center">
+      <CheckCheck className="h-3.5 w-3.5 shrink-0 text-sky-300" />
+    </span>
   ) : (
-    <Check className="h-3.5 w-3.5 shrink-0 text-primary-foreground/60" />
+    <span title="Sent" className="inline-flex items-center">
+      <Check className="h-3.5 w-3.5 shrink-0 text-primary-foreground/60" />
+    </span>
   );
 }
 
@@ -199,32 +272,41 @@ function AudioPlayer({
       />
       <button
         onClick={toggle}
-        className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-full transition-transform active:scale-90 ${
+        type="button"
+        className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-full transition-transform active:scale-90 cursor-pointer ${
           mine
-            ? "bg-primary-foreground/20 text-primary-foreground"
-            : "bg-primary text-primary-foreground"
+            ? "bg-primary-foreground/20 text-primary-foreground hover:bg-primary-foreground/30"
+            : "bg-primary text-primary-foreground hover:bg-primary/90"
         }`}
       >
-        {playing ? <Pause className="h-4 w-4" /> : <Play className="h-4 w-4" />}
+        {playing ? <Pause className="h-4 w-4" /> : <Play className="h-4 w-4 ml-0.5" />}
       </button>
       <div className="flex-1 space-y-1.5">
         <div
-          className={`relative h-1.5 overflow-hidden rounded-full ${mine ? "bg-primary-foreground/25" : "bg-border"}`}
+          className={`relative h-1.5 overflow-hidden rounded-full ${
+            mine ? "bg-primary-foreground/25" : "bg-border"
+          }`}
         >
           <div
-            className={`absolute inset-y-0 left-0 rounded-full ${mine ? "bg-primary-foreground" : "bg-primary"}`}
+            className={`absolute inset-y-0 left-0 rounded-full ${
+              mine ? "bg-primary-foreground" : "bg-primary"
+            }`}
             style={{ width: `${progress}%`, transition: "width .1s linear" }}
           />
         </div>
         <div
-          className={`flex justify-between text-[10px] ${mine ? "text-primary-foreground/70" : "text-muted-foreground"}`}
+          className={`flex justify-between text-[10px] ${
+            mine ? "text-primary-foreground/70" : "text-muted-foreground"
+          }`}
         >
           <span>{fmtDur(cur)}</span>
           <span>{fmtDur(duration)}</span>
         </div>
       </div>
       <Mic
-        className={`h-4 w-4 shrink-0 ${mine ? "text-primary-foreground/70" : "text-muted-foreground"}`}
+        className={`h-4 w-4 shrink-0 ${
+          mine ? "text-primary-foreground/70" : "text-muted-foreground"
+        }`}
       />
     </div>
   );
@@ -233,11 +315,19 @@ function AudioPlayer({
 /* ══════════════════════════════════════════════════════════
    MESSAGE BUBBLE
 ══════════════════════════════════════════════════════════ */
-function Bubble({ msg, role }: { msg: ChatMessage; role: "citizen" | "lawyer" }) {
+function Bubble({
+  msg,
+  role,
+  onImageClick,
+}: {
+  msg: ChatMessage;
+  role: "citizen" | "lawyer";
+  onImageClick?: (url: string, name?: string) => void;
+}) {
   const mine = msg.sender === role;
   return (
     <div
-      className={`flex ${mine ? "justify-end" : "justify-start"} mb-1.5 px-3 sm:px-5 message-pop`}
+      className={`flex ${mine ? "justify-end" : "justify-start"} mb-2 px-3 sm:px-5 message-pop`}
     >
       <div
         className={`relative shadow-sm ${
@@ -246,33 +336,48 @@ function Bubble({ msg, role }: { msg: ChatMessage; role: "citizen" | "lawyer" })
             : "bg-surface text-foreground border border-border rounded-[18px_18px_18px_4px]"
         }`}
         style={{
-          maxWidth: "min(80%, 520px)",
+          maxWidth: "min(82%, 520px)",
           wordBreak: "break-word",
           overflowWrap: "anywhere",
-          padding: "9px 13px",
+          padding: "10px 14px",
           fontSize: "14px",
           lineHeight: "1.5",
         }}
       >
-        {/* Sender label — always shown so it's unambiguous who sent what */}
+        {/* Sender label */}
         <div
-          className={`mb-0.5 text-[11px] font-bold ${mine ? "text-primary-foreground/80" : "text-primary"}`}
+          className={`mb-1 text-[11px] font-bold ${
+            mine ? "text-primary-foreground/80" : "text-primary"
+          }`}
         >
           {mine ? "You" : msg.senderName}
         </div>
 
-        {/* Image */}
+        {/* Image / Photo attachment */}
         {msg.attachmentType === "image" && msg.attachmentUrl && (
-          <div className="mb-2 overflow-hidden rounded-xl">
-            <img
-              src={msg.attachmentUrl}
-              alt={msg.attachmentName}
-              className="w-full object-cover"
-              style={{ maxHeight: "280px" }}
-            />
+          <div className="mb-2">
+            <div
+              onClick={() => onImageClick?.(msg.attachmentUrl!, msg.attachmentName)}
+              className="group relative cursor-pointer overflow-hidden rounded-xl bg-black/10 transition-transform active:scale-[0.99]"
+            >
+              <img
+                src={msg.attachmentUrl}
+                alt={msg.attachmentName || "Case Image"}
+                className="w-full object-cover rounded-xl transition-transform duration-200 group-hover:scale-[1.02]"
+                style={{ maxHeight: "280px" }}
+                loading="lazy"
+              />
+              <div className="absolute inset-0 flex items-center justify-center bg-black/20 opacity-0 transition-opacity group-hover:opacity-100 rounded-xl">
+                <span className="rounded-full bg-black/70 px-3 py-1 text-xs font-semibold text-white shadow-md backdrop-blur-xs">
+                  Click to expand
+                </span>
+              </div>
+            </div>
             {msg.attachmentName && (
               <div
-                className={`mt-1 text-[11px] ${mine ? "text-primary-foreground/70" : "text-muted-foreground"}`}
+                className={`mt-1 truncate text-[11px] ${
+                  mine ? "text-primary-foreground/75" : "text-muted-foreground"
+                }`}
               >
                 {msg.attachmentName}
               </div>
@@ -280,53 +385,79 @@ function Bubble({ msg, role }: { msg: ChatMessage; role: "citizen" | "lawyer" })
           </div>
         )}
 
-        {/* File */}
+        {/* File document attachment */}
         {msg.attachmentType === "file" && (
           <a
             href={msg.attachmentUrl}
-            download={msg.attachmentName}
-            className={`mb-2 flex items-center gap-3 rounded-xl p-3 no-underline transition-colors ${
+            target="_blank"
+            rel="noopener noreferrer"
+            download={msg.attachmentName || "case-document"}
+            className={`mb-2 flex items-center justify-between gap-3 rounded-xl p-3 no-underline transition-colors ${
               mine
-                ? "bg-primary-foreground/15 hover:bg-primary-foreground/20"
-                : "bg-muted hover:bg-muted/70"
+                ? "bg-primary-foreground/15 hover:bg-primary-foreground/25"
+                : "bg-muted hover:bg-muted/80"
             }`}
           >
-            <div
-              className={`flex h-11 w-11 shrink-0 items-center justify-center rounded-xl ${mine ? "bg-primary-foreground/20" : "bg-primary"}`}
-            >
-              <FileText
-                className={`h-5 w-5 ${mine ? "text-primary-foreground" : "text-primary-foreground"}`}
-              />
+            <div className="flex items-center gap-3 min-w-0">
+              <div
+                className={`flex h-11 w-11 shrink-0 items-center justify-center rounded-xl ${
+                  mine ? "bg-primary-foreground/20" : "bg-primary"
+                }`}
+              >
+                <FileText
+                  className={`h-5 w-5 ${
+                    mine ? "text-primary-foreground" : "text-primary-foreground"
+                  }`}
+                />
+              </div>
+              <div className="min-w-0">
+                <div
+                  className={`truncate text-[13px] font-semibold ${
+                    mine ? "text-primary-foreground" : "text-foreground"
+                  }`}
+                >
+                  {msg.attachmentName || "Document"}
+                </div>
+                <div
+                  className={`text-[11px] ${
+                    mine ? "text-primary-foreground/70" : "text-muted-foreground"
+                  }`}
+                >
+                  {msg.attachmentSize || "File"}
+                </div>
+              </div>
             </div>
-            <div className="min-w-0">
-              <div
-                className={`truncate text-[13px] font-semibold ${mine ? "text-primary-foreground" : "text-foreground"}`}
-              >
-                {msg.attachmentName}
-              </div>
-              <div
-                className={`text-[11px] ${mine ? "text-primary-foreground/65" : "text-muted-foreground"}`}
-              >
-                {msg.attachmentSize}
-              </div>
+            <div
+              className={`shrink-0 rounded-full p-2 ${
+                mine
+                  ? "text-primary-foreground/80 hover:bg-primary-foreground/15"
+                  : "text-muted-foreground hover:bg-background"
+              }`}
+              title="Download file"
+            >
+              <Download className="h-4 w-4" />
             </div>
           </a>
         )}
 
-        {/* Audio */}
+        {/* Audio voice note */}
         {msg.attachmentType === "audio" && msg.attachmentUrl && (
           <div className="mb-2">
             <AudioPlayer url={msg.attachmentUrl} duration={msg.audioDuration} mine={mine} />
           </div>
         )}
 
-        {/* Text */}
-        {msg.text && <span>{msg.text}</span>}
+        {/* Text message */}
+        {msg.text && (
+          <span className="whitespace-pre-wrap leading-relaxed select-text">{msg.text}</span>
+        )}
 
-        {/* Meta */}
+        {/* Meta time + read status */}
         <div className={`mt-1 flex items-center gap-1 ${mine ? "justify-end" : "justify-start"}`}>
           <span
-            className={`text-[10px] ${mine ? "text-primary-foreground/60" : "text-muted-foreground"}`}
+            className={`text-[10px] ${
+              mine ? "text-primary-foreground/60" : "text-muted-foreground"
+            }`}
           >
             {fmtTime(msg.at)}
           </span>
@@ -343,7 +474,7 @@ function Bubble({ msg, role }: { msg: ChatMessage; role: "citizen" | "lawyer" })
 function DateSep({ label }: { label: string }) {
   return (
     <div className="my-4 flex items-center justify-center">
-      <span className="rounded-full bg-surface border border-border px-4 py-1 text-[11px] font-medium text-muted-foreground shadow-sm">
+      <span className="rounded-full bg-surface border border-border px-4 py-1 text-[11px] font-medium text-muted-foreground shadow-xs">
         {label}
       </span>
     </div>
@@ -355,10 +486,10 @@ function DateSep({ label }: { label: string }) {
 ══════════════════════════════════════════════════════════ */
 function UploadingRow({ name }: { name: string }) {
   return (
-    <div className="flex justify-end mb-1.5 px-3 sm:px-5">
-      <div className="flex items-center gap-2.5 rounded-2xl bg-primary/10 border border-primary/20 px-3.5 py-2.5 text-xs font-medium text-primary">
-        <Loader2 className="h-3.5 w-3.5 animate-spin" />
-        <span className="max-w-[160px] truncate">{name}</span>
+    <div className="flex justify-end mb-2 px-3 sm:px-5">
+      <div className="flex items-center gap-2.5 rounded-2xl bg-primary/10 border border-primary/20 px-3.5 py-2.5 text-xs font-medium text-primary shadow-xs">
+        <Loader2 className="h-4 w-4 animate-spin text-primary shrink-0" />
+        <span className="max-w-[180px] truncate">Uploading {name}…</span>
       </div>
     </div>
   );
@@ -388,12 +519,12 @@ function useRecorder() {
       setSeconds(0);
       timerRef.current = setInterval(() => setSeconds((s) => s + 1), 1000);
     } catch {
-      alert("Microphone permission denied.");
+      alert("Microphone permission denied or not supported.");
     }
   }, []);
 
   const stop = useCallback(
-    (): Promise<{ url: string; duration: number } | null> =>
+    (): Promise<{ url: string; blob: Blob; duration: number } | null> =>
       new Promise((resolve) => {
         const mr = mrRef.current;
         if (!mr) {
@@ -404,7 +535,12 @@ function useRecorder() {
         mr.onstop = () => {
           const blob = new Blob(chunksRef.current, { type: "audio/webm" });
           const reader = new FileReader();
-          reader.onload = () => resolve({ url: reader.result as string, duration: dur });
+          reader.onload = () =>
+            resolve({
+              url: reader.result as string,
+              blob,
+              duration: dur,
+            });
           reader.readAsDataURL(blob);
           mr.stream.getTracks().forEach((t) => t.stop());
           if (timerRef.current) clearInterval(timerRef.current);
@@ -431,7 +567,7 @@ function useRecorder() {
 }
 
 /* ══════════════════════════════════════════════════════════
-   ICON BUTTON helper — themed to the app's design tokens
+   ICON BUTTON helper
 ══════════════════════════════════════════════════════════ */
 function IconBtn({
   onClick,
@@ -451,7 +587,7 @@ function IconBtn({
       onClick={onClick}
       title={title}
       type="button"
-      className={`flex shrink-0 cursor-pointer items-center justify-center rounded-full transition-all active:scale-90 ${className}`}
+      className={`flex shrink-0 cursor-pointer items-center justify-center rounded-full transition-all active:scale-95 ${className}`}
       style={{ width: size, height: size }}
     >
       {children}
@@ -476,6 +612,8 @@ export function CaseChat({ caseItem, role, onClose }: CaseChatProps) {
   const [attachOpen, setAttachOpen] = useState(false);
   const [uploading, setUploading] = useState<string[]>([]);
   const [dragging, setDragging] = useState(false);
+  const [previewImage, setPreviewImage] = useState<{ url: string; name?: string } | null>(null);
+
   const dragCounter = useRef(0);
   const bottomRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
@@ -485,101 +623,91 @@ export function CaseChat({ caseItem, role, onClose }: CaseChatProps) {
 
   /* -- animate in -- */
   useEffect(() => {
-    // Double-rAF ensures the browser has painted the initial hidden state first
     const id = requestAnimationFrame(() => requestAnimationFrame(() => setVisible(true)));
     return () => cancelAnimationFrame(id);
   }, []);
 
-  /* -- load + mark read (seeding a short demo conversation the first time a case has none) -- */
-  const refresh = useCallback(() => {
+  /* -- Load local messages instantly for 0ms initial render -- */
+  const refreshLocal = useCallback(() => {
     const all = loadMessages();
-    const existing = all.filter((m) => m.caseId === caseItem.id);
-    const withSeed = existing.length > 0 ? all : [...all, ...seedDemoMessages(caseItem)];
-    setMessages(withSeed.filter((m) => m.caseId === caseItem.id));
-    const updated = withSeed.map((m) =>
-      m.caseId === caseItem.id && m.sender !== role ? { ...m, read: true } : m,
-    );
-    saveMessages(updated);
-  }, [caseItem, role]);
+    const caseMsgs = all.filter((m) => m.caseId === caseItem.id);
+    setMessages((prev) => {
+      if (
+        prev.length === caseMsgs.length &&
+        prev.every((m, i) => m.id === caseMsgs[i]?.id && m.read === caseMsgs[i]?.read)
+      ) {
+        return prev;
+      }
+      return dedupeMessages(caseMsgs);
+    });
+  }, [caseItem.id]);
 
+  /* -- Remote Message Synchronization & Real-time Polling -- */
   useEffect(() => {
-    refresh();
-    window.addEventListener("cuc_chat_updated", refresh);
+    refreshLocal();
+    window.addEventListener("cuc_chat_updated", refreshLocal);
 
-    const syncRemote = () => {
-      chatService
-        .getMessages(caseItem.id)
-        .then((remoteMessages) => {
-          if (remoteMessages && Array.isArray(remoteMessages) && remoteMessages.length > 0) {
-            const current = loadMessages();
-            let changed = false;
-            const merged = [...current];
+    const syncRemote = async () => {
+      try {
+        const remoteMessages = await chatService.getMessages(caseItem.id);
+        if (remoteMessages && Array.isArray(remoteMessages)) {
+          const current = loadMessages();
+          const otherCaseMsgs = current.filter((m) => m.caseId !== caseItem.id);
+          const currentCaseMsgs = current.filter((m) => m.caseId === caseItem.id);
 
-            remoteMessages.forEach((rm) => {
-              const exists = merged.some((m) => m.id === rm.id);
-              if (!exists) {
-                changed = true;
-                merged.push({
-                  id: rm.id,
-                  caseId: rm.caseId,
-                  text: rm.text || rm.message || undefined,
-                  sender: rm.sender,
-                  senderName: rm.senderName,
-                  at: rm.at,
-                  read: rm.read,
-                  attachmentType: rm.attachmentType || undefined,
-                  attachmentName: rm.attachmentName || undefined,
-                  attachmentUrl: rm.attachmentUrl || undefined,
-                  attachmentSize: rm.attachmentSize || undefined,
-                  audioDuration: rm.audioDuration || undefined,
-                });
-              }
-            });
+          const formattedRemote: ChatMessage[] = remoteMessages.map((rm) => ({
+            id: rm.id,
+            caseId: rm.caseId,
+            text: rm.text || rm.message || undefined,
+            sender: rm.sender,
+            senderName: rm.senderName,
+            at: rm.at,
+            read: rm.read,
+            attachmentType: rm.attachmentType || undefined,
+            attachmentName: rm.attachmentName || undefined,
+            attachmentUrl: rm.attachmentUrl || undefined,
+            attachmentSize: rm.attachmentSize || undefined,
+            audioDuration: rm.audioDuration || undefined,
+          }));
 
-            if (changed) {
-              saveMessages(merged);
-              setMessages(merged.filter((m) => m.caseId === caseItem.id));
-            }
-          }
-        })
-        .catch((err) => console.warn("Remote chat messages sync error:", err));
+          // Merge current local messages with remote messages and deduplicate
+          const merged = dedupeMessages([...currentCaseMsgs, ...formattedRemote]);
+          merged.sort((a, b) => new Date(a.at).getTime() - new Date(b.at).getTime());
+
+          saveMessages([...otherCaseMsgs, ...merged], false);
+          setMessages(merged);
+        }
+      } catch (err) {
+        console.warn("[CaseChat] Remote chat messages sync error:", err);
+      }
     };
 
     syncRemote();
-    const intervalId = setInterval(syncRemote, 3500);
+    const intervalId = setInterval(syncRemote, 2500);
 
-    // Mark remote messages read
+    // Auto mark remote incoming messages read
     chatService
-      .markRead(caseItem.id)
-      .catch((err) => console.warn("Remote chat mark read error:", err));
+      .markRead(caseItem.id, role)
+      .catch((err) => console.warn("[CaseChat] Remote chat mark read error:", err));
 
     return () => {
       clearInterval(intervalId);
-      window.removeEventListener("cuc_chat_updated", refresh);
+      window.removeEventListener("cuc_chat_updated", refreshLocal);
     };
-  }, [refresh, caseItem.id]);
+  }, [refreshLocal, caseItem.id, role]);
 
-  /* -- hide any global floating widget (e.g. a support/webbot bubble) while a chat is open --
-     Toggle a class on <body> and pair it with a CSS rule in your global stylesheet, e.g.:
-       body.case-chat-open #webbot-icon { display: none !important; }
-     Swap in the real selector/id your webbot widget uses. */
-  useEffect(() => {
-    document.body.classList.add("case-chat-open");
-    return () => document.body.classList.remove("case-chat-open");
-  }, []);
-
-  /* -- keep the latest message in view, like WhatsApp — only the message list scrolls -- */
+  /* -- Auto scroll to bottom -- */
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages, uploading]);
 
-  /* -- focus input -- */
+  /* -- Focus input -- */
   useEffect(() => {
     const t = setTimeout(() => inputRef.current?.focus(), 350);
     return () => clearTimeout(t);
   }, []);
 
-  /* -- escape + close on outside click -- */
+  /* -- Escape & close handler -- */
   const close = useCallback(() => {
     setVisible(false);
     setTimeout(onClose, 280);
@@ -587,13 +715,13 @@ export function CaseChat({ caseItem, role, onClose }: CaseChatProps) {
 
   useEffect(() => {
     const h = (e: KeyboardEvent) => {
-      if (e.key === "Escape") close();
+      if (e.key === "Escape" && !previewImage) close();
     };
     window.addEventListener("keydown", h);
     return () => window.removeEventListener("keydown", h);
-  }, [close]);
+  }, [close, previewImage]);
 
-  /* -- prevent body scroll while open -- */
+  /* -- Prevent body scroll while chat is open -- */
   useEffect(() => {
     const prev = document.body.style.overflow;
     document.body.style.overflow = "hidden";
@@ -603,20 +731,22 @@ export function CaseChat({ caseItem, role, onClose }: CaseChatProps) {
   }, []);
 
   const myName =
-    role === "citizen" ? caseItem.citizenName || "Citizen" : caseItem.lawyerName || "Lawyer";
+    role === "citizen" ? caseItem.citizenName || "Citizen" : caseItem.lawyerName || "Advocate";
   const otherParty =
     role === "citizen"
-      ? caseItem.lawyerName || "Assigned Lawyer"
+      ? caseItem.lawyerName || "Assigned Advocate"
       : caseItem.citizenName || "Client";
   const canVideoCall =
     role === "citizen" ? Boolean(caseItem.lawyerName) : Boolean(caseItem.citizenName);
 
-  /* -- send text -- */
-  const sendText = useCallback(() => {
+  /* -- send text message -- */
+  const sendText = useCallback(async () => {
     const text = input.trim();
     if (!text) return;
+
+    const tempId = `temp_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`;
     const msg: ChatMessage = {
-      id: `msg_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`,
+      id: tempId,
       caseId: caseItem.id,
       text,
       sender: role,
@@ -624,32 +754,53 @@ export function CaseChat({ caseItem, role, onClose }: CaseChatProps) {
       at: new Date().toISOString(),
       read: false,
     };
-    saveMessages([...loadMessages(), msg]);
-    setMessages((p) => [...p, msg]);
+
     setInput("");
 
-    // Asynchronously dispatch to Supabase backend API
-    chatService
-      .sendMessage(caseItem.id, {
+    // 1. Optimistic append to state
+    setMessages((prev) => dedupeMessages([...prev, msg]));
+
+    // 2. Save to local storage without firing redundant self-event
+    const current = loadMessages().filter((m) => m.id !== tempId);
+    saveMessages([...current, msg], false);
+
+    // 3. Dispatch to Supabase backend API
+    try {
+      const res = await chatService.sendMessage(caseItem.id, {
         text,
         message: text,
         sender: role,
         senderName: myName,
-      })
-      .catch((err) => console.warn("Remote chat send message error:", err));
-  }, [input, role, caseItem, myName]);
+      });
 
-  /* -- send attachment -- */
+      if (res && res.id) {
+        setMessages((prev) =>
+          dedupeMessages(
+            prev.map((m) => (m.id === tempId ? { ...m, id: res.id, at: res.at || m.at } : m)),
+          ),
+        );
+        const all = loadMessages().map((m) =>
+          m.id === tempId ? { ...m, id: res.id, at: res.at || m.at } : m,
+        );
+        saveMessages(all, true);
+      }
+    } catch (err) {
+      console.warn("[CaseChat] Remote chat send message error:", err);
+    }
+  }, [input, role, caseItem.id, myName]);
+
+  /* -- send attachment message -- */
   const sendAttach = useCallback(
-    (
+    async (
       attachmentType: "image" | "file" | "audio",
       attachmentUrl: string,
       attachmentName: string,
       attachmentSize: string,
       audioDuration?: number,
     ) => {
+      const tempId = `temp_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`;
       const msg: ChatMessage = {
-        id: `msg_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`,
+        id: tempId,
         caseId: caseItem.id,
         sender: role,
         senderName: myName,
@@ -661,12 +812,14 @@ export function CaseChat({ caseItem, role, onClose }: CaseChatProps) {
         attachmentSize,
         audioDuration,
       };
-      saveMessages([...loadMessages(), msg]);
-      setMessages((p) => [...p, msg]);
 
-      // Asynchronously dispatch to Supabase backend API
-      chatService
-        .sendMessage(caseItem.id, {
+      setMessages((prev) => dedupeMessages([...prev, msg]));
+      const current = loadMessages().filter((m) => m.id !== tempId);
+      saveMessages([...current, msg], false);
+
+      // Dispatch to Supabase backend API
+      try {
+        const res = await chatService.sendMessage(caseItem.id, {
           attachmentType,
           attachmentUrl,
           attachmentName,
@@ -674,17 +827,37 @@ export function CaseChat({ caseItem, role, onClose }: CaseChatProps) {
           audioDuration,
           sender: role,
           senderName: myName,
-        })
-        .catch((err) => console.warn("Remote chat attachment send error:", err));
+        });
+
+        if (res && res.id) {
+          setMessages((prev) =>
+            dedupeMessages(
+              prev.map((m) => (m.id === tempId ? { ...m, id: res.id, at: res.at || m.at } : m)),
+            ),
+          );
+          const all = loadMessages().map((m) =>
+            m.id === tempId ? { ...m, id: res.id, at: res.at || m.at } : m,
+          );
+          saveMessages(all, true);
+        }
+      } catch (err) {
+        console.warn("[CaseChat] Remote chat attachment send error:", err);
+      }
     },
-    [role, caseItem, myName],
+    [role, caseItem.id, myName],
   );
 
-  /* -- process one or many files, each with a brief "uploading" state for premium feel -- */
+  /* -- process file sharing -- */
   const handleFiles = useCallback(
     (fileList: FileList | File[]) => {
-      const files = Array.from(fileList).slice(0, 8); // sane cap per batch
+      const files = Array.from(fileList).slice(0, 10);
       files.forEach(async (file) => {
+        // Enforce 25MB max size limit
+        if (file.size > 25 * 1024 * 1024) {
+          alert(`"${file.name}" exceeds the 25MB limit.`);
+          return;
+        }
+
         setUploading((p) => [...p, file.name]);
         const type: "image" | "file" = file.type.startsWith("image/") ? "image" : "file";
         let url = "";
@@ -692,7 +865,7 @@ export function CaseChat({ caseItem, role, onClose }: CaseChatProps) {
         try {
           const res = await storageService.uploadFile(file, {
             bucket: "case-documents",
-            folder: `chat_${caseItem.id}`,
+            folder: `cases/${caseItem.id}/chat`,
           });
           if (res?.fileUrl) {
             url = res.fileUrl;
@@ -705,7 +878,7 @@ export function CaseChat({ caseItem, role, onClose }: CaseChatProps) {
           url = await storageService.readFileAsDataUrl(file);
         }
 
-        sendAttach(type, url, file.name, fmtBytes(file.size));
+        await sendAttach(type, url, file.name, fmtBytes(file.size));
         setUploading((p) => p.filter((n) => n !== file.name));
       });
     },
@@ -717,7 +890,7 @@ export function CaseChat({ caseItem, role, onClose }: CaseChatProps) {
     e.target.value = "";
   };
 
-  /* -- drag & drop -- */
+  /* -- Drag & drop handlers -- */
   const onDragEnter = (e: React.DragEvent) => {
     e.preventDefault();
     dragCounter.current += 1;
@@ -739,11 +912,40 @@ export function CaseChat({ caseItem, role, onClose }: CaseChatProps) {
     if (e.dataTransfer.files?.length) handleFiles(e.dataTransfer.files);
   };
 
-  /* -- mic -- */
+  /* -- Audio voice recording -- */
   const onMic = async () => {
     if (recorder.recording) {
       const r = await recorder.stop();
-      if (r) sendAttach("audio", r.url, "Voice message", "", r.duration);
+      if (r) {
+        setUploading((p) => [...p, "Voice Note.webm"]);
+        try {
+          const audioFile = new File([r.blob], `voice_${Date.now()}.webm`, {
+            type: "audio/webm",
+          });
+          let cloudUrl = "";
+          try {
+            const res = await storageService.uploadFile(audioFile, {
+              bucket: "case-documents",
+              folder: `cases/${caseItem.id}/chat`,
+            });
+            if (res?.fileUrl) cloudUrl = res.fileUrl;
+          } catch {
+            // fallback
+          }
+
+          sendAttach(
+            "audio",
+            cloudUrl || r.url,
+            "Voice message",
+            fmtBytes(r.blob.size),
+            r.duration,
+          );
+        } catch {
+          sendAttach("audio", r.url, "Voice message", "", r.duration);
+        } finally {
+          setUploading((p) => p.filter((n) => n !== "Voice Note.webm"));
+        }
+      }
     } else {
       await recorder.start();
     }
@@ -756,7 +958,7 @@ export function CaseChat({ caseItem, role, onClose }: CaseChatProps) {
     }
   };
 
-  /* -- group by date -- */
+  /* -- group messages by date -- */
   type G = { label: string; msgs: ChatMessage[] };
   const groups: G[] = [];
   messages.forEach((m) => {
@@ -766,7 +968,6 @@ export function CaseChat({ caseItem, role, onClose }: CaseChatProps) {
     else last.msgs.push(m);
   });
 
-  /* ── render ── */
   return (
     <>
       <style>{`
@@ -781,7 +982,16 @@ export function CaseChat({ caseItem, role, onClose }: CaseChatProps) {
         }
       `}</style>
 
-      {/* ══ PAGE — proper flex column: header → scrollable content → input bar ══ */}
+      {/* Image Lightbox Viewer Modal */}
+      {previewImage && (
+        <ImageLightbox
+          url={previewImage.url}
+          name={previewImage.name}
+          onClose={() => setPreviewImage(null)}
+        />
+      )}
+
+      {/* Main chat window container */}
       <div
         onDragEnter={onDragEnter}
         onDragOver={onDragOver}
@@ -793,10 +1003,10 @@ export function CaseChat({ caseItem, role, onClose }: CaseChatProps) {
       >
         {/* ══ TOP HEADER BAR ══════════════════════════════════════════════ */}
         <div
-          className="relative z-0 flex shrink-0 items-center gap-3 bg-gradient-to-r from-primary to-primary/90 px-3 sm:px-5"
+          className="relative z-10 flex shrink-0 items-center gap-3 bg-gradient-to-r from-primary to-primary/95 px-3 sm:px-5 shadow-sm"
           style={{ minHeight: "64px", paddingTop: "env(safe-area-inset-top)" }}
         >
-          {/* Back */}
+          {/* Back button */}
           <IconBtn
             onClick={close}
             title="Back"
@@ -805,19 +1015,20 @@ export function CaseChat({ caseItem, role, onClose }: CaseChatProps) {
             <ArrowLeft className="h-5 w-5" />
           </IconBtn>
 
-          {/* Avatar */}
+          {/* Contact Avatar */}
           <UserAvatar name={otherParty} size="md" className="ring-2 ring-primary-foreground/30" />
 
-          {/* Name + status */}
+          {/* Name & Case Subtitle */}
           <div className="min-w-0 flex-1">
             <div className="truncate text-[15px] font-bold leading-tight text-primary-foreground sm:text-base">
               {otherParty}
             </div>
-            <div className="truncate text-[11px] text-primary-foreground/75">
-              {caseItem.id} · {caseItem.category} · {caseItem.status}
+            <div className="truncate text-[11px] text-primary-foreground/80">
+              {caseItem.id} · {caseItem.category || "Case Consultation"} · {caseItem.status}
             </div>
           </div>
 
+          {/* Video Call button */}
           <IconBtn
             onClick={() => {
               if (!canVideoCall) return;
@@ -834,43 +1045,28 @@ export function CaseChat({ caseItem, role, onClose }: CaseChatProps) {
           </IconBtn>
         </div>
 
-        {/* ══ CASE DETAILS — sits on top of the chat box ═══════════════════ */}
-        <div className="shrink-0 border-b border-border bg-surface px-4 py-3 sm:px-5">
-          <div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-1.5">
-            <div className="min-w-0">
-              <div className="flex items-center gap-2">
-                <span className="font-mono text-[13px] font-bold text-primary">{caseItem.id}</span>
-                <span className="rounded-full bg-primary/10 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide text-primary">
-                  {caseItem.status}
-                </span>
-              </div>
-              <div className="mt-0.5 truncate text-[13px] font-semibold text-foreground">
+        {/* ══ CASE BRIEF DOCKET BAR ═══════════════════════════════════════ */}
+        <div className="shrink-0 border-b border-border bg-surface px-4 py-2.5 sm:px-5 shadow-xs">
+          <div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-1">
+            <div className="min-w-0 flex items-center gap-2">
+              <span className="font-mono text-[13px] font-bold text-primary">{caseItem.id}</span>
+              <span className="rounded-full bg-primary/10 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider text-primary">
+                {caseItem.status}
+              </span>
+              <span className="truncate text-[13px] font-medium text-foreground max-w-[280px] sm:max-w-md hidden sm:inline">
                 {caseItem.title}
-              </div>
-            </div>
-            <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-[11px] text-muted-foreground">
-              <span>
-                <span className="font-medium text-foreground">{caseItem.category}</span>
               </span>
-              {caseItem.city && <span>{caseItem.city}</span>}
-              {caseItem.createdAt && <span>Filed {caseItem.createdAt}</span>}
             </div>
-          </div>
-          <div className="mt-2 flex flex-wrap items-center gap-x-5 gap-y-1 text-[11px] text-muted-foreground">
-            <span>
-              Citizen:{" "}
-              <span className="font-semibold text-foreground">{caseItem.citizenName || "—"}</span>
-            </span>
-            <span>
-              Lawyer:{" "}
-              <span className="font-semibold text-foreground">
-                {caseItem.lawyerName || "Pending assignment"}
-              </span>
-            </span>
+            <div className="flex items-center gap-3 text-[11px] text-muted-foreground">
+              {caseItem.category && (
+                <span className="font-medium text-foreground/80">{caseItem.category}</span>
+              )}
+              {caseItem.city && <span>· {caseItem.city}</span>}
+            </div>
           </div>
         </div>
 
-        {/* ══ MESSAGES AREA ═══════════════════════════════════════════════ */}
+        {/* ══ MESSAGES SCROLL AREA ════════════════════════════════════════ */}
         <div
           className="relative flex-1 min-h-0 overflow-y-auto overscroll-contain bg-muted/40 py-3"
           onDragOver={onDragOver}
@@ -879,74 +1075,80 @@ export function CaseChat({ caseItem, role, onClose }: CaseChatProps) {
         >
           {/* Drag & drop overlay */}
           {dragging && (
-            <div className="pointer-events-none absolute inset-2 z-10 flex flex-col items-center justify-center gap-2 rounded-2xl border-2 border-dashed border-primary bg-primary/10 backdrop-blur-sm">
-              <UploadCloud className="h-9 w-9 text-primary" />
-              <p className="text-sm font-semibold text-primary">Drop files to send</p>
+            <div className="pointer-events-none absolute inset-3 z-20 flex flex-col items-center justify-center gap-2 rounded-2xl border-2 border-dashed border-primary bg-primary/10 backdrop-blur-sm">
+              <UploadCloud className="h-10 w-10 text-primary animate-bounce" />
+              <p className="text-sm font-semibold text-primary">Drop files or photos to send</p>
             </div>
           )}
 
-          {/* Empty state */}
+          {/* Clean empty state (no fake mock data!) */}
           {groups.length === 0 && uploading.length === 0 && (
             <div className="flex h-full flex-col items-center justify-center gap-4 px-6 text-center">
-              <div className="flex h-20 w-20 items-center justify-center rounded-full bg-primary/12">
+              <div className="flex h-20 w-20 items-center justify-center rounded-full bg-primary/10">
                 <MessageCircle className="h-10 w-10 text-primary" />
               </div>
-              <div>
+              <div className="max-w-sm">
                 <p className="text-[16px] font-bold text-foreground">No messages yet</p>
-                <p className="mt-1.5 text-[13px] text-muted-foreground leading-relaxed">
-                  Start the conversation about case{" "}
-                  <span className="font-semibold text-primary">{caseItem.id}</span>
+                <p className="mt-1 text-[13px] text-muted-foreground leading-relaxed">
+                  Start the consultation about case{" "}
+                  <span className="font-semibold text-primary">{caseItem.id}</span>. You can send
+                  text messages, evidence photos, and legal documents.
                 </p>
               </div>
             </div>
           )}
 
-          {/* Message groups */}
+          {/* Grouped message bubbles */}
           {groups.map((g) => (
             <div key={g.label}>
               <DateSep label={g.label} />
               {g.msgs.map((m) => (
-                <Bubble key={m.id} msg={m} role={role} />
+                <Bubble
+                  key={m.id}
+                  msg={m}
+                  role={role}
+                  onImageClick={(url, name) => setPreviewImage({ url, name })}
+                />
               ))}
             </div>
           ))}
 
-          {/* In-flight uploads */}
+          {/* Uploading progress indicators */}
           {uploading.map((name, i) => (
             <UploadingRow key={`${name}-${i}`} name={name} />
           ))}
 
-          {/* Scroll anchor */}
+          {/* Auto scroll anchor */}
           <div ref={bottomRef} />
         </div>
 
-        {/* ══ RECORDING BANNER ════════════════════════════════════════════ */}
+        {/* ══ VOICE RECORDING BANNER ══════════════════════════════════════ */}
         {recorder.recording && (
-          <div className="flex shrink-0 items-center justify-between border-t-2 border-red-200 bg-red-50 px-5 py-3">
+          <div className="flex shrink-0 items-center justify-between border-t border-red-200 bg-red-50/90 px-5 py-3">
             <div className="flex items-center gap-3">
               <span className="relative flex h-3.5 w-3.5">
                 <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-red-400 opacity-75" />
                 <span className="relative inline-flex h-3.5 w-3.5 rounded-full bg-red-500" />
               </span>
               <span className="text-[14px] font-semibold text-red-600">
-                Recording — {fmtDur(recorder.seconds)}
+                Recording audio note — {fmtDur(recorder.seconds)}
               </span>
             </div>
             <button
               onClick={recorder.cancel}
-              className="cursor-pointer rounded-full px-4 py-1.5 text-[12px] font-semibold text-red-500 transition-colors hover:bg-red-100"
+              className="cursor-pointer rounded-full px-4 py-1.5 text-[12px] font-semibold text-red-600 transition-colors hover:bg-red-100"
             >
               Cancel
             </button>
           </div>
         )}
 
-        {/* ══ ATTACH MENU (popover) ═══════════════════════════════════════ */}
+        {/* ══ ATTACHMENT MENU POPOVER ═════════════════════════════════════ */}
         {attachOpen && (
           <>
             <div className="fixed inset-0 z-20" onClick={() => setAttachOpen(false)} />
             <div
-              className="absolute bottom-[70px] left-2 z-30 flex flex-col gap-1 rounded-2xl border border-border bg-surface p-1.5 shadow-xl sm:left-4"
+              className="absolute bottom-[72px] left-3 z-30 flex flex-col gap-1 rounded-2xl border border-border bg-surface p-1.5 shadow-xl sm:left-4"
               style={{ animation: "attachMenuIn 0.16s ease-out" }}
             >
               <button
@@ -954,7 +1156,7 @@ export function CaseChat({ caseItem, role, onClose }: CaseChatProps) {
                   imageInputRef.current?.click();
                   setAttachOpen(false);
                 }}
-                className="flex items-center gap-3 rounded-xl px-3.5 py-2.5 text-left text-sm font-semibold text-foreground transition-colors hover:bg-muted"
+                className="flex items-center gap-3 rounded-xl px-3.5 py-2.5 text-left text-sm font-semibold text-foreground transition-colors hover:bg-muted cursor-pointer"
               >
                 <span className="flex h-9 w-9 items-center justify-center rounded-full bg-primary/12">
                   <ImageIcon className="h-4.5 w-4.5 text-primary" />
@@ -966,19 +1168,19 @@ export function CaseChat({ caseItem, role, onClose }: CaseChatProps) {
                   docInputRef.current?.click();
                   setAttachOpen(false);
                 }}
-                className="flex items-center gap-3 rounded-xl px-3.5 py-2.5 text-left text-sm font-semibold text-foreground transition-colors hover:bg-muted"
+                className="flex items-center gap-3 rounded-xl px-3.5 py-2.5 text-left text-sm font-semibold text-foreground transition-colors hover:bg-muted cursor-pointer"
               >
                 <span className="flex h-9 w-9 items-center justify-center rounded-full bg-primary/12">
                   <FileText className="h-4.5 w-4.5 text-primary" />
                 </span>
-                Document
+                Documents &amp; Files
               </button>
             </div>
           </>
         )}
 
-        {/* ══ INPUT BAR ═══════════════════════════════════════════════════ */}
-        <div className="shrink-0 flex items-center gap-1.5 border-t border-border bg-surface px-2 py-2.5 sm:gap-2 sm:px-4 sm:py-3 pb-[calc(0.625rem+env(safe-area-inset-bottom))] z-30">
+        {/* ══ INPUT COMPOSER BAR ══════════════════════════════════════════ */}
+        <div className="shrink-0 flex items-center gap-1.5 border-t border-border bg-surface px-2.5 py-2.5 sm:gap-2 sm:px-4 sm:py-3 pb-[calc(0.625rem+env(safe-area-inset-bottom))] z-20 shadow-xs">
           {/* Hidden file inputs */}
           <input
             ref={imageInputRef}
@@ -997,10 +1199,10 @@ export function CaseChat({ caseItem, role, onClose }: CaseChatProps) {
             onChange={onFile}
           />
 
-          {/* Attach */}
+          {/* Paperclip attach button */}
           <IconBtn
             onClick={() => setAttachOpen((v) => !v)}
-            title="Attach file or image"
+            title="Attach documents, photos or files"
             className={
               attachOpen ? "bg-primary/12 text-primary" : "text-muted-foreground hover:bg-muted"
             }
@@ -1008,7 +1210,7 @@ export function CaseChat({ caseItem, role, onClose }: CaseChatProps) {
             <Paperclip className="h-[22px] w-[22px]" />
           </IconBtn>
 
-          {/* Text / voice placeholder */}
+          {/* Text input / recording indicator */}
           {!recorder.recording ? (
             <input
               ref={inputRef}
@@ -1016,26 +1218,26 @@ export function CaseChat({ caseItem, role, onClose }: CaseChatProps) {
               value={input}
               onChange={(e) => setInput(e.target.value)}
               onKeyDown={onKey}
-              placeholder="Type a message"
+              placeholder="Type your message…"
               className="flex-1 min-w-0 rounded-full border border-border bg-background px-5 text-[14px] text-foreground outline-none transition-shadow focus:border-primary focus:ring-2 focus:ring-primary/20"
               style={{ height: "46px" }}
             />
           ) : (
             <div
-              className="flex flex-1 min-w-0 items-center rounded-full border border-border bg-background px-5 text-[14px] italic text-muted-foreground"
+              className="flex flex-1 min-w-0 items-center rounded-full border border-red-200 bg-red-50/50 px-5 text-[14px] italic text-red-600"
               style={{ height: "46px" }}
             >
-              Voice message…
+              Recording audio message…
             </div>
           )}
 
-          {/* Send / Mic */}
+          {/* Send / Mic Button */}
           {input.trim() && !recorder.recording ? (
             <IconBtn
               onClick={sendText}
               size={46}
-              title="Send"
-              className="bg-primary text-primary-foreground hover:bg-primary/90 shadow-sm"
+              title="Send message"
+              className="bg-primary text-primary-foreground hover:bg-primary/90 shadow-xs"
             >
               <Send style={{ width: 20, height: 20 }} />
             </IconBtn>
@@ -1046,8 +1248,8 @@ export function CaseChat({ caseItem, role, onClose }: CaseChatProps) {
               title={recorder.recording ? "Stop & send voice note" : "Record voice note"}
               className={
                 recorder.recording
-                  ? "bg-red-500 text-white hover:bg-red-600"
-                  : "bg-primary text-primary-foreground hover:bg-primary/90 shadow-sm"
+                  ? "bg-red-500 text-white hover:bg-red-600 animate-pulse shadow-md"
+                  : "bg-primary text-primary-foreground hover:bg-primary/90 shadow-xs"
               }
             >
               {recorder.recording ? (
@@ -1091,7 +1293,7 @@ export function ChatButton({ caseItem, role }: ChatButtonProps) {
       id={`chat-btn-${caseItem.id}`}
       to={role === "citizen" ? "/citizen/chat/$id" : "/lawyer/chat/$id"}
       params={{ id: caseItem.id }}
-      className="relative inline-flex h-10 w-10 shrink-0 cursor-pointer items-center justify-center rounded-full bg-[var(--md-sys-color-secondary-container)] text-[var(--md-sys-color-on-secondary-container)] transition-colors hover:brightness-95"
+      className="relative inline-flex h-10 w-10 shrink-0 cursor-pointer items-center justify-center rounded-full bg-[var(--md-sys-color-secondary-container)] text-[var(--md-sys-color-on-secondary-container)] transition-colors hover:brightness-95 shadow-xs"
       title={`Chat about case ${caseItem.id}`}
       aria-label={`Chat about case ${caseItem.id}`}
     >

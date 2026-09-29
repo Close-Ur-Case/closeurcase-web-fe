@@ -19,6 +19,7 @@ import {
   Hash,
   Star,
   Upload,
+  MessageSquare,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import {
@@ -117,9 +118,17 @@ function CaseTypeBadge({ caseItem }: { caseItem: LegalCase }) {
  * caller owns search/filter/sort), but save/delete always read and write the
  * full store list so editing a filtered-down view never drops other cases.
  */
-export function CasesTable({ cases, role }: { cases: LegalCase[]; role: "lawyer" | "citizen" }) {
+export function CasesTable({
+  cases,
+  role,
+  onCaseUpdate,
+}: {
+  cases: LegalCase[];
+  role: "lawyer" | "citizen";
+  onCaseUpdate?: (updatedCase: LegalCase) => void;
+}) {
   const navigate = useNavigate();
-  const [allCases, setAllCases] = useState<LegalCase[]>([]);
+  const [allCases, setAllCases] = useState<LegalCase[]>(getCases);
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editingCase, setEditingCase] = useState<LegalCase | null>(null);
 
@@ -409,9 +418,33 @@ export function CasesTable({ cases, role }: { cases: LegalCase[]; role: "lawyer"
     setIsDragging(false);
   }
 
+  const attachmentsCase = attachmentsCaseId
+    ? allCases.find((c) => c.id === attachmentsCaseId) ||
+      cases.find((c) => c.id === attachmentsCaseId) ||
+      null
+    : null;
+
+  const attachmentsFilterStatus = attachmentsCase
+    ? (STORED_STATUS_TO_FILTER[attachmentsCase.status] ?? attachmentsCase.status)
+    : "";
+
+  const isCaseAccepted = Boolean(
+    attachmentsCase &&
+      (attachmentsFilterStatus === "Accepted by Lawyer" ||
+        attachmentsCase.status === "Assigned" ||
+        attachmentsCase.status === "Under Review" ||
+        attachmentsCase.status === "Awaiting Documents" ||
+        (attachmentsCase.status as string)?.toLowerCase() === "accepted" ||
+        (attachmentsCase.status !== "Submitted" &&
+          attachmentsCase.status !== "Rejected" &&
+          attachmentsCase.status !== "Pending" &&
+          Boolean(attachmentsCase.lawyerId || attachmentsCase.lawyerName))),
+  );
+
   async function handleAddAttachments(
     input: React.ChangeEvent<HTMLInputElement> | FileList | File[],
   ) {
+    if (!isLawyer && isCaseAccepted) return;
     const files = Array.isArray(input)
       ? input
       : "target" in input
@@ -464,6 +497,54 @@ export function CasesTable({ cases, role }: { cases: LegalCase[]; role: "lawyer"
         }),
       );
       addCaseAttachments(attachmentsCaseId, docs);
+      const freshCases = getCases();
+      setAllCases(freshCases);
+      const updatedTarget = freshCases.find((c) => c.id === attachmentsCaseId);
+      if (updatedTarget && onCaseUpdate) {
+        onCaseUpdate(updatedTarget);
+      }
+
+      // Persist attachments to backend cases_user.documents
+      const allDocs = Array.isArray(updatedTarget?.files)
+        ? updatedTarget.files
+        : Array.isArray(updatedTarget?.files?.files)
+          ? updatedTarget.files.files
+          : docs;
+      const userDocs = allDocs.filter((d) => !d.id?.startsWith("imp_doc_"));
+      const docMap = new Map<string, any>();
+      userDocs.forEach((d) => {
+        const key = d.id || `${d.name}_${d.fileDataUrl || (d as any).fileUrl}`;
+        docMap.set(key, d);
+      });
+      const backendPayloadDocs = Array.from(docMap.values()).map((d) => ({
+        id: d.id,
+        name: d.name,
+        fileUrl: d.fileDataUrl || (d as any).fileUrl || "",
+        size: d.size,
+        fileMimeType: d.fileMimeType,
+        uploadedAt: d.uploadedAt,
+      }));
+
+      try {
+        await caseService.updateCase(attachmentsCaseId, {
+          documents: backendPayloadDocs,
+        });
+      } catch (backendErr) {
+        console.warn("[CasesTable] Backend documents update notice:", backendErr);
+        try {
+          const newBackendDocs = docs.map((d) => ({
+            id: d.id,
+            name: d.name,
+            fileUrl: d.fileDataUrl || (d as any).fileUrl || "",
+            size: d.size,
+            fileMimeType: d.fileMimeType,
+            uploadedAt: d.uploadedAt,
+          }));
+          await caseService.addAttachments(attachmentsCaseId, newBackendDocs);
+        } catch (fallbackErr) {
+          console.warn("[CasesTable] Backend addAttachments fallback notice:", fallbackErr);
+        }
+      }
     } catch (err) {
       console.error("Failed to add attachment:", err);
       setAttachmentError("Failed to add attachment. Please try again.");
@@ -483,9 +564,6 @@ export function CasesTable({ cases, role }: { cases: LegalCase[]; role: "lawyer"
   // of Listing — per case_structure.json's historyOfCaseHearings. Each entry
   // already carries its own `businessOnDate`, stored or set on CNR import.
   const courtHistoryRows = sortedModalJourney;
-  const attachmentsCase = attachmentsCaseId
-    ? allCases.find((c) => c.id === attachmentsCaseId)
-    : null;
 
   const totalPages = Math.max(1, Math.ceil(cases.length / pageSize));
   const safePage = Math.min(page, totalPages);
@@ -502,12 +580,13 @@ export function CasesTable({ cases, role }: { cases: LegalCase[]; role: "lawyer"
       ) : (
         <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
           {pageCases.map((c) => {
-            const entry = getNextEntry(c);
-            const isPendingDecision = isLawyer && c.status === "Submitted";
-            const attachmentCount = Array.isArray(c.files)
-              ? c.files.length
-              : (c.files?.files?.length ?? 0);
-            const formattedTitle = formatCaseVsTitle(c);
+            const liveCase = allCases.find((ac) => ac.id === c.id) || c;
+            const entry = getNextEntry(liveCase);
+            const isPendingDecision = isLawyer && liveCase.status === "Submitted";
+            const attachmentCount = Array.isArray(liveCase.files)
+              ? liveCase.files.length
+              : (liveCase.files?.files?.length ?? 0);
+            const formattedTitle = formatCaseVsTitle(liveCase);
             const titleVsParts = formattedTitle.split(/\s+vs\s+/i);
 
             return (
@@ -672,8 +751,8 @@ export function CasesTable({ cases, role }: { cases: LegalCase[]; role: "lawyer"
                     <IconButton
                       variant="tonal"
                       title={`Attachments${attachmentCount > 0 ? ` (${attachmentCount})` : ""}`}
-                      ariaLabel={`Manage attachments for case ${c.id}`}
-                      onClick={() => setAttachmentsCaseId(c.id)}
+                      ariaLabel={`Manage attachments for case ${liveCase.id}`}
+                      onClick={() => setAttachmentsCaseId(liveCase.id)}
                     >
                       <Paperclip className="h-4 w-4" />
                     </IconButton>
@@ -1121,8 +1200,13 @@ export function CasesTable({ cases, role }: { cases: LegalCase[]; role: "lawyer"
       {attachmentsCase &&
         createPortal(
           (() => {
-            const clientDocs = attachmentsCase.files.files.filter((d) => d.uploadedBy !== "lawyer");
-            const lawyerDocs = attachmentsCase.files.files.filter((d) => d.uploadedBy === "lawyer");
+            const allAttachedDocs: CaseDocument[] = Array.isArray(attachmentsCase.files)
+              ? attachmentsCase.files
+              : Array.isArray(attachmentsCase.files?.files)
+                ? attachmentsCase.files.files
+                : [];
+            const clientDocs = allAttachedDocs.filter((d) => d.uploadedBy !== "lawyer");
+            const lawyerDocs = allAttachedDocs.filter((d) => d.uploadedBy === "lawyer");
 
             return (
               <div
@@ -1284,15 +1368,42 @@ export function CasesTable({ cases, role }: { cases: LegalCase[]; role: "lawyer"
                               accept="application/pdf,image/*,.doc,.docx,.txt"
                               className="hidden"
                               onChange={handleAddAttachments}
+                              disabled={isCaseAccepted}
                             />
                             <Button
                               variant="tonal"
                               icon={<Paperclip className="h-4 w-4" />}
-                              onClick={() => addAttachmentInputRef.current?.click()}
-                              disabled={isUploadingAttachment}
+                              onClick={() => {
+                                if (isCaseAccepted) return;
+                                addAttachmentInputRef.current?.click();
+                              }}
+                              disabled={isUploadingAttachment || isCaseAccepted}
                             >
-                              {isUploadingAttachment ? "Uploading…" : "Choose Files or Images"}
+                              {isUploadingAttachment ? "Uploading…" : "Add Attachment"}
                             </Button>
+                            {isCaseAccepted && (
+                              <div className="flex items-start gap-2.5 rounded-xl border border-primary/20 bg-primary/5 p-3 text-xs text-foreground">
+                                <MessageSquare className="h-4 w-4 shrink-0 text-primary mt-0.5" />
+                                <div className="flex-1 space-y-1.5">
+                                  <p className="font-medium text-foreground leading-relaxed">
+                                    Your case is accepted by lawyer so you can share message and documents from chat.
+                                  </p>
+                                  {attachmentsCase && (
+                                    <button
+                                      type="button"
+                                      onClick={() => {
+                                        closeAttachmentsModal();
+                                        navigate({ to: `/citizen/chat/${attachmentsCase.id}` });
+                                      }}
+                                      className="inline-flex items-center gap-1.5 font-semibold text-primary hover:underline cursor-pointer text-xs"
+                                    >
+                                      <MessageSquare className="h-3.5 w-3.5" />
+                                      <span>Open Case Chat</span>
+                                    </button>
+                                  )}
+                                </div>
+                              </div>
+                            )}
                             {attachmentError && (
                               <p className="text-[11px] font-semibold text-destructive">
                                 {attachmentError}

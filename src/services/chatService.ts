@@ -11,20 +11,32 @@ export const chatService = {
    * Get all consultation chat messages for a case
    */
   async getMessages(caseId: string): Promise<ApiChatMessage[]> {
-    return apiClient.get<ApiChatMessage[]>(`/cases/${caseId}/messages`);
+    try {
+      return await apiClient.get<ApiChatMessage[]>(`/cases/${caseId}/messages`);
+    } catch {
+      return await apiClient.get<ApiChatMessage[]>(`/cases/user/${caseId}/messages`);
+    }
   },
 
   /**
    * Send a message or media attachment in case consultation chat
    */
   async sendMessage(caseId: string, payload: SendChatMessagePayload): Promise<ApiChatMessage> {
-    return apiClient.post<ApiChatMessage>(`/cases/${caseId}/messages`, payload);
+    try {
+      return await apiClient.post<ApiChatMessage>(`/cases/${caseId}/messages`, payload);
+    } catch {
+      return await apiClient.post<ApiChatMessage>(`/cases/user/${caseId}/messages`, payload);
+    }
   },
 
   /**
    * Mark messages as read by current participant
    */
-  async markRead(caseId: string): Promise<{ count: number }> {
-    return apiClient.patch<{ count: number }>(`/cases/${caseId}/messages/read`);
+  async markRead(caseId: string, role?: "citizen" | "lawyer"): Promise<{ count: number }> {
+    try {
+      return await apiClient.patch<{ count: number }>(`/cases/${caseId}/messages/read`, role ? { role } : {});
+    } catch {
+      return await apiClient.patch<{ count: number }>(`/cases/user/${caseId}/messages/read`, role ? { role } : {});
+    }
   },
 };

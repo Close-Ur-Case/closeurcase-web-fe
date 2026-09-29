@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef } from "react";
+import { Link } from "@tanstack/react-router";
 import {
   ShieldCheck,
   MapPin,
@@ -10,11 +11,16 @@ import {
   CheckCircle2,
   Lock,
   AlertCircle,
+  Crown,
+  Zap,
+  Award,
+  CreditCard,
 } from "lucide-react";
 import { AvatarUploadField } from "@/components/app/AvatarUploadField";
 import { TextField, Button } from "@/components/m3";
-import type { UserRole } from "@/types";
+import type { UserRole, Subscription } from "@/types";
 import { nearestServiceCity, DEFAULT_CITY } from "@/lib/geo";
+import { getSubscriptionDateTimes, planTierForCitizen } from "@/data/appStore";
 import {
   sanitizeName,
   sanitizePhone,
@@ -22,6 +28,16 @@ import {
   validatePhone,
   validateEmail,
 } from "@/lib/validations";
+
+import {
+  SUBSCRIPTION_TIERS,
+  type SubscriptionTierId,
+  type SubscriptionTierConfig,
+} from "@/data/subscriptionTiers";
+
+export type CitizenPlanTier = SubscriptionTierId;
+export const CITIZEN_SUBSCRIPTION_BADGES: Record<CitizenPlanTier, SubscriptionTierConfig> =
+  SUBSCRIPTION_TIERS;
 
 export interface ProfileFormFields {
   name: string;
@@ -39,6 +55,8 @@ export function ProfileForm({
   wide = true,
   disableEmail = false,
   disablePhone = false,
+  planTier,
+  activeSubscription,
   extraField,
   onSave,
 }: {
@@ -56,6 +74,8 @@ export function ProfileForm({
   wide?: boolean;
   disableEmail?: boolean;
   disablePhone?: boolean;
+  planTier?: CitizenPlanTier;
+  activeSubscription?: Subscription | null;
   extraField?: (fields: ProfileFormFields) => React.ReactNode;
   onSave?: (fields: ProfileFormFields) => void;
 }) {
@@ -205,6 +225,16 @@ export function ProfileForm({
   };
   const infoCard = extraField ? extraField(currentFields) : defaultAadhaarCard;
 
+  const effectiveTier: CitizenPlanTier =
+    planTier ??
+    (role === "citizen"
+      ? (planTierForCitizen(name || defaults.name) as CitizenPlanTier) ?? "bronze"
+      : "bronze");
+  const subBadgeConfig =
+    CITIZEN_SUBSCRIPTION_BADGES[effectiveTier] || CITIZEN_SUBSCRIPTION_BADGES.bronze;
+  const SubTierIcon = subBadgeConfig.icon;
+  const activeDates = activeSubscription ? getSubscriptionDateTimes(activeSubscription) : null;
+
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     setNameTouched(true);
@@ -227,6 +257,7 @@ export function ProfileForm({
               name={name || defaults.name}
               defaultPhotoUrl={avatarUrl || defaultPhotoUrl}
               centered
+              planTier={effectiveTier}
               onPhotoChange={(newPhoto) => {
                 prevDefaultAvatarRef.current = newPhoto;
                 setAvatarUrl(newPhoto);
@@ -251,6 +282,18 @@ export function ProfileForm({
               <span className="inline-block rounded-full bg-primary/10 px-2.5 py-0.5 text-[10px] font-bold uppercase tracking-wider text-primary">
                 {roleBadgeLabel}
               </span>
+
+              {/* Citizen Subscription Badge with Icon [bronze, silver, gold, micropass] */}
+              {role === "citizen" && (
+                <Link
+                  to="/citizen/subscriptions"
+                  className={`inline-flex items-center gap-1.5 rounded-full px-2.5 py-0.5 text-[10px] font-black uppercase tracking-wider transition-all hover:scale-105 ${subBadgeConfig.badgeCls}`}
+                  title="Click to view subscription details"
+                >
+                  <SubTierIcon className="h-3 w-3 shrink-0" />
+                  <span>{subBadgeConfig.label}</span>
+                </Link>
+              )}
             </div>
             <div className="flex flex-wrap items-center justify-center sm:justify-start gap-x-4 gap-y-1 text-xs text-muted-foreground">
               {email && (
@@ -266,9 +309,102 @@ export function ProfileForm({
                 </span>
               )}
             </div>
+            {role === "citizen" && (
+              <div className="pt-1 flex flex-wrap items-center justify-center sm:justify-start gap-2 text-xs">
+                <span className="inline-flex items-center gap-1.5 text-muted-foreground text-[11px] font-medium">
+                  Subscription Tier:
+                </span>
+                <Link
+                  to="/citizen/subscriptions"
+                  className="inline-flex items-center gap-1.5 text-[11px] font-semibold text-primary hover:underline"
+                >
+                  <span>{subBadgeConfig.subtext}</span>
+                  <span className="text-[10px] text-muted-foreground">→ Details</span>
+                </Link>
+              </div>
+            )}
           </div>
         </div>
       </div>
+
+      {/* Citizen Subscription & Membership Details Card */}
+      {role === "citizen" && (
+        <div className="space-y-3.5 rounded-2xl border border-border/80 bg-surface/95 p-4 sm:p-5 shadow-2xs">
+          <div className="flex items-center justify-between border-b border-border/60 pb-3">
+            <div className="flex items-center gap-2.5">
+              <div
+                className={`flex h-8 w-8 items-center justify-center rounded-xl ${subBadgeConfig.iconBgClasses} shadow-xs shrink-0`}
+              >
+                <SubTierIcon className={`h-4.5 w-4.5 ${subBadgeConfig.iconColorClasses}`} />
+              </div>
+              <div>
+                <h4 className="text-sm font-bold text-foreground leading-tight">
+                  {activeSubscription ? "Active VIP Subscription" : "Membership & Subscription"}
+                </h4>
+                <p className="text-[11px] text-muted-foreground">
+                  {activeSubscription
+                    ? "Priority auto-assign enabled"
+                    : "Standard account tier"}
+                </p>
+              </div>
+            </div>
+            <Link
+              to="/citizen/subscriptions"
+              className={`inline-flex items-center gap-1.5 rounded-full px-2.5 py-0.5 text-[10px] font-black uppercase tracking-wider transition-all hover:scale-105 shrink-0 ${subBadgeConfig.badgeCls}`}
+            >
+              <SubTierIcon className="h-3 w-3" />
+              {subBadgeConfig.label}
+            </Link>
+          </div>
+
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3.5">
+            <div className="space-y-1.5 min-w-0 flex-1">
+              <div className="text-sm font-extrabold text-foreground flex items-center gap-2">
+                <span>{activeSubscription?.planLabel || "Bronze Free Tier"}</span>
+                {activeSubscription ? (
+                  <span className="inline-flex items-center gap-1 rounded-full bg-emerald-500/15 px-2 py-0.5 text-[10px] font-bold text-emerald-600 dark:text-emerald-400 border border-emerald-500/25">
+                    <span className="h-1.5 w-1.5 rounded-full bg-emerald-500 animate-pulse" />
+                    Active VIP
+                  </span>
+                ) : (
+                  <span className="inline-flex items-center gap-1 rounded-full bg-amber-500/15 px-2.5 py-0.5 text-[10px] font-bold text-amber-700 dark:text-amber-400 border border-amber-500/30">
+                    Bronze Free Tier
+                  </span>
+                )}
+              </div>
+              <p className="text-xs text-muted-foreground leading-relaxed">
+                {activeSubscription
+                  ? "Your active membership grants instant Auto-Assign priority matching to senior specialist advocates without individual consultation fees."
+                  : "Your account is automatically set to the Bronze Free Tier. Subscribe to an Auto-Assign pass (Daily ₹1, Monthly, or Yearly) for automated verified advocate allocation."}
+              </p>
+
+              {activeSubscription && activeDates && (
+                <div className="flex flex-wrap items-center gap-2 pt-0.5 text-[11px]">
+                  <span className="inline-flex items-center gap-1 rounded-lg bg-muted/60 border border-border/60 px-2 py-0.5 font-semibold text-foreground">
+                    ₹{activeSubscription.amount} billed
+                  </span>
+                  <span className="inline-flex items-center gap-1 rounded-lg bg-muted/60 border border-border/60 px-2 py-0.5 text-muted-foreground">
+                    Subscribed: {activeDates.subscribedOn}
+                  </span>
+                  <span className="inline-flex items-center gap-1 rounded-lg bg-emerald-500/10 border border-emerald-500/20 px-2 py-0.5 font-semibold text-emerald-600 dark:text-emerald-400">
+                    Expires: {activeDates.expiresOn}
+                  </span>
+                </div>
+              )}
+            </div>
+
+            <div className="shrink-0 flex items-center self-start sm:self-center">
+              <Link
+                to="/citizen/subscriptions"
+                className="inline-flex items-center justify-center gap-1.5 rounded-xl border border-primary/30 bg-primary/10 hover:bg-primary/20 text-primary font-bold text-xs px-3.5 py-2 transition-all shadow-xs"
+              >
+                <CreditCard className="h-3.5 w-3.5" />
+                <span>{activeSubscription ? "Manage Plan" : "Upgrade Plan"}</span>
+              </Link>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Personal Information Section Card */}
       <div className="space-y-4 rounded-2xl border border-border/80 bg-surface/95 p-5 shadow-2xs sm:p-6">

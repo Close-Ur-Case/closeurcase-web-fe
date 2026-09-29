@@ -28,7 +28,9 @@ const listSubscriptionsRoute = createRoute({
   method: "get",
   path: "/",
   tags: ["Subscriptions"],
-  summary: "List active and past citizen subscriptions",
+  summary: "List active and past citizen subscriptions (auto-expires past plans and resets citizen to Bronze Free tier)",
+  description:
+    "Returns subscriptions for the given citizen. Any active subscription whose expiry timestamp has passed is automatically marked as 'Expired', and the citizen account is automatically reset to the 'bronze' Free tier.",
   security: [{ bearerAuth: [] }],
   request: {
     query: z.object({
@@ -37,7 +39,7 @@ const listSubscriptionsRoute = createRoute({
   },
   responses: {
     200: {
-      description: "List of subscriptions",
+      description: "List of subscriptions with auto-expired status synced",
       content: { "application/json": { schema: SuccessResponseSchema } },
     },
   },
@@ -48,6 +50,8 @@ const createSubscriptionRoute = createRoute({
   path: "/",
   tags: ["Subscriptions"],
   summary: "Subscribe citizen to an Auto-Assign Legal plan",
+  description:
+    "Subscribes a citizen to an Auto-Assign Legal plan (e.g. Gold, Silver, or Micro-Pass) and updates the citizen's account plan tier to match.",
   security: [{ bearerAuth: [] }],
   request: {
     body: {
@@ -60,7 +64,7 @@ const createSubscriptionRoute = createRoute({
   },
   responses: {
     201: {
-      description: "Subscription activated",
+      description: "Subscription activated and citizen plan tier updated",
       content: { "application/json": { schema: SuccessResponseSchema } },
     },
   },
@@ -71,6 +75,8 @@ const cancelSubscriptionRoute = createRoute({
   path: "/:id/cancel",
   tags: ["Subscriptions"],
   summary: "Cancel recurring subscription plan",
+  description:
+    "Cancels an active subscription and automatically reverts the citizen account back to the Bronze Free tier (plan_tier = 'bronze').",
   security: [{ bearerAuth: [] }],
   request: {
     params: z.object({
@@ -79,7 +85,7 @@ const cancelSubscriptionRoute = createRoute({
   },
   responses: {
     200: {
-      description: "Subscription cancelled",
+      description: "Subscription cancelled and citizen reverted to Bronze Free tier",
       content: { "application/json": { schema: SuccessResponseSchema } },
     },
   },

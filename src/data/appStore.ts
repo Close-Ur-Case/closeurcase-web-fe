@@ -24,7 +24,8 @@ import type {
   StateItem,
   CourtLevelItem,
 } from "@/types";
-export type { StateItem, CourtLevelItem };
+import { normalizeSubscriptionTier, type SubscriptionTierId } from "./subscriptionTiers";
+export type { StateItem, CourtLevelItem, SubscriptionTierId };
 const LAWYERS_KEY = "cuc_lawyers_v11";
 const CITIZENS_KEY = "cuc_citizens_v4";
 const NOTIFICATIONS_KEY = "cuc_notifications_v3";
@@ -382,12 +383,31 @@ export function updateCaseFields(id: string, patch: Partial<LegalCase>) {
   saveCases(updated);
 }
 
-export function addCaseAttachments(caseId: string, docs: CaseDocument[]) {
+export function addCaseAttachments(caseId: string, docs: CaseDocument[]): LegalCase[] {
   const current = getCases();
   const today = new Date().toISOString().slice(0, 10);
-  const updated = current.map((c) =>
-    c.id === caseId ? { ...c, files: { files: [...c.files.files, ...docs] }, updatedAt: today } : c,
-  );
+  const updated = current.map((c) => {
+    if (c.id !== caseId) return c;
+    const existingList: CaseDocument[] = Array.isArray(c.files)
+      ? c.files
+      : Array.isArray(c.files?.files)
+        ? c.files.files
+        : [];
+    const docMap = new Map<string, CaseDocument>();
+    existingList.forEach((d, idx) => {
+      const key = d.id || `${d.name}_${d.uploadedAt || ""}_${idx}`;
+      docMap.set(key, d);
+    });
+    docs.forEach((d, idx) => {
+      const key = d.id || `${d.name}_${d.uploadedAt || ""}_new_${idx}`;
+      docMap.set(key, d);
+    });
+    return {
+      ...c,
+      files: { files: Array.from(docMap.values()) },
+      updatedAt: today,
+    };
+  });
   saveCases(updated);
 
   const found = updated.find((c) => c.id === caseId);
@@ -397,6 +417,7 @@ export function addCaseAttachments(caseId: string, docs: CaseDocument[]) {
       body: `${docs.length} new attachment${docs.length === 1 ? "" : "s"} added to case ${caseId} (${found.title}).`,
     });
   }
+  return updated;
 }
 
 /* ── COURT HISTORY (per-case, caseDetails.historyOfCaseHearings) ─────────── */
@@ -1096,9 +1117,99 @@ export function deleteLawyerDocument(id: string) {
 }
 
 /* ── SUBSCRIPTIONS STORE ("My Subscriptions") ────────────────────────────── */
+
+/** Check whether a subscription is actively valid (status is "Active" and expiration date has not passed). */
+export function isSubscriptionActive(
+  sub: Partial<Subscription> | null | undefined,
+): boolean {
+  if (!sub || sub.status !== "Active") return false;
+  const now = Date.now();
+  if (sub.expiresAt) {
+    const expTime = new Date(sub.expiresAt).getTime();
+    if (!isNaN(expTime)) {
+      return expTime > now;
+    }
+  }
+  if (sub.startedAt) {
+    const startTime = new Date(sub.startedAt).getTime();
+    if (!isNaN(startTime)) {
+      const plan = (sub.planId || "").toLowerCase();
+      let durationMs = 30 * 86400000;
+      if (plan === "daily") durationMs = 86400000;
+      else if (plan === "monthly") durationMs = 30 * 86400000;
+      else if (plan === "yearly") durationMs = 365 * 86400000;
+      return startTime + durationMs > now;
+    }
+  }
+  return false;
+}
+
+export function getSubscriptionDateTimes(
+  sub: Partial<Subscription> & { createdAt?: string },
+) {
+  let startObj: Date;
+  if (sub.createdAt && !isNaN(new Date(sub.createdAt).getTime())) {
+    startObj = new Date(sub.createdAt);
+  } else if (sub.startedAt && !isNaN(new Date(sub.startedAt).getTime())) {
+    startObj = new Date(sub.startedAt);
+  } else {
+    startObj = new Date();
+  }
+
+  let expiryObj: Date;
+  if (
+    sub.expiresAt &&
+    !isNaN(new Date(sub.expiresAt).getTime()) &&
+    (sub.expiresAt.includes("T") || sub.expiresAt.includes(":"))
+  ) {
+    expiryObj = new Date(sub.expiresAt);
+  } else if (sub.expiresAt && !isNaN(new Date(sub.expiresAt).getTime())) {
+    expiryObj = new Date(sub.expiresAt);
+    expiryObj.setHours(startObj.getHours(), startObj.getMinutes(), startObj.getSeconds());
+  } else {
+    expiryObj = new Date(startObj);
+    const plan = (sub.planId || "").toLowerCase();
+    if (plan === "daily") {
+      expiryObj.setDate(expiryObj.getDate() + 1);
+    } else if (plan === "monthly") {
+      expiryObj.setMonth(expiryObj.getMonth() + 1);
+    } else if (plan === "yearly") {
+      expiryObj.setFullYear(expiryObj.getFullYear() + 1);
+    } else {
+      expiryObj.setDate(expiryObj.getDate() + 30);
+    }
+  }
+
+  const fmt = (d: Date) =>
+    d.toLocaleString("en-IN", {
+      day: "2-digit",
+      month: "short",
+      year: "numeric",
+      hour: "2-digit",
+      minute: "2-digit",
+      hour12: true,
+    });
+
+  return {
+    subscribedOn: fmt(startObj),
+    expiresOn: fmt(expiryObj),
+  };
+}
+
 export function getSubscriptions(citizenId?: string): Subscription[] {
   const all = load<Subscription[]>(SUBSCRIPTIONS_KEY, []);
-  const sorted = [...all].sort((a, b) => b.startedAt.localeCompare(a.startedAt));
+  let dirty = false;
+  const verified = all.map((s) => {
+    if (s.status === "Active" && !isSubscriptionActive(s)) {
+      dirty = true;
+      return { ...s, status: "Expired" as const };
+    }
+    return s;
+  });
+  if (dirty) {
+    save(SUBSCRIPTIONS_KEY, verified);
+  }
+  const sorted = [...verified].sort((a, b) => b.startedAt.localeCompare(a.startedAt));
   return citizenId ? sorted.filter((s) => s.citizenId === citizenId) : sorted;
 }
 
@@ -1131,6 +1242,10 @@ export function mergeRemoteSubscriptions(remote: Partial<Subscription>[]): void 
         new Date(Date.now() + 30 * 86400000).toISOString().slice(0, 10),
     };
 
+    if (merged.status === "Active" && !isSubscriptionActive(merged)) {
+      merged.status = "Expired";
+    }
+
     if (!existing || JSON.stringify(existing) !== JSON.stringify(merged)) {
       byId.set(r.id, merged);
       changed = true;
@@ -1144,21 +1259,85 @@ export function mergeRemoteSubscriptions(remote: Partial<Subscription>[]): void 
 
 /** A citizen's membership tier, derived from their real subscription history —
  * NOT a name hash. An active `yearly` plan is Gold, an active `monthly` plan
- * is Silver, and everyone else (daily, free, expired, cancelled, or no plan)
- * is Bronze. Accepts a citizen id ("u_003") or a display name.
- * Returns `null` for anyone who isn't a known citizen. */
-export function planTierForCitizen(idOrName: string): "gold" | "silver" | "bronze" | null {
+ * is Silver, an active `daily` plan is Micropass, and everyone else (free,
+ * expired, cancelled, or no plan) is Bronze. Accepts a citizen id ("u_001") or
+ * a display name. Returns `null` for lawyers/admins. */
+export function planTierForCitizen(
+  idOrName?: string | null,
+): SubscriptionTierId | null {
+  if (!idOrName) return "bronze";
   const key = idOrName.trim();
-  const citizens = getCitizens();
-  const citizen = key.startsWith("u_")
-    ? citizens.find((c) => c.id === key)
-    : citizens.find((c) => c.name.toLowerCase() === key.toLowerCase());
-  if (!citizen) return null;
+  if (!key) return "bronze";
 
-  const subs = getSubscriptions(citizen.id);
-  const active = subs.find((s) => s.status === "Active");
-  if (active?.planId === "yearly") return "gold";
-  if (active?.planId === "monthly") return "silver";
+  const lower = key.toLowerCase();
+  if (
+    lower.includes("admin") ||
+    lower.startsWith("adv.") ||
+    lower.includes("lawyer") ||
+    lower.includes("counsel") ||
+    lower.includes("attorney") ||
+    lower.includes("advocate")
+  ) {
+    return null;
+  }
+
+  // 1. Check all subscriptions
+  const allSubs = getSubscriptions();
+
+  // Try finding subscriptions matching key directly (if key is an id like "u_001")
+  let citizenSubs = allSubs.filter((s) => s.citizenId === key);
+
+  // If no subs directly, check citizens store by name or id
+  if (citizenSubs.length === 0) {
+    const citizens = getCitizens();
+    const citizen = key.startsWith("u_")
+      ? citizens.find((c) => c.id === key)
+      : citizens.find((c) => c.name.toLowerCase() === lower);
+    if (citizen) {
+      citizenSubs = allSubs.filter((s) => s.citizenId === citizen.id);
+    }
+  }
+
+  // If no subs found yet, check current session / auth user in storage
+  if (citizenSubs.length === 0 && typeof window !== "undefined") {
+    try {
+      const stored = localStorage.getItem("cuc_auth_user");
+      if (stored) {
+        const u = JSON.parse(stored);
+        const matchesUser =
+          u.citizenId === key ||
+          u.id === key ||
+          (u.name && u.name.toLowerCase() === lower) ||
+          (u.phone && u.phone === key) ||
+          (u.email && u.email.toLowerCase() === lower);
+        if (matchesUser) {
+          const authCitizenId = u.citizenId || u.id || "u_001";
+          citizenSubs = allSubs.filter((s) => s.citizenId === authCitizenId);
+        }
+      }
+    } catch {}
+  }
+
+  // If still no subs, check fallback for default citizen "Sai Teja Reddy" or "u_001"
+  if (citizenSubs.length === 0) {
+    if (lower === "sai teja reddy" || lower === "u_001" || lower.startsWith("u_") || lower.startsWith("usr_")) {
+      citizenSubs = allSubs.filter((s) => s.citizenId === "u_001");
+    }
+  }
+
+  // Look for any active subscription for this citizen
+  const active = citizenSubs.find((s) => isSubscriptionActive(s));
+  if (active) {
+    return normalizeSubscriptionTier(active.planId);
+  }
+
+  // Fallback: if no active sub found by exact citizenId match, but there is an active subscription
+  // in allSubs (e.g. citizen purchased in this session):
+  const anyActive = allSubs.find((s) => isSubscriptionActive(s));
+  if (anyActive) {
+    return normalizeSubscriptionTier(anyActive.planId);
+  }
+
   return "bronze";
 }
 
@@ -1173,10 +1352,18 @@ export function addSubscription(
       ? { ...s, status: "Expired" as const }
       : s,
   );
+  const now = new Date();
+  const exp = new Date(now);
+  if (sub.planId === "daily") exp.setDate(exp.getDate() + 1);
+  else if (sub.planId === "monthly") exp.setMonth(exp.getMonth() + 1);
+  else if (sub.planId === "yearly") exp.setFullYear(exp.getFullYear() + 1);
+  else exp.setDate(exp.getDate() + 30);
+
   const newSub: Subscription = {
     ...sub,
     id: `sub_${Date.now()}`,
-    startedAt: new Date().toISOString().slice(0, 10),
+    startedAt: now.toISOString(),
+    expiresAt: sub.expiresAt || exp.toISOString(),
     status: "Active",
   };
   save(SUBSCRIPTIONS_KEY, [newSub, ...withPriorExpired]);

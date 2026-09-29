@@ -188,7 +188,13 @@ export async function updateUserCase(c: Context) {
       .from(citizens)
       .where(or(eq(citizens.userId, user.id), eq(citizens.id, user.id)));
     const myCitizenId = citizen?.id || user.id;
-    if (existing.citizenId && existing.citizenId !== myCitizenId && existing.citizenId !== user.id) {
+    const userCitizenId = (user as any)?.citizenId;
+    if (
+      existing.citizenId &&
+      existing.citizenId !== myCitizenId &&
+      existing.citizenId !== user.id &&
+      (!userCitizenId || existing.citizenId !== userCitizenId)
+    ) {
       throw ApiError.forbidden("Access denied: You can only update your own cases");
     }
   }
@@ -196,6 +202,33 @@ export async function updateUserCase(c: Context) {
   const result = await CaseService.updateUserCase(id, body);
   return ApiResponse.success(c, result, "Case updated successfully");
 }
+
+export async function addCaseAttachments(c: Context) {
+  const id = c.req.param("id")!;
+  const user = c.get("user");
+  if (user && user.role === "citizen") {
+    const existing = await CaseService.getUserCaseById(id);
+    const [citizen] = await db
+      .select({ id: citizens.id })
+      .from(citizens)
+      .where(or(eq(citizens.userId, user.id), eq(citizens.id, user.id)));
+    const myCitizenId = citizen?.id || user.id;
+    const userCitizenId = (user as any)?.citizenId;
+    if (
+      existing.citizenId &&
+      existing.citizenId !== myCitizenId &&
+      existing.citizenId !== user.id &&
+      (!userCitizenId || existing.citizenId !== userCitizenId)
+    ) {
+      throw ApiError.forbidden("Access denied: You can only update your own cases");
+    }
+  }
+  const body = await c.req.json();
+  const docs = Array.isArray(body.documents) ? body.documents : body.files || [body];
+  const result = await CaseService.addAttachmentsToUserCase(id, docs);
+  return ApiResponse.success(c, result, "Attachments added successfully");
+}
+
 
 export async function deleteUserCase(c: Context) {
   const id = c.req.param("id")!;

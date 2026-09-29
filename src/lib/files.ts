@@ -32,9 +32,22 @@ const PDF_DOCX_MIME_TYPES = new Set([
  * restricted to PDF/DOCX — checked here too since a browser's file picker
  * `accept` filter can be bypassed (e.g. "All Files", drag-and-drop). */
 export function isPdfOrDocxFile(file: File): boolean {
-  if (file.type) return PDF_DOCX_MIME_TYPES.has(file.type);
+  if (file.type && PDF_DOCX_MIME_TYPES.has(file.type)) return true;
   return /\.(pdf|docx)$/i.test(file.name);
 }
+
+const JPG_PNG_MIME_TYPES = new Set([
+  "image/jpeg",
+  "image/jpg",
+  "image/png",
+]);
+
+export function isJpgOrPngFile(file: File): boolean {
+  if (file.type && JPG_PNG_MIME_TYPES.has(file.type.toLowerCase())) return true;
+  return /\.(jpe?g|png)$/i.test(file.name);
+}
+
+
 
 function escapeHtml(str: string): string {
   return str.replace(/[&<>"']/g, (m) => {

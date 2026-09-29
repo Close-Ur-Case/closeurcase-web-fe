@@ -1,7 +1,13 @@
 import { useState, useEffect } from "react";
-import { Star, X } from "lucide-react";
+import { X, Award, Zap, ShieldCheck, Crown } from "lucide-react";
 import { avatarUrlFor } from "@/data/avatarPool";
-import { getLawyers, getCitizens, planTierForCitizen } from "@/data/appStore";
+import { getLawyers, getCitizens, planTierForCitizen, subscribeToStore } from "@/data/appStore";
+import {
+  SUBSCRIPTION_TIERS,
+  normalizeSubscriptionTier,
+  type SubscriptionTierId,
+  type SubscriptionTierConfig,
+} from "@/data/subscriptionTiers";
 import {
   lawyerPresence,
   lawyerPresenceColor,
@@ -21,43 +27,13 @@ const SIZE_PX = {
   lg: 160,
 };
 
-type PlanTier = "bronze" | "silver" | "gold";
-
-const BADGE_CONFIGS: Record<
-  PlanTier,
-  {
-    label: string;
-    ringCls: string;
-    badgeCls: string;
-    starCls: string;
-  }
-> = {
-  bronze: {
-    label: "Bronze Member",
-    ringCls: "ring-2 ring-[#8B5E3C]",
-    badgeCls: "bg-[#7A4B1B] text-white border-2 border-background shadow-xs",
-    starCls: "fill-white text-white",
-  },
-  silver: {
-    label: "Silver Member",
-    ringCls: "ring-2 ring-slate-400 dark:ring-slate-500",
-    badgeCls:
-      "bg-slate-700 dark:bg-slate-200 text-white dark:text-slate-950 border-2 border-background shadow-xs",
-    starCls: "fill-current text-white dark:text-slate-950",
-  },
-  gold: {
-    label: "Gold VIP Member",
-    ringCls: "ring-2 ring-amber-400 dark:ring-yellow-400",
-    badgeCls:
-      "bg-amber-400 text-slate-950 border-2 border-background shadow-xs shadow-amber-500/30",
-    starCls: "fill-slate-950 text-slate-950",
-  },
-};
+export type PlanTier = SubscriptionTierId;
+export const BADGE_CONFIGS: Record<PlanTier, SubscriptionTierConfig> = SUBSCRIPTION_TIERS;
 
 const BADGE_SIZE_CLASSES = {
-  sm: { badge: "h-3.5 w-3.5 -bottom-0.5 -right-0.5", star: "h-2 w-2" },
-  md: { badge: "h-4.5 w-4.5 -bottom-0.5 -right-0.5", star: "h-2.5 w-2.5" },
-  lg: { badge: "h-6.5 w-6.5 -bottom-1 -right-1", star: "h-3.5 w-3.5" },
+  sm: { badge: "h-4 w-4 -bottom-0.5 -right-0.5", star: "h-2.5 w-2.5" },
+  md: { badge: "h-5 w-5 -bottom-0.5 -right-0.5", star: "h-3 w-3" },
+  lg: { badge: "h-7 w-7 -bottom-1 -right-1", star: "h-4 w-4" },
 };
 
 /** Online/offline presence dot, bottom-right of the avatar. */
@@ -120,17 +96,21 @@ function resolvePlanTier(name: string, role?: string, explicitTier?: string): Pl
 
   // An explicit tier passed by the caller (e.g. a subscription card) wins.
   if (explicitTier) {
-    const norm = explicitTier.toLowerCase();
-    if (norm === "free" || norm === "bronze") return "bronze";
-    if (norm === "monthly" || norm === "silver") return "silver";
-    if (norm === "yearly" || norm === "gold") return "gold";
+    return normalizeSubscriptionTier(explicitTier);
   }
 
   const lower = name.toLowerCase().trim();
   const isCitizen =
     role === "citizen" ||
     lower.startsWith("u_") ||
-    getCitizens().some((c) => c.name.toLowerCase().trim() === lower);
+    lower.startsWith("usr_") ||
+    lower === "citizen" ||
+    getCitizens().some((c) => c.name.toLowerCase().trim() === lower) ||
+    (typeof window !== "undefined" &&
+      Boolean(
+        localStorage.getItem("cuc_citizen_session") || localStorage.getItem("cuc_auth_user"),
+      ));
+
   if (!isCitizen) return null;
 
   return planTierForCitizen(name) ?? "bronze";
@@ -149,7 +129,7 @@ export function UserAvatar({
   photoUrl?: string | null;
   size?: keyof typeof SIZE_CLASSES;
   role?: "citizen" | "lawyer" | "admin";
-  planTier?: "bronze" | "silver" | "gold" | "free" | "monthly" | "yearly";
+  planTier?: "bronze" | "silver" | "gold" | "micropass" | "free" | "daily" | "monthly" | "yearly";
   /** Lawyer presence indicator. Pass explicitly when a Lawyer object is in
    * hand; otherwise, for `role="lawyer"`, it's resolved live from the store
    * by name. Non-lawyers never get an indicator. */
@@ -159,6 +139,11 @@ export function UserAvatar({
   const sizeCls = SIZE_CLASSES[size];
   const [hasPrimaryError, setHasPrimaryError] = useState(false);
   const [hasFallbackError, setHasFallbackError] = useState(false);
+  const [, setStoreVersion] = useState(0);
+
+  useEffect(() => {
+    return subscribeToStore(() => setStoreVersion((v) => v + 1));
+  }, []);
 
   useEffect(() => {
     setHasPrimaryError(false);
@@ -230,10 +215,10 @@ export function UserAvatar({
 
       {tier && (
         <div
-          className={`absolute rounded-full flex items-center justify-center ${tier.badgeCls} ${badgeSize.badge}`}
+          className={`absolute rounded-full flex items-center justify-center shrink-0 z-10 ${tier.badgeCls} ${badgeSize.badge}`}
           title={`${tier.label}`}
         >
-          <Star className={badgeSize.star} />
+          <tier.icon className={`${badgeSize.star} ${tier.iconCls} shrink-0`} />
         </div>
       )}
     </div>
