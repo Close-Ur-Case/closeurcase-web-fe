@@ -21,6 +21,7 @@ const LEGAL_CATEGORIES: LegalCategory[] = [
   "Labour",
   "Tax",
   "Environmental",
+  "Other",
 ];
 
 /** Backend category id → the closest `LegalCategory`.
@@ -46,6 +47,9 @@ const ID_TO_CATEGORY: Record<string, LegalCategory> = {
   cat_10: "Cyber",
   cat_11: "Tax",
   cat_12: "Environmental",
+  cat_other: "Other",
+  cat_13: "Other",
+  other: "Other",
 };
 
 /** Backend display name / code → `LegalCategory`, for endpoints that send either. */
@@ -73,6 +77,9 @@ const NAME_TO_CATEGORY: Record<string, LegalCategory> = {
   cyb: "Cyber",
   tax: "Tax",
   env: "Environmental",
+  other: "Other",
+  othr: "Other",
+  "other legal matters": "Other",
 };
 
 /**

@@ -137,6 +137,7 @@ function mapDetectedToLegalCategory(name?: string | null): LegalCategory {
   if (n.includes("labour") || n.includes("labor")) return "Labour";
   if (n.includes("tax")) return "Tax";
   if (n.includes("environmental")) return "Environmental";
+  if (n.includes("other")) return "Other";
   return "Civil";
 }
 

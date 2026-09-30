@@ -118,7 +118,10 @@ function mapPracticeAreaToCategory(areaName: string): LegalCategory {
   if (lower.includes("consumer")) return "Consumer";
   if (lower.includes("cyber")) return "Cyber";
   if (lower.includes("labour")) return "Labour";
-  if (lower.includes("banking") || lower.includes("tax") || lower.includes("civil")) return "Civil";
+  if (lower.includes("tax")) return "Tax";
+  if (lower.includes("environment")) return "Environmental";
+  if (lower.includes("other")) return "Other";
+  if (lower.includes("banking") || lower.includes("civil")) return "Civil";
   return "Civil";
 }
 

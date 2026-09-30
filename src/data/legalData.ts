@@ -50,6 +50,7 @@ export const categoryTitlesList: string[] = [
   "Labour",
   "Tax",
   "Environmental",
+  "Other",
 ];
 
 /* Map raw category string to standard title */

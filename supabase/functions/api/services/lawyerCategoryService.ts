@@ -149,6 +149,7 @@ export class LawyerCategoryService {
       cat_10: ["cyber", "cyber law", "it law", "technology", "cyb"],
       cat_11: ["tax", "taxation", "tax law", "gst", "income tax"],
       cat_12: ["environmental", "environment", "environmental law", "env"],
+      cat_other: ["other", "others", "othr", "general", "other legal", "cat_other", "cat_13"],
     };
 
     // 1. Resolve Practice Areas to Category IDs (cat_X)

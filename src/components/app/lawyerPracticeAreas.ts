@@ -557,6 +557,15 @@ const LEGACY_LAWYER_PRACTICE_AREAS: LawyerPracticeArea[] = [
       },
     ],
   },
+  {
+    category: "Other",
+    case_types: [
+      {
+        case_type: "Other",
+        legal_services: ["Other"],
+      },
+    ],
+  },
 ];
 
 /**
@@ -603,5 +612,9 @@ export function mapPracticeAreaToCategory(areaName: string): LegalCategory {
   if (lower.includes("consumer")) return "Consumer";
   if (lower.includes("cyber")) return "Cyber";
   if (lower.includes("labour")) return "Labour";
+  if (lower.includes("tax")) return "Tax";
+  if (lower.includes("environmental")) return "Environmental";
+  if (lower.includes("other")) return "Other";
   return "Civil";
 }
+

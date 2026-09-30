@@ -76,6 +76,11 @@ const NEXT_STEPS_MAP: Record<LegalCategory, string[]> = {
     "Confirm compliance with environmental clearance conditions",
     "Assess NGT filing applicability",
   ],
+  Other: [
+    "Review case background and specific legal merits",
+    "Identify applicable statutory provisions and procedural requirements",
+    "Draft initial consultation notes and compile relevant evidence",
+  ],
 };
 
 function extractKeyFacts(description: string): string[] {

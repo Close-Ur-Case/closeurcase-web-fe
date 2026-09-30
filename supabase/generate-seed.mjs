@@ -87,6 +87,7 @@ const catMap = {
   cyber: "cat_10",
   tax: "cat_11",
   environmental: "cat_12",
+  other: "cat_other",
 };
 
 function normalizeCategory(cat) {

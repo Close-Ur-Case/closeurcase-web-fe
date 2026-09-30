@@ -21,7 +21,8 @@ export type LegalCategory =
   | "Corporate"
   | "Labour"
   | "Tax"
-  | "Environmental";
+  | "Environmental"
+  | "Other";
 
 export interface Citizen {
   id: string;
