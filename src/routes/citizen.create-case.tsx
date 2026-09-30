@@ -293,10 +293,10 @@ export function FindLawyerWizard() {
       ? cnr.trim().length > 0
       : path === "new"
         ? hasNewCaseContent &&
-          knowsCaseType !== null &&
-          (knowsCaseType === true
-            ? hasManualCategoryPick
-            : hasDescriptionText && (isAiAnalyzed || predictedCategory !== null))
+        knowsCaseType !== null &&
+        (knowsCaseType === true
+          ? hasManualCategoryPick
+          : hasDescriptionText && (isAiAnalyzed || predictedCategory !== null))
         : false);
 
   // Tells the citizen exactly what's missing when Continue is disabled,
@@ -651,21 +651,21 @@ export function FindLawyerWizard() {
           prefill: { name: clientName.trim() || currentCitizenName },
           verification: isPlanPurchase
             ? {
-                source: "subscription",
-                grossAmount: totalFee,
-                citizenId: currentCitizenId,
-                citizenName: clientName.trim() || currentCitizenName,
-                planId: selectedPlan!.id,
-                planLabel: selectedPlan!.label,
-              }
+              source: "subscription",
+              grossAmount: totalFee,
+              citizenId: currentCitizenId,
+              citizenName: clientName.trim() || currentCitizenName,
+              planId: selectedPlan!.id,
+              planLabel: selectedPlan!.label,
+            }
             : {
-                source: "commission",
-                grossAmount: totalFee,
-                citizenId: currentCitizenId,
-                citizenName: clientName.trim() || currentCitizenName,
-                lawyerId: selectedLawyer?.id,
-                lawyerName: selectedLawyer?.name,
-              },
+              source: "commission",
+              grossAmount: totalFee,
+              citizenId: currentCitizenId,
+              citizenName: clientName.trim() || currentCitizenName,
+              lawyerId: selectedLawyer?.id,
+              lawyerName: selectedLawyer?.name,
+            },
         });
       } catch (err: unknown) {
         setIsPaying(false);
@@ -740,40 +740,40 @@ export function FindLawyerWizard() {
 
       const timeline = isExistingClosed
         ? [
-            {
-              id: "t1",
-              status: "Closed" as CaseStatus,
+          {
+            id: "t1",
+            status: "Closed" as CaseStatus,
+            at: today,
+            time,
+            note: `Existing case (CNR ${cnr.trim()}) linked as already closed`,
+          },
+        ]
+        : [
+          {
+            id: "t1",
+            status: "Submitted" as CaseStatus,
+            at: today,
+            time,
+            note: "Case filed via Find a Lawyer",
+          },
+          lawyer
+            ? {
+              id: "t2",
+              status: "Assigned" as CaseStatus,
               at: today,
               time,
-              note: `Existing case (CNR ${cnr.trim()}) linked as already closed`,
-            },
-          ]
-        : [
-            {
-              id: "t1",
+              note: `Assigned to ${lawyer.name}`,
+            }
+            : {
+              id: "t2",
               status: "Submitted" as CaseStatus,
               at: today,
               time,
-              note: "Case filed via Find a Lawyer",
+              note: activeSubscription
+                ? `Auto-assign requested under active subscription (${activeSubscription.planLabel}) — pending admin allocation`
+                : "Auto-assign requested — pending admin allocation",
             },
-            lawyer
-              ? {
-                  id: "t2",
-                  status: "Assigned" as CaseStatus,
-                  at: today,
-                  time,
-                  note: `Assigned to ${lawyer.name}`,
-                }
-              : {
-                  id: "t2",
-                  status: "Submitted" as CaseStatus,
-                  at: today,
-                  time,
-                  note: activeSubscription
-                    ? `Auto-assign requested under active subscription (${activeSubscription.planLabel}) — pending admin allocation`
-                    : "Auto-assign requested — pending admin allocation",
-                },
-          ];
+        ];
 
       const newCase: LegalCase = {
         id,
@@ -914,13 +914,12 @@ export function FindLawyerWizard() {
               return (
                 <li key={s.key} className="flex items-center gap-2 sm:flex-1">
                   <span
-                    className={`flex h-5 w-5 shrink-0 items-center justify-center rounded-full text-[10px] font-bold ${
-                      isCurrent
-                        ? "bg-primary text-primary-foreground"
-                        : isDone
-                          ? "bg-primary/15 text-primary"
-                          : "bg-muted text-muted-foreground"
-                    }`}
+                    className={`flex h-5 w-5 shrink-0 items-center justify-center rounded-full text-[10px] font-bold ${isCurrent
+                      ? "bg-primary text-primary-foreground"
+                      : isDone
+                        ? "bg-primary/15 text-primary"
+                        : "bg-muted text-muted-foreground"
+                      }`}
                   >
                     {isDone ? <CheckCircle2 className="h-3 w-3" /> : i + 1}
                   </span>
@@ -1030,9 +1029,8 @@ export function FindLawyerWizard() {
                     setPath("existing");
                     setClientNameTouched(true);
                   }}
-                  className={`p-3 sm:p-4 ${
-                    path === "existing" ? "border-primary ring-1 ring-primary bg-primary/5" : ""
-                  }`}
+                  className={`p-3 sm:p-4 ${path === "existing" ? "border-primary ring-1 ring-primary bg-primary/5" : ""
+                    }`}
                 >
                   <div className="flex items-start gap-2.5">
                     <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-primary/10 text-primary">
@@ -1047,22 +1045,20 @@ export function FindLawyerWizard() {
                               <button
                                 type="button"
                                 onClick={() => setExistingCaseStatus("Pending")}
-                                className={`rounded-md px-2 py-1 text-[11px] font-semibold transition-all ${
-                                  existingCaseStatus === "Pending"
-                                    ? "bg-primary text-primary-foreground shadow-sm"
-                                    : "text-muted-foreground hover:text-foreground"
-                                }`}
+                                className={`rounded-md px-2 py-1 text-[11px] font-semibold transition-all ${existingCaseStatus === "Pending"
+                                  ? "bg-primary text-primary-foreground shadow-sm"
+                                  : "text-muted-foreground hover:text-foreground"
+                                  }`}
                               >
                                 Pending
                               </button>
                               <button
                                 type="button"
                                 onClick={() => setExistingCaseStatus("Closed")}
-                                className={`rounded-md px-2 py-1 text-[11px] font-semibold transition-all ${
-                                  existingCaseStatus === "Closed"
-                                    ? "bg-primary text-primary-foreground shadow-sm"
-                                    : "text-muted-foreground hover:text-foreground"
-                                }`}
+                                className={`rounded-md px-2 py-1 text-[11px] font-semibold transition-all ${existingCaseStatus === "Closed"
+                                  ? "bg-primary text-primary-foreground shadow-sm"
+                                  : "text-muted-foreground hover:text-foreground"
+                                  }`}
                               >
                                 Closed
                               </button>
@@ -1123,9 +1119,8 @@ export function FindLawyerWizard() {
                     setPath("new");
                     setClientNameTouched(true);
                   }}
-                  className={`p-3 sm:p-4 ${
-                    path === "new" ? "border-primary ring-1 ring-primary bg-primary/5" : ""
-                  }`}
+                  className={`p-3 sm:p-4 ${path === "new" ? "border-primary ring-1 ring-primary bg-primary/5" : ""
+                    }`}
                 >
                   <div className="flex items-start gap-2.5">
                     <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-primary/10 text-primary">
@@ -1134,7 +1129,7 @@ export function FindLawyerWizard() {
                     <div className="min-w-0 flex-1">
                       <div className="text-sm font-bold text-foreground">New Case</div>
                       <p className="mt-0.5 text-[11px] text-muted-foreground">
-                        Add photos, a document, a voice note, or just describe it.
+                        Describe your issue or dictate with a voice note.
                       </p>
                     </div>
                     {path === "new" && (
@@ -1170,28 +1165,6 @@ export function FindLawyerWizard() {
 
                       <div className="flex flex-wrap gap-2">
                         <Button
-                          variant="outlined"
-                          icon={<ImageIcon className="h-3.5 w-3.5" />}
-                          onClick={() => {
-                            setImageError(null);
-                            imageInputRef.current?.click();
-                          }}
-                          className="!h-8 !px-3 !text-xs"
-                        >
-                          Add Photos
-                        </Button>
-                        <Button
-                          variant="outlined"
-                          icon={<Paperclip className="h-3.5 w-3.5" />}
-                          onClick={() => {
-                            setDocError(null);
-                            docInputRef.current?.click();
-                          }}
-                          className="!h-8 !px-3 !text-xs"
-                        >
-                          Add Document
-                        </Button>
-                        <Button
                           variant={isRecording ? "filled" : "outlined"}
                           icon={
                             isRecording ? (
@@ -1203,96 +1176,15 @@ export function FindLawyerWizard() {
                           onClick={handleRecordVoiceNote}
                           className="!h-8 !px-3 !text-xs"
                         >
-                          {isRecording ? "Tap to stop…" : "Voice Note"}
+                          {isRecording ? "Tap to stop…" : "Voice (Speech to Text)"}
                         </Button>
-                        <input
-                          ref={imageInputRef}
-                          type="file"
-                          accept=".jpg,.jpeg,.png,image/jpeg,image/png"
-                          multiple
-                          className="hidden"
-                          onChange={(e) => {
-                            const sel = Array.from(e.target.files ?? []);
-                            const validFiles: File[] = [];
-                            let hasInvalid = false;
-                            for (const file of sel) {
-                              if (isJpgOrPngFile(file)) {
-                                validFiles.push(file);
-                              } else {
-                                hasInvalid = true;
-                              }
-                            }
-                            if (hasInvalid) {
-                              setImageError("Only JPG, JPEG, and PNG images are allowed.");
-                            } else {
-                              setImageError(null);
-                            }
-                            if (validFiles.length > 0) {
-                              setImages((prev) => [...prev, ...validFiles]);
-                            }
-                            e.target.value = "";
-                          }}
-                        />
-                        <input
-                          ref={docInputRef}
-                          type="file"
-                          accept=".pdf,.docx,application/pdf,application/vnd.openxmlformats-officedocument.wordprocessingml.document"
-                          multiple
-                          className="hidden"
-                          onChange={(e) => {
-                            const sel = Array.from(e.target.files ?? []);
-                            const validFiles: File[] = [];
-                            let hasInvalid = false;
-                            for (const file of sel) {
-                              if (isPdfOrDocxFile(file)) {
-                                validFiles.push(file);
-                              } else {
-                                hasInvalid = true;
-                              }
-                            }
-                            if (hasInvalid) {
-                              setDocError("Only PDF (.pdf) and Word (.docx) documents are allowed.");
-                            } else {
-                              setDocError(null);
-                            }
-                            if (validFiles.length > 0) {
-                              setDocuments((prev) => [...prev, ...validFiles]);
-                            }
-                            e.target.value = "";
-                          }}
-                        />
                       </div>
 
                       {voiceError && <p className="text-[11px] text-destructive">{voiceError}</p>}
-                      {docError && <p className="text-[11px] text-destructive">{docError}</p>}
-                      {imageError && <p className="text-[11px] text-destructive">{imageError}</p>}
                       {isRecording && (
                         <p className="text-[11px] text-muted-foreground">
                           Listening… speak now, then tap the button again to stop.
                         </p>
-                      )}
-
-                      {(images.length > 0 || documents.length > 0) && (
-                        <ul className="space-y-1.5">
-                          {images.map((f, i) => (
-                            <AttachmentRow
-                              key={`img-${i}`}
-                              icon={<ImageIcon className="h-3.5 w-3.5" />}
-                              label={f.name}
-                              onRemove={() => setImages((prev) => prev.filter((_, x) => x !== i))}
-                            />
-                          ))}
-                          {documents.map((f, i) => (
-                            <AttachmentRow
-                              key={`doc-${i}`}
-                              icon={<Paperclip className="h-3.5 w-3.5" />}
-                              label={f.name}
-                              onRemove={() =>
-                                setDocuments((prev) => prev.filter((_, x) => x !== i))
-                              }
-                            />
-                          ))}
-                        </ul>
                       )}
 
                       <div className="space-y-2 border-t border-border pt-3">
@@ -1304,11 +1196,10 @@ export function FindLawyerWizard() {
                             <button
                               type="button"
                               onClick={() => setKnowsCaseType(true)}
-                              className={`rounded-md px-2.5 py-1 text-[11px] font-semibold transition-all ${
-                                knowsCaseType === true
-                                  ? "bg-primary text-primary-foreground shadow-sm"
-                                  : "text-muted-foreground hover:text-foreground"
-                              }`}
+                              className={`rounded-md px-2.5 py-1 text-[11px] font-semibold transition-all ${knowsCaseType === true
+                                ? "bg-primary text-primary-foreground shadow-sm"
+                                : "text-muted-foreground hover:text-foreground"
+                                }`}
                             >
                               Yes
                             </button>
@@ -1321,11 +1212,10 @@ export function FindLawyerWizard() {
                                 setSelectedLegalServices([]);
                                 setIsAiAnalyzed(false);
                               }}
-                              className={`rounded-md px-2.5 py-1 text-[11px] font-semibold transition-all ${
-                                knowsCaseType === false
-                                  ? "bg-primary text-primary-foreground shadow-sm"
-                                  : "text-muted-foreground hover:text-foreground"
-                              }`}
+                              className={`rounded-md px-2.5 py-1 text-[11px] font-semibold transition-all ${knowsCaseType === false
+                                ? "bg-primary text-primary-foreground shadow-sm"
+                                : "text-muted-foreground hover:text-foreground"
+                                }`}
                             >
                               No
                             </button>
@@ -1491,6 +1381,144 @@ export function FindLawyerWizard() {
               )}
             </div>
 
+            {/* Upload Proof/Supporting files Card */}
+            {path === "new" && (
+              <Card variant="outlined" className="p-3 sm:p-4 space-y-3">
+                <div className="flex items-start justify-between gap-2.5">
+                  <div className="flex items-start gap-2.5">
+                    <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-primary/10 text-primary">
+                      <Paperclip className="h-4 w-4" />
+                    </div>
+                    <div className="min-w-0">
+                      <div className="text-sm font-bold text-foreground">
+                        Upload Proof/Supporting files
+                      </div>
+                      <p className="mt-0.5 text-[11px] text-muted-foreground">
+                        Attach photos, court notices, agreements, or supporting documents.
+                      </p>
+                    </div>
+                  </div>
+                  {images.length + documents.length > 0 && (
+                    <span className="rounded-full bg-primary/10 px-2.5 py-0.5 text-[10px] font-bold text-primary shrink-0">
+                      {images.length + documents.length}{" "}
+                      {images.length + documents.length === 1 ? "file" : "files"} attached
+                    </span>
+                  )}
+                </div>
+
+                <div className="flex flex-wrap gap-2 pt-1 border-t border-border/60">
+                  <Button
+                    variant="outlined"
+                    icon={<ImageIcon className="h-3.5 w-3.5" />}
+                    onClick={() => {
+                      setImageError(null);
+                      imageInputRef.current?.click();
+                    }}
+                    className="!h-8 !px-3 !text-xs"
+                  >
+                    Add Photos
+                  </Button>
+                  <Button
+                    variant="outlined"
+                    icon={<Paperclip className="h-3.5 w-3.5" />}
+                    onClick={() => {
+                      setDocError(null);
+                      docInputRef.current?.click();
+                    }}
+                    className="!h-8 !px-3 !text-xs"
+                  >
+                    Add Documents
+                  </Button>
+                  <input
+                    ref={imageInputRef}
+                    type="file"
+                    accept=".jpg,.jpeg,.png,image/jpeg,image/png"
+                    multiple
+                    className="hidden"
+                    onChange={(e) => {
+                      const sel = Array.from(e.target.files ?? []);
+                      const validFiles: File[] = [];
+                      let hasInvalid = false;
+                      for (const file of sel) {
+                        if (isJpgOrPngFile(file)) {
+                          validFiles.push(file);
+                        } else {
+                          hasInvalid = true;
+                        }
+                      }
+                      if (hasInvalid) {
+                        setImageError("Only JPG, JPEG, and PNG images are allowed.");
+                      } else {
+                        setImageError(null);
+                      }
+                      if (validFiles.length > 0) {
+                        setImages((prev) => [...prev, ...validFiles]);
+                      }
+                      e.target.value = "";
+                    }}
+                  />
+                  <input
+                    ref={docInputRef}
+                    type="file"
+                    accept=".pdf,.docx,application/pdf,application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+                    multiple
+                    className="hidden"
+                    onChange={(e) => {
+                      const sel = Array.from(e.target.files ?? []);
+                      const validFiles: File[] = [];
+                      let hasInvalid = false;
+                      for (const file of sel) {
+                        if (isPdfOrDocxFile(file)) {
+                          validFiles.push(file);
+                        } else {
+                          hasInvalid = true;
+                        }
+                      }
+                      if (hasInvalid) {
+                        setDocError("Only PDF (.pdf) and Word (.docx) documents are allowed.");
+                      } else {
+                        setDocError(null);
+                      }
+                      if (validFiles.length > 0) {
+                        setDocuments((prev) => [...prev, ...validFiles]);
+                      }
+                      e.target.value = "";
+                    }}
+                  />
+                </div>
+
+                {docError && <p className="text-[11px] text-destructive">{docError}</p>}
+                {imageError && <p className="text-[11px] text-destructive">{imageError}</p>}
+
+                {images.length > 0 || documents.length > 0 ? (
+                  <ul className="space-y-1.5 pt-1">
+                    {images.map((f, i) => (
+                      <AttachmentRow
+                        key={`img-${i}`}
+                        icon={<ImageIcon className="h-3.5 w-3.5" />}
+                        label={f.name}
+                        onRemove={() => setImages((prev) => prev.filter((_, x) => x !== i))}
+                      />
+                    ))}
+                    {documents.map((f, i) => (
+                      <AttachmentRow
+                        key={`doc-${i}`}
+                        icon={<Paperclip className="h-3.5 w-3.5" />}
+                        label={f.name}
+                        onRemove={() =>
+                          setDocuments((prev) => prev.filter((_, x) => x !== i))
+                        }
+                      />
+                    ))}
+                  </ul>
+                ) : (
+                  <p className="text-[11px] text-muted-foreground">
+                    Upload relevant evidence, FIR copies, agreements, or photos (JPG, PNG, PDF, DOCX up to 10MB).
+                  </p>
+                )}
+              </Card>
+            )}
+
             {!canContinueDetails && missingDetailsReason && (
               <p className="text-right text-[11px] font-medium text-muted-foreground">
                 {missingDetailsReason}
@@ -1556,13 +1584,13 @@ export function FindLawyerWizard() {
                     (selectedPracticeArea
                       ? mapPracticeAreaToCategory(selectedPracticeArea)
                       : null)) && (
-                    <div className="shrink-0">
-                      <span className="inline-flex items-center gap-1.5 rounded-full bg-gradient-to-r from-emerald-500 via-teal-500 to-primary px-3.5 py-1 text-xs font-black text-white shadow-md shadow-emerald-500/25 tracking-wide uppercase">
-                        <Sparkles className="h-3.5 w-3.5 text-white" />
-                        {predictedCategory || mapPracticeAreaToCategory(selectedPracticeArea)} Law
-                      </span>
-                    </div>
-                  )}
+                      <div className="shrink-0">
+                        <span className="inline-flex items-center gap-1.5 rounded-full bg-gradient-to-r from-emerald-500 via-teal-500 to-primary px-3.5 py-1 text-xs font-black text-white shadow-md shadow-emerald-500/25 tracking-wide uppercase">
+                          <Sparkles className="h-3.5 w-3.5 text-white" />
+                          {predictedCategory || mapPracticeAreaToCategory(selectedPracticeArea)} Law
+                        </span>
+                      </div>
+                    )}
                 </div>
 
                 {/* Main VS Legal Arena Battle Box */}
@@ -1638,11 +1666,10 @@ export function FindLawyerWizard() {
                   setAssignMode("browse");
                   fetchMatchingLawyers();
                 }}
-                className={`relative overflow-hidden p-5 sm:p-6 cursor-pointer transition-all duration-300 rounded-2xl ${
-                  assignMode === "browse"
-                    ? "border-emerald-500 ring-2 ring-emerald-500/30 bg-gradient-to-br from-emerald-500/10 via-teal-500/5 to-transparent shadow-lg shadow-emerald-500/10"
-                    : "border-border bg-card hover:border-emerald-500/50 hover:bg-emerald-500/5 hover:shadow-md"
-                }`}
+                className={`relative overflow-hidden p-5 sm:p-6 cursor-pointer transition-all duration-300 rounded-2xl ${assignMode === "browse"
+                  ? "border-emerald-500 ring-2 ring-emerald-500/30 bg-gradient-to-br from-emerald-500/10 via-teal-500/5 to-transparent shadow-lg shadow-emerald-500/10"
+                  : "border-border bg-card hover:border-emerald-500/50 hover:bg-emerald-500/5 hover:shadow-md"
+                  }`}
               >
                 {/* Slanted Top-Right Corner Ribbon with Marquee Text */}
                 <div className="absolute top-0 right-0 w-32 h-32 overflow-hidden pointer-events-none z-10">
@@ -1660,11 +1687,10 @@ export function FindLawyerWizard() {
 
                 <div className="flex items-start gap-4 pr-16 sm:pr-20">
                   <div
-                    className={`flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl border transition-all ${
-                      assignMode === "browse"
-                        ? "bg-emerald-500/20 text-emerald-600 dark:text-emerald-400 border-emerald-500/30 shadow-inner"
-                        : "bg-primary/10 text-primary border-transparent"
-                    }`}
+                    className={`flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl border transition-all ${assignMode === "browse"
+                      ? "bg-emerald-500/20 text-emerald-600 dark:text-emerald-400 border-emerald-500/30 shadow-inner"
+                      : "bg-primary/10 text-primary border-transparent"
+                      }`}
                   >
                     <Users className="h-6 w-6" />
                   </div>
@@ -1688,11 +1714,10 @@ export function FindLawyerWizard() {
               <Card
                 variant="outlined"
                 onClick={() => setAssignMode("admin")}
-                className={`relative overflow-hidden p-5 sm:p-6 cursor-pointer transition-all duration-300 rounded-2xl ${
-                  assignMode === "admin"
-                    ? "border-indigo-500 ring-2 ring-indigo-500/30 bg-gradient-to-br from-indigo-500/10 via-purple-500/5 to-transparent shadow-lg shadow-indigo-500/10"
-                    : "border-border bg-card hover:border-indigo-500/50 hover:bg-indigo-500/5 hover:shadow-md"
-                }`}
+                className={`relative overflow-hidden p-5 sm:p-6 cursor-pointer transition-all duration-300 rounded-2xl ${assignMode === "admin"
+                  ? "border-indigo-500 ring-2 ring-indigo-500/30 bg-gradient-to-br from-indigo-500/10 via-purple-500/5 to-transparent shadow-lg shadow-indigo-500/10"
+                  : "border-border bg-card hover:border-indigo-500/50 hover:bg-indigo-500/5 hover:shadow-md"
+                  }`}
               >
                 {/* Slanted Top-Right Corner Ribbon with Marquee Text */}
                 <div className="absolute top-0 right-0 w-32 h-32 overflow-hidden pointer-events-none z-10">
@@ -1706,11 +1731,10 @@ export function FindLawyerWizard() {
 
                 <div className="flex items-start gap-4 pr-16 sm:pr-20">
                   <div
-                    className={`flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl border transition-all ${
-                      assignMode === "admin"
-                        ? "bg-indigo-500/20 text-indigo-600 dark:text-indigo-400 border-indigo-500/30 shadow-inner"
-                        : "bg-primary/10 text-primary border-transparent"
-                    }`}
+                    className={`flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl border transition-all ${assignMode === "admin"
+                      ? "bg-indigo-500/20 text-indigo-600 dark:text-indigo-400 border-indigo-500/30 shadow-inner"
+                      : "bg-primary/10 text-primary border-transparent"
+                      }`}
                   >
                     <Scale className="h-6 w-6" />
                   </div>
@@ -1746,13 +1770,12 @@ export function FindLawyerWizard() {
                     <p className="text-[11px] text-muted-foreground mt-0.5">
                       {locating
                         ? "Detecting your location…"
-                        : `Sorted by proximity to ${userCityLabel}${
-                            selectedPracticeArea
-                              ? ` and ${selectedSpecialization || selectedPracticeArea} expertise`
-                              : predictedCategory
-                                ? ` and ${predictedCategory} Law expertise`
-                                : ""
-                          }.`}
+                        : `Sorted by proximity to ${userCityLabel}${selectedPracticeArea
+                          ? ` and ${selectedSpecialization || selectedPracticeArea} expertise`
+                          : predictedCategory
+                            ? ` and ${predictedCategory} Law expertise`
+                            : ""
+                        }.`}
                     </p>
                   </div>
                   <Button
@@ -1827,11 +1850,10 @@ export function FindLawyerWizard() {
                       <div
                         key={l.id}
                         onClick={() => setSelectedLawyerId(l.id)}
-                        className={`flex cursor-pointer items-center justify-between gap-2 rounded-xl border p-3 transition-all ${
-                          selectedLawyerId === l.id
-                            ? "border-emerald-500 bg-emerald-500/10 ring-1 ring-emerald-500 shadow-xs"
-                            : "border-border bg-background hover:border-emerald-500/40"
-                        }`}
+                        className={`flex cursor-pointer items-center justify-between gap-2 rounded-xl border p-3 transition-all ${selectedLawyerId === l.id
+                          ? "border-emerald-500 bg-emerald-500/10 ring-1 ring-emerald-500 shadow-xs"
+                          : "border-border bg-background hover:border-emerald-500/40"
+                          }`}
                       >
                         <div className="flex min-w-0 items-center gap-3">
                           <div className="relative">
@@ -2368,9 +2390,8 @@ function MultiSelectField({
   return (
     <div className="relative">
       <span
-        className={`absolute -top-2 left-3 z-10 bg-surface px-1 text-[11px] transition-colors ${
-          disabled ? "text-muted-foreground/50" : open ? "text-primary" : "text-muted-foreground"
-        }`}
+        className={`absolute -top-2 left-3 z-10 bg-surface px-1 text-[11px] transition-colors ${disabled ? "text-muted-foreground/50" : open ? "text-primary" : "text-muted-foreground"
+          }`}
       >
         {label}
       </span>
@@ -2378,13 +2399,12 @@ function MultiSelectField({
         type="button"
         disabled={disabled}
         onClick={() => setOpen((o) => !o)}
-        className={`relative flex h-9 w-full items-center justify-between gap-2 rounded-[4px] border px-3 text-left text-sm outline-hidden transition-colors ${
-          disabled
-            ? "cursor-not-allowed border-border/50 bg-muted/30 text-muted-foreground/50"
-            : open
-              ? "cursor-pointer border-primary bg-background text-foreground ring-1 ring-primary"
-              : "cursor-pointer border-border bg-background text-foreground hover:border-foreground/60"
-        }`}
+        className={`relative flex h-9 w-full items-center justify-between gap-2 rounded-[4px] border px-3 text-left text-sm outline-hidden transition-colors ${disabled
+          ? "cursor-not-allowed border-border/50 bg-muted/30 text-muted-foreground/50"
+          : open
+            ? "cursor-pointer border-primary bg-background text-foreground ring-1 ring-primary"
+            : "cursor-pointer border-border bg-background text-foreground hover:border-foreground/60"
+          }`}
       >
         <span className="block min-w-0 flex-1 truncate">{summary || "—"}</span>
         <ChevronDown
@@ -2406,11 +2426,10 @@ function MultiSelectField({
                   className="flex w-full cursor-pointer items-center gap-2.5 px-3.5 py-2 text-left text-xs hover:bg-muted/60"
                 >
                   <span
-                    className={`flex h-4 w-4 shrink-0 items-center justify-center rounded-[4px] border-2 transition-colors ${
-                      isChecked
-                        ? "border-primary bg-primary"
-                        : "border-muted-foreground/50 bg-transparent"
-                    }`}
+                    className={`flex h-4 w-4 shrink-0 items-center justify-center rounded-[4px] border-2 transition-colors ${isChecked
+                      ? "border-primary bg-primary"
+                      : "border-muted-foreground/50 bg-transparent"
+                      }`}
                   >
                     {isChecked && (
                       <Check className="h-3 w-3 text-primary-foreground" strokeWidth={3} />
