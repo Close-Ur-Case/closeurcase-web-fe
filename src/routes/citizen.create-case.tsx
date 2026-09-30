@@ -563,6 +563,17 @@ export function FindLawyerWizard() {
     }
   }
 
+  function handleToggleKnowsCaseType(val: boolean) {
+    setKnowsCaseType(val);
+    setSelectedPracticeArea("");
+    setSelectedSpecialization("");
+    setSelectedLegalServices([]);
+    setIsAiAnalyzed(false);
+    setIsInlineAnalyzing(false);
+    setPredictedCategory(null);
+    setAiSubCategory(null);
+  }
+
   const applyAiDetectionResult = useCallback(
     (res: any) => {
       const catName = res?.data?.categoryName || res?.categoryName || "";
@@ -1353,7 +1364,7 @@ export function FindLawyerWizard() {
                           <div className="inline-flex gap-1 rounded-lg border border-border bg-muted p-0.5 self-start">
                             <button
                               type="button"
-                              onClick={() => setKnowsCaseType(true)}
+                              onClick={() => handleToggleKnowsCaseType(true)}
                               className={`rounded-md px-2.5 py-1 text-[11px] font-semibold transition-all ${knowsCaseType === true
                                 ? "bg-primary text-primary-foreground shadow-sm"
                                 : "text-muted-foreground hover:text-foreground"
@@ -1363,13 +1374,7 @@ export function FindLawyerWizard() {
                             </button>
                             <button
                               type="button"
-                              onClick={() => {
-                                setKnowsCaseType(false);
-                                setSelectedPracticeArea("");
-                                setSelectedSpecialization("");
-                                setSelectedLegalServices([]);
-                                setIsAiAnalyzed(false);
-                              }}
+                              onClick={() => handleToggleKnowsCaseType(false)}
                               className={`rounded-md px-2.5 py-1 text-[11px] font-semibold transition-all ${knowsCaseType === false
                                 ? "bg-primary text-primary-foreground shadow-sm"
                                 : "text-muted-foreground hover:text-foreground"
