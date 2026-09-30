@@ -873,7 +873,12 @@ export function FindLawyerWizard() {
       const targetPA = matchedPA.category;
       const matchedSpec = resolveSpecialization(matchedPA, null, fallbackCat, text);
       const targetSpec = matchedSpec.case_type;
-      const targetService = resolveLegalService(matchedSpec, null, text);
+      const resolvedService = resolveLegalService(matchedSpec, null, text);
+      const targetService =
+        resolvedService ||
+        (matchedSpec.legal_services && matchedSpec.legal_services.length > 0
+          ? matchedSpec.legal_services[0]
+          : "");
 
       setSelectedPracticeArea(targetPA);
       setSelectedSpecialization(targetSpec);
@@ -891,14 +896,22 @@ export function FindLawyerWizard() {
       const rawCat =
         res?.data?.categoryName ||
         res?.categoryName ||
+        res?.data?.category ||
+        res?.category ||
         res?.data?.data?.categoryName ||
+        res?.data?.data?.category ||
         res?.detectedCategory?.categoryName ||
+        res?.detectedCategory?.category ||
         "";
       const rawSub =
         res?.data?.subCategoryName ||
         res?.subCategoryName ||
+        res?.data?.subCategory ||
+        res?.subCategory ||
         res?.data?.data?.subCategoryName ||
+        res?.data?.data?.subCategory ||
         res?.detectedCategory?.subCategoryName ||
+        res?.detectedCategory?.subCategory ||
         null;
 
       if (!rawCat && !rawSub) {
@@ -915,7 +928,12 @@ export function FindLawyerWizard() {
       const targetSpec = matchedSpec.case_type;
 
       // 3. Resolve Best Legal Service in matchedSpec.legal_services
-      const targetService = resolveLegalService(matchedSpec, rawSub, text);
+      const resolvedService = resolveLegalService(matchedSpec, rawSub, text);
+      const targetService =
+        resolvedService ||
+        (matchedSpec.legal_services && matchedSpec.legal_services.length > 0
+          ? matchedSpec.legal_services[0]
+          : "");
 
       // 4. Update the 3 dropdown states
       setSelectedPracticeArea(targetPA);

@@ -75,8 +75,71 @@ export function Select({
     };
   }, []);
 
+  // Synchronize internal selection and display text of the Material 3 web component
+  // whenever controlled `value` or `options` change in React.
+  useEffect(() => {
+    const el = selectRef.current as any;
+    if (!el) return;
+
+    let cancelled = false;
+
+    const syncSelection = () => {
+      if (cancelled || !el.isConnected) return;
+
+      const optionEls = Array.from(
+        el.querySelectorAll("md-select-option")
+      ) as Array<HTMLElement & { value: string; selected: boolean }>;
+
+      let matchedOption: (HTMLElement & { value: string; selected: boolean }) | null = null;
+      for (const opt of optionEls) {
+        const isMatch = opt.value === value;
+        opt.selected = isMatch;
+        if (isMatch) {
+          opt.setAttribute("selected", "");
+          matchedOption = opt;
+        } else {
+          opt.removeAttribute("selected");
+        }
+      }
+
+      if (value && matchedOption) {
+        el.value = value;
+        if (typeof el.select === "function") {
+          el.select(value);
+        }
+        if (typeof el.selectItem === "function") {
+          el.selectItem(matchedOption);
+        }
+        if (typeof el.updateValueAndDisplayText === "function") {
+          el.updateValueAndDisplayText();
+        }
+      } else if (!value) {
+        el.value = "";
+        if (typeof el.reset === "function") {
+          el.reset();
+        }
+        if (typeof el.updateValueAndDisplayText === "function") {
+          el.updateValueAndDisplayText();
+        }
+      }
+    };
+
+    syncSelection();
+    const rafId = requestAnimationFrame(syncSelection);
+    const timer = setTimeout(syncSelection, 50);
+
+    return () => {
+      cancelled = true;
+      cancelAnimationFrame(rafId);
+      clearTimeout(timer);
+    };
+  }, [value, options]);
+
+  const optionsKey = options.map((opt) => opt.value).join("::");
+
   return (
     <MdOutlinedSelectEl
+      key={optionsKey}
       ref={selectRef}
       label={label}
       aria-label={ariaLabel || label}
