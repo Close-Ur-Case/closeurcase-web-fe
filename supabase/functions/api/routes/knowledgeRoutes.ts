@@ -5,32 +5,21 @@ import {
   addKnowledgeItem,
   deleteKnowledgeItem,
 } from "../controllers/knowledgeController.ts";
-import { authenticateUser, optionalAuth } from "../middlewares/auth.ts";
-import { requireRole } from "../middlewares/roleGuard.ts";
+import { optionalAuth } from "../middlewares/auth.ts";
 import { SuccessResponseSchema } from "../schemas/index.ts";
 
 const knowledge = new OpenAPIHono();
-
-const requireAdmin = async (c: any, next: any) => {
-  await optionalAuth(c, async () => {
-    const user = c.get("user");
-    if (user && user.role && user.role !== "admin" && user.role !== "superadmin") {
-      throw new Error("Admin role required");
-    }
-    await next();
-  });
-};
 
 const getKnowledgeBaseRoute = createRoute({
   method: "get",
   path: "/",
   tags: ["Knowledge Base"],
-  summary: "Browse legal knowledge base articles, judgments & statutes (Global or Personal)",
+  summary: "Browse legal knowledge base articles & documents (Global or Personal)",
+  description: "Retrieve knowledge items. Items are linked to case_categories. Scope can be filtered to global or personal.",
   middleware: [optionalAuth],
   request: {
     query: z.object({
-      category: z.string().optional().openapi({ example: "Criminal" }),
-      type: z.string().optional().openapi({ example: "Act" }),
+      category: z.string().optional().openapi({ example: "cat_1", description: "Filter by category ID (e.g. cat_1) or category name from case_categories" }),
       scope: z.enum(["global", "personal", "all"]).optional().openapi({ example: "global", description: "Filter by 'global' (admin-curated) or 'personal' (lawyer My Docs)" }),
       lawyerId: z.string().optional().openapi({ example: "l_001" }),
       search: z.string().optional().openapi({ example: "BNS" }),
@@ -68,6 +57,7 @@ const addKnowledgeItemRoute = createRoute({
   path: "/",
   tags: ["Knowledge Base"],
   summary: "Add new knowledge article (Global for Admin, Personal for Lawyer)",
+  description: "Upload and index a knowledge document. Category is linked to case_categories table.",
   middleware: [optionalAuth],
   security: [{ bearerAuth: [] }],
   request: {
@@ -76,14 +66,15 @@ const addKnowledgeItemRoute = createRoute({
         "application/json": {
           schema: z.object({
             title: z.string().openapi({ example: "Bharatiya Nyaya Sanhita (BNS) 2023" }),
-            type: z.string().default("Act").openapi({ example: "Act" }),
-            category: z.string().default("General").openapi({ example: "Criminal" }),
+            category: z.string().default("cat_1").openapi({ example: "cat_1", description: "Category ID from case_categories (e.g. cat_1, cat_2). Category name is also accepted and normalized." }),
+            categoryId: z.string().optional().openapi({ example: "cat_1", description: "Alternative explicit category ID referencing case_categories" }),
             size: z.string().optional().openapi({ example: "2.4 MB" }),
             fileName: z.string().optional().openapi({ example: "bns-2023.pdf" }),
             fileMimeType: z.string().optional().openapi({ example: "application/pdf" }),
             fileUrl: z.string().optional().openapi({ example: "https://closeurcase.app/docs/bns-2023.pdf" }),
             scope: z.enum(["global", "personal"]).optional().openapi({ example: "global" }),
             lawyerId: z.string().optional().openapi({ example: "l_001" }),
+            uploadedBy: z.string().optional().openapi({ example: "admin" }),
             content: z.string().optional().openapi({ example: "Document text or summary" }),
           }),
         },

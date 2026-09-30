@@ -95,13 +95,14 @@ export async function syncExpiredSubscriptions<
       );
 
       // Auto-set citizen account tier to bronze free tier
-      if (sub.citizenId) {
+      const citId = (sub as any).citizenId;
+      if (citId) {
         updatePromises.push(
           db
             .update(citizens)
             .set({ planTier: "bronze", updatedAt: new Date() })
-            .where(eq(citizens.id, sub.citizenId))
-            .catch((err) => console.warn(`Failed to reset citizen ${sub.citizenId} to bronze:`, err)),
+            .where(eq(citizens.id, citId))
+            .catch((err) => console.warn(`Failed to reset citizen ${citId} to bronze:`, err)),
         );
       }
 

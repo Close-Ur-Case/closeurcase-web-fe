@@ -1,6 +1,7 @@
 import type { Context } from "hono";
 import { AuthService } from "../services/authService.ts";
 import { ApiResponse } from "../utils/apiResponse.ts";
+import { ApiError } from "../utils/apiError.ts";
 import { db } from "../config/db.ts";
 import { citizens, lawyers } from "../models/users.ts";
 import { eq, or, ilike } from "drizzle-orm";
@@ -38,7 +39,7 @@ export async function loginAdmin(c: Context) {
 export async function getCurrentUser(c: Context) {
   const user = c.get("user");
   if (!user) {
-    return ApiResponse.unauthorized(c, "Not authenticated");
+    throw ApiError.unauthorized("Not authenticated");
   }
 
   let citizenRecord = null;

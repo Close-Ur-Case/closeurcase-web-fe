@@ -1,10 +1,12 @@
 import { pgTable, text, timestamp, varchar } from "drizzle-orm/pg-core";
+import { caseCategories } from "./masterData.ts";
 
 export const knowledgeItems = pgTable("knowledge_items", {
   id: varchar("id", { length: 64 }).primaryKey(),
   title: varchar("title", { length: 255 }).notNull(),
-  type: varchar("type", { length: 64 }).notNull(),
-  category: varchar("category", { length: 64 }).notNull(),
+  category: varchar("category", { length: 64 })
+    .notNull()
+    .references(() => caseCategories.id, { onDelete: "cascade" }),
   size: varchar("size", { length: 64 }).notNull(),
   fileUrl: text("file_url"),
   fileName: varchar("file_name", { length: 255 }),

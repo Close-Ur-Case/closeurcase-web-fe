@@ -1,40 +1,22 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { useState, useEffect, useMemo } from "react";
+import { useState, useMemo, useEffect, useCallback } from "react";
 import {
-  Upload,
   BookOpen,
-  Trash2,
-  CheckCircle2,
-  Sparkles,
-  Plus,
   Search,
+  Upload,
   Eye,
+  Trash2,
   X,
+  FileCheck2,
   Maximize2,
+  AlertTriangle,
+  RotateCcw,
+  Sparkles,
 } from "lucide-react";
 import { PageHeader } from "@/components/app/PageHeader";
 import { DataTable, type Column } from "@/components/app/DataTable";
 import { ConfirmDialog } from "@/components/app/ConfirmDialog";
 import { DocumentPreviewBody } from "@/components/app/DocumentPreview";
-import {
-  getKnowledgeBase,
-  addKnowledgeItem,
-  deleteKnowledgeItem,
-  mergeRemoteKnowledgeItems,
-  subscribeToStore,
-  getActiveCaseCategories,
-} from "@/data/appStore";
-import { knowledgeService } from "@/services/knowledgeService";
-import { storageService } from "@/services/storageService";
-import type { KnowledgeItem, LegalCategory } from "@/types";
-import {
-  MAX_ATTACHMENT_BYTES,
-  formatFileSize,
-  readFileAsDataUrl,
-  titleFromFileName,
-  isPdfOrDocxFile,
-  openDocumentInNewTab,
-} from "@/lib/files";
 import {
   TextField,
   Select,
@@ -46,62 +28,101 @@ import {
   DialogContent,
   DialogFooter,
 } from "@/components/m3";
+import {
+  getKnowledgeBase,
+  saveKnowledgeBase,
+  deleteKnowledgeItem,
+  getActiveCaseCategories,
+} from "@/data/appStore";
+import { knowledgeService } from "@/services/knowledgeService";
+import { storageService } from "@/services/storageService";
+import { masterDataService } from "@/services/masterDataService";
+import type { KnowledgeItem } from "@/types";
+import {
+  MAX_ATTACHMENT_BYTES,
+  formatFileSize,
+  titleFromFileName,
+  isPdfOrDocxFile,
+  openDocumentInNewTab,
+} from "@/lib/files";
 
 export const Route = createFileRoute("/admin/knowledge-base")({
   component: KnowledgeBasePage,
 });
 
-const types: KnowledgeItem["type"][] = [
-  "Act",
-  "Rule",
-  "Regulation",
-  "Amendment",
-  "Judgement",
-  "Order",
-];
-
 type SortOrder = "newest" | "oldest";
 
 export function KnowledgeBasePage() {
-  const [rows, setRows] = useState<KnowledgeItem[]>(getKnowledgeBase);
+  const [rows, setRows] = useState<KnowledgeItem[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
+  const [isError, setIsError] = useState<string | null>(null);
   const [search, setSearch] = useState("");
   const [sortOrder, setSortOrder] = useState<SortOrder>("newest");
   const [showUploadModal, setShowUploadModal] = useState(false);
   const [activePdfModal, setActivePdfModal] = useState<KnowledgeItem | null>(null);
+
   // Confirm delete
   const [pendingDeleteId, setPendingDeleteId] = useState<string | null>(null);
   const pendingDeleteItem = rows.find((r) => r.id === pendingDeleteId);
 
   // Upload modal form states
-  const [managedCategories, setManagedCategories] = useState(() => getActiveCaseCategories());
-  const [type, setType] = useState<KnowledgeItem["type"]>("Act");
-  const [cat, setCat] = useState<LegalCategory>(
-    () => (getActiveCaseCategories()[0]?.name as LegalCategory) ?? "Criminal",
+  const [managedCategories, setManagedCategories] = useState<{ id: string; name: string }[]>(() =>
+    getActiveCaseCategories().map((c) => ({ id: c.id, name: c.name })),
+  );
+  const [catId, setCatId] = useState<string>(
+    () => getActiveCaseCategories()[0]?.id ?? "cat_1",
   );
   const [fileSelected, setFileSelected] = useState<File | null>(null);
   const [isUploading, setIsUploading] = useState(false);
   const [successMsg, setSuccessMsg] = useState("");
   const [uploadError, setUploadError] = useState("");
 
-  useEffect(() => {
-    const sync = () => {
-      setRows(getKnowledgeBase());
-      setManagedCategories(getActiveCaseCategories());
-    };
-    const unsub = subscribeToStore(sync);
+  const fetchDocuments = useCallback(async () => {
+    setIsLoading(true);
+    setIsError(null);
+    try {
+      const data = await knowledgeService.getKnowledgeItems({ scope: "global" });
+      const items: KnowledgeItem[] = Array.isArray(data)
+        ? data.map((r: any) => ({
+            id: r.id,
+            title: r.title,
+            category: r.categoryName || r.category || "General",
+            categoryId: r.category,
+            categoryName: r.categoryName,
+            size: r.size || "1.0 MB",
+            fileName: r.fileName || r.title,
+            fileMimeType: r.fileMimeType || "application/pdf",
+            fileUrl: r.fileUrl || null,
+            fileDataUrl: r.fileUrl || undefined,
+            uploadedAt: r.uploadedAt ? r.uploadedAt.split("T")[0] : new Date().toISOString().split("T")[0],
+            scope: "global" as const,
+            uploadedBy: r.uploadedBy || "admin",
+          }))
+        : [];
+      setRows(items);
+      const current = getKnowledgeBase();
+      const personalOnly = current.filter((k) => k.scope === "personal");
+      saveKnowledgeBase([...personalOnly, ...items]);
+    } catch (err: any) {
+      console.error("Failed to load knowledge base items:", err);
+      setIsError("Unable to load documents. Please check your connection and try again.");
+    } finally {
+      setIsLoading(false);
+    }
+  }, []);
 
-    // Hydrate remote legal documents from Supabase Edge Function (scoped to global documents)
-    knowledgeService
-      .getKnowledgeItems({ scope: "global" })
-      .then((remoteItems) => {
-        if (remoteItems && Array.isArray(remoteItems) && remoteItems.length > 0) {
-          mergeRemoteKnowledgeItems(remoteItems);
+  useEffect(() => {
+    fetchDocuments();
+    masterDataService
+      .getCategories()
+      .then((cats) => {
+        if (cats && Array.isArray(cats) && cats.length > 0) {
+          setManagedCategories(cats.map((c) => ({ id: c.id, name: c.name })));
+          setCatId(cats[0].id);
         }
       })
-      .catch((err) => console.warn("Failed to fetch remote knowledge items:", err));
-
-    return unsub;
-  }, []);
+      .catch((err) => console.warn("Failed to fetch categories:", err));
+  }, [fetchDocuments]);
 
   const filtered = useMemo(() => {
     const matches = rows.filter(
@@ -109,7 +130,7 @@ export function KnowledgeBasePage() {
         r.scope !== "personal" &&
         (r.title.toLowerCase().includes(search.toLowerCase()) ||
           r.category.toLowerCase().includes(search.toLowerCase()) ||
-          r.type.toLowerCase().includes(search.toLowerCase())),
+          (r.categoryName && r.categoryName.toLowerCase().includes(search.toLowerCase()))),
     );
     return matches.sort((a, b) =>
       sortOrder === "newest"
@@ -126,9 +147,7 @@ export function KnowledgeBasePage() {
     setUploadError("");
     try {
       const title = titleFromFileName(fileSelected.name);
-      const fileDataUrl = await readFileAsDataUrl(fileSelected);
 
-      // 1. Upload to Supabase Cloud Storage (bucket: knowledge-base, folder: global-docs)
       let fileUrl = "";
       try {
         const uploadRes = await storageService.uploadFile(fileSelected, {
@@ -142,55 +161,32 @@ export function KnowledgeBasePage() {
         console.warn("Storage upload fallback to data URL:", storageErr);
       }
 
-      // 2. Persist to backend database API
-      let remoteId = `k_${Date.now()}`;
-      try {
-        const created = await knowledgeService.addKnowledgeItem({
-          title,
-          type,
-          category: cat,
-          size: formatFileSize(fileSelected.size),
-          fileName: fileSelected.name,
-          fileMimeType: fileSelected.type,
-          fileUrl: fileUrl || undefined,
-          scope: "global",
-          uploadedBy: "admin",
-        });
-        if (created?.id) {
-          remoteId = created.id;
-        }
-      } catch (apiErr) {
-        console.warn("Remote knowledge indexing error:", apiErr);
-      }
-
-      // 3. Update local app store
-      addKnowledgeItem({
-        id: remoteId,
+      await knowledgeService.addKnowledgeItem({
         title,
-        type,
-        category: cat,
+        categoryId: catId,
+        category: catId,
         size: formatFileSize(fileSelected.size),
-        fileDataUrl,
-        fileUrl: fileUrl || undefined,
         fileName: fileSelected.name,
         fileMimeType: fileSelected.type,
+        fileUrl: fileUrl || undefined,
         scope: "global",
         uploadedBy: "admin",
       });
 
-      setSuccessMsg(`"${title}" successfully indexed into Knowledge Base!`);
+      await fetchDocuments();
+
+      setSuccessMsg(`"${title}" has been successfully added to the library.`);
       setFileSelected(null);
       setShowUploadModal(false);
 
       setTimeout(() => setSuccessMsg(""), 3500);
     } catch (err) {
       console.error("Failed to store document in Knowledge Base:", err);
-      setUploadError("Failed to store the document. Try a smaller file.");
+      setUploadError("Unable to upload document. Please ensure the file is under 4MB.");
     } finally {
       setIsUploading(false);
     }
   };
-
 
   const cols: Column<KnowledgeItem>[] = [
     {
@@ -205,13 +201,9 @@ export function KnowledgeBasePage() {
             <span className="block w-full text-xs sm:text-sm font-bold text-foreground leading-snug break-words">
               {r.title}
             </span>
-            {/* Type + Domain + Date fold in here when the table's narrow — their own columns take over above that. */}
             <div className="flex flex-wrap items-center gap-1.5 @5xl:hidden">
-              <span className="inline-block rounded-md bg-primary/10 px-2 py-0.5 text-[10px] font-bold text-primary">
-                {r.type}
-              </span>
               <span className="inline-block rounded-md border border-border bg-background px-2 py-0.5 text-[10px] font-medium text-foreground">
-                {r.category} Law
+                {r.categoryName || r.category}
               </span>
               <span className="text-[10px] text-muted-foreground">· {r.uploadedAt}</span>
             </div>
@@ -220,24 +212,18 @@ export function KnowledgeBasePage() {
       ),
     },
     {
-      key: "type",
-      header: "Type",
+      key: "category",
+      header: "Category",
       hideCompact: true,
       render: (r) => (
-        <span className="inline-block rounded bg-primary/10 px-2 py-0.5 text-[10px] font-bold text-primary">
-          {r.type}
+        <span className="inline-block rounded-md border border-border bg-background px-2.5 py-0.5 text-xs font-medium text-foreground">
+          {r.categoryName || r.category}
         </span>
       ),
     },
     {
-      key: "category",
-      header: "Category Domain",
-      hideCompact: true,
-      render: (r) => <span className="text-xs text-muted-foreground">{r.category} Law</span>,
-    },
-    {
       key: "uploadedAt",
-      header: "Indexed On",
+      header: "Date Added",
       hideCompact: true,
       render: (r) => <span className="text-xs text-muted-foreground">{r.uploadedAt}</span>,
     },
@@ -246,14 +232,15 @@ export function KnowledgeBasePage() {
       header: "Actions",
       render: (r) => (
         <div className="flex items-center gap-1">
-          <IconButton ariaLabel={`View ${r.title}`} onClick={() => setActivePdfModal(r)}>
+          <IconButton ariaLabel="View document" onClick={() => setActivePdfModal(r)}>
             <Eye className="h-4 w-4 text-primary" />
           </IconButton>
           <IconButton
-            ariaLabel="Remove document from index"
+            ariaLabel="Delete document"
             onClick={() => setPendingDeleteId(r.id)}
+            className="text-destructive hover:bg-destructive/10"
           >
-            <Trash2 className="h-4 w-4" />
+            <Trash2 className="h-4 w-4 text-destructive" />
           </IconButton>
         </div>
       ),
@@ -261,93 +248,105 @@ export function KnowledgeBasePage() {
   ];
 
   return (
-    <div className="space-y-3 sm:space-y-4">
+    <div className="space-y-4">
+      {/* HEADER */}
       <PageHeader
-        title="Knowledge Base & Legal Indexing"
-        description="Upload and index statutory acts, amendments, and landmark judgements referenced by Lawyer AI."
+        title="Knowledge Base"
+        description="Centralized legal library for acts, rules, judgments, and statutory references accessible by all lawyers."
+        actions={
+          <div className="flex flex-wrap items-center gap-2">
+            <Button
+              variant="outlined"
+              onClick={fetchDocuments}
+              disabled={isLoading}
+              icon={<RotateCcw className={`h-4 w-4 ${isLoading ? "animate-spin" : ""}`} />}
+              className="text-xs"
+            >
+              Refresh
+            </Button>
+            <Button
+              variant="filled"
+              onClick={() => {
+                setUploadError("");
+                setFileSelected(null);
+                setShowUploadModal(true);
+              }}
+              icon={<Upload className="h-4 w-4" />}
+            >
+              Upload Document
+            </Button>
+          </div>
+        }
       />
 
-      {/* Success alert */}
+      {/* SUCCESS BANNER */}
       {successMsg && (
-        <div
-          className="flex items-center gap-2 rounded-lg p-3 sm:p-4 text-xs font-bold"
-          style={{
-            backgroundColor:
-              "color-mix(in srgb, var(--md-extended-color-success) 10%, transparent)",
-            color: "var(--md-extended-color-success)",
-          }}
-        >
-          <CheckCircle2 className="h-4 w-4 shrink-0" />
-          <span>{successMsg}</span>
+        <div className="flex items-center gap-2 p-3 text-xs bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20 rounded-xl">
+          <FileCheck2 className="h-4 w-4 shrink-0" />
+          <span className="font-semibold">{successMsg}</span>
         </div>
       )}
 
-      {/* SEARCH BAR, SORT & UPLOAD BUTTON */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2.5 rounded-2xl border border-border/80 bg-surface p-2.5 sm:p-3 shadow-2xs">
-        <div className="flex items-center gap-2 w-full sm:w-80 md:w-96 min-w-0 flex-1">
+      {/* ERROR BANNER */}
+      {isError && (
+        <div className="flex items-center justify-between gap-2 p-3 text-xs bg-destructive/10 text-destructive border border-destructive/20 rounded-xl">
+          <div className="flex items-center gap-2">
+            <AlertTriangle className="h-4 w-4 shrink-0" />
+            <span>{isError}</span>
+          </div>
+          <Button variant="outlined" onClick={fetchDocuments} className="text-xs py-1 h-7">
+            Retry
+          </Button>
+        </div>
+      )}
+
+      {/* SEARCH & FILTERS BAR */}
+      <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3 rounded-2xl border border-border bg-surface p-3 sm:p-4 shadow-2xs">
+        <div className="flex-1 min-w-0">
           <TextField
             value={search}
-            onChange={setSearch}
-            placeholder="Search acts, judgements, domains..."
-            leadingIcon={<Search className="h-4 w-4 text-muted-foreground" />}
-            className="w-full min-w-0 flex-1"
+            onChange={(val: string) => setSearch(val)}
+            placeholder="Search documents by title, category…"
+            leadingIcon={<Search className="h-4 w-4" />}
+            className="w-full"
           />
-          <IconButton
-            variant="filled"
-            onClick={() => {
-              setUploadError("");
-              setShowUploadModal(true);
-            }}
-            ariaLabel="Upload document"
-            className="shrink-0 sm:hidden"
-          >
-            <Plus className="h-4 w-4" />
-          </IconButton>
         </div>
-
-        <div className="flex items-center gap-2 w-full sm:w-auto shrink-0">
+        <div className="flex items-center gap-2 sm:shrink-0 w-full sm:w-auto">
           <Select
             label="Sort"
             value={sortOrder}
-            onChange={(v) => setSortOrder(v as SortOrder)}
+            onChange={(v: string) => setSortOrder(v as SortOrder)}
             options={[
               { value: "newest", label: "Newest First" },
               { value: "oldest", label: "Oldest First" },
             ]}
-            className="flex-1 sm:w-44"
+            className="w-full sm:w-44"
           />
-          <Button
-            icon={<Plus className="h-4 w-4" />}
-            onClick={() => {
-              setUploadError("");
-              setShowUploadModal(true);
-            }}
-            className="hidden sm:inline-flex shrink-0"
-          >
-            Upload Document
-          </Button>
         </div>
       </div>
 
       {/* DATA TABLE */}
-      <div className="rounded-2xl border border-border bg-surface p-3.5 sm:p-5 shadow-2xs space-y-3">
-        <div className="flex items-center justify-between border-b border-border pb-2.5">
-          <span className="text-xs font-bold text-foreground">
-            Indexed Reference Documents ({filtered.length})
-          </span>
-          <span className="hidden sm:inline text-xs text-muted-foreground">
-            Acts, Amendments & Judgements
-          </span>
-        </div>
-        <DataTable
-          columns={cols}
-          rows={filtered}
-          empty="No knowledge base documents match your search."
-        />
+      <div className="rounded-2xl border border-border bg-surface p-3 sm:p-4 shadow-2xs">
+        {isLoading ? (
+          <div className="py-12 flex flex-col items-center justify-center gap-3 text-muted-foreground">
+            <div className="h-6 w-6 animate-spin rounded-full border-2 border-primary border-t-transparent" />
+            <p className="text-xs">Loading knowledge documents…</p>
+          </div>
+        ) : (
+          <DataTable
+            columns={cols}
+            rows={filtered}
+            empty={
+              search
+                ? "No knowledge base documents match your search."
+                : "No documents found in the library. Click 'Upload Document' to add one."
+            }
+          />
+        )}
       </div>
 
       {/* UPLOAD MODAL */}
-      <Dialog open={showUploadModal} onOpenChange={setShowUploadModal} maxWidth="600px">
+      <Dialog open={showUploadModal} onOpenChange={(open: boolean) => setShowUploadModal(open)} maxWidth="560px">
         <DialogHeader>
           <DialogTitle className="flex items-center justify-between gap-3 w-full">
             <span className="flex items-center gap-2 text-sm sm:text-base font-bold text-foreground">
@@ -361,18 +360,15 @@ export function KnowledgeBasePage() {
         </DialogHeader>
         <DialogContent>
           <form id="kb-upload-form" onSubmit={handleUploadSubmit} className="space-y-4">
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            <div>
               <Select
-                label="Document Type"
-                value={type}
-                onChange={(v) => setType(v as KnowledgeItem["type"])}
-                options={types.map((t) => ({ value: t, label: t }))}
-              />
-              <Select
-                label="Legal Domain"
-                value={cat}
-                onChange={(v) => setCat(v as LegalCategory)}
-                options={managedCategories.map((c) => ({ value: c.name, label: `${c.name} Law` }))}
+                label="Category"
+                value={catId}
+                onChange={(v: string) => setCatId(v)}
+                options={managedCategories.map((c) => ({
+                  value: c.id,
+                  label: c.name,
+                }))}
               />
             </div>
 
@@ -383,7 +379,7 @@ export function KnowledgeBasePage() {
                 {fileSelected ? fileSelected.name : "Select PDF or DOCX File"}
               </span>
               <span className="text-[10px] text-muted-foreground text-center">
-                Supported format: PDF, DOCX (Up to 4MB — stored in your browser)
+                Supported formats: PDF, DOCX (Up to 4MB)
               </span>
               <input
                 type="file"
@@ -399,7 +395,7 @@ export function KnowledgeBasePage() {
                     return;
                   }
                   if (f.size > MAX_ATTACHMENT_BYTES) {
-                    setUploadError("File is too large — please select a file under 4MB.");
+                    setUploadError("File exceeds 4MB size limit.");
                     setFileSelected(null);
                     return;
                   }
@@ -408,37 +404,42 @@ export function KnowledgeBasePage() {
                 }}
               />
             </label>
+
             {uploadError && (
-              <p className="text-[11px] font-semibold text-destructive">{uploadError}</p>
+              <p className="text-xs text-destructive text-center font-medium">{uploadError}</p>
             )}
+
+            <div className="rounded-lg bg-surface-container-low p-3 text-xs text-muted-foreground space-y-1">
+              <p className="font-semibold text-foreground">Shared Library Access</p>
+              <p>
+                Documents uploaded here are published to the shared knowledge base, making them available to all lawyers for reference and research.
+              </p>
+            </div>
           </form>
         </DialogContent>
         <DialogFooter className="flex flex-col-reverse sm:flex-row items-center justify-end gap-2 w-full">
-          <Button
-            variant="outlined"
-            onClick={() => setShowUploadModal(false)}
-            className="w-full sm:w-auto"
-          >
+          <Button variant="outlined" onClick={() => setShowUploadModal(false)} className="w-full sm:w-auto">
             Cancel
           </Button>
           <Button
             type="submit"
-            className="w-full sm:w-auto"
             onClick={() =>
               (document.getElementById("kb-upload-form") as HTMLFormElement | null)?.requestSubmit()
             }
             disabled={!fileSelected || isUploading}
+            icon={isUploading ? <RotateCcw className="h-4 w-4 animate-spin" /> : <Upload className="h-4 w-4" />}
+            className="w-full sm:w-auto"
           >
-            {isUploading ? "Uploading & Indexing…" : "Upload & Index Document"}
+            {isUploading ? "Uploading…" : "Upload Document"}
           </Button>
         </DialogFooter>
       </Dialog>
 
-      {/* PDF VIEWER POPUP MODAL */}
+      {/* PDF VIEWER MODAL */}
       <Dialog
-        open={activePdfModal !== null}
-        onOpenChange={(open) => !open && setActivePdfModal(null)}
-        maxWidth="860px"
+        open={Boolean(activePdfModal)}
+        onOpenChange={(open: boolean) => !open && setActivePdfModal(null)}
+        maxWidth="950px"
       >
         {activePdfModal && (
           <PdfModalBody
@@ -449,22 +450,25 @@ export function KnowledgeBasePage() {
         )}
       </Dialog>
 
-      {/* CONFIRM DELETE DIALOG */}
+      {/* CONFIRM DELETE MODAL */}
       <ConfirmDialog
-        open={pendingDeleteId !== null}
-        title="Remove Document from Index"
-        message={`Are you sure you want to permanently remove "${pendingDeleteItem?.title ?? "this document"}" from the Knowledge Base? This action cannot be undone and the AI will lose access to this reference.`}
-        confirmLabel="Yes, Remove Document"
+        open={Boolean(pendingDeleteId)}
+        title="Delete Document"
+        message={`Are you sure you want to remove "${pendingDeleteItem?.title ?? "this document"}" from the knowledge library? Lawyers will no longer have access to this document.`}
+        confirmLabel="Confirm Delete"
         cancelLabel="Cancel"
         variant="danger"
-        onConfirm={() => {
-          if (pendingDeleteId) {
+        onConfirm={async () => {
+          if (!pendingDeleteId) return;
+          try {
+            await knowledgeService.deleteKnowledgeItem(pendingDeleteId);
             deleteKnowledgeItem(pendingDeleteId);
-            knowledgeService
-              .deleteKnowledgeItem(pendingDeleteId)
-              .catch((err) => console.warn("Remote knowledge deletion error:", err));
+            setRows((prev) => prev.filter((r) => r.id !== pendingDeleteId));
+            setPendingDeleteId(null);
+          } catch (err) {
+            console.error("Failed to delete knowledge item:", err);
+            setPendingDeleteId(null);
           }
-          setPendingDeleteId(null);
         }}
         onCancel={() => setPendingDeleteId(null)}
       />
@@ -490,16 +494,12 @@ function PdfModalBody({ item, hasRealFile, onClose }: PdfModalBodyProps) {
             <div className="min-w-0">
               <h3 className="text-xs font-bold text-foreground truncate">{item.title}</h3>
               <p className="text-[10px] text-muted-foreground">
-                {item.type} · {item.category} Law · {item.size}
+                {item.categoryName || item.category} · {item.size}
               </p>
             </div>
           </div>
-          {/* Hidden focus-sink: md-dialog auto-focuses the first focusable
-              element on open. This invisible zero-size button absorbs that
-              initial focus so the X button doesn't appear highlighted. */}
           <span tabIndex={0} aria-hidden="true" className="sr-only" />
           <div className="flex items-center gap-2 shrink-0">
-            {/* Full Screen (Open in new tab) */}
             <button
               type="button"
               onClick={() => openDocumentInNewTab(item)}
@@ -523,46 +523,24 @@ function PdfModalBody({ item, hasRealFile, onClose }: PdfModalBodyProps) {
             fileName={item.fileName ?? item.title}
             showFullScreenButton={false}
             fallback={
-              <div className="mx-auto max-w-2xl rounded-xl border border-border bg-background p-4 sm:p-6 shadow-sm space-y-4 text-foreground">
-                <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between border-b border-border pb-3 gap-2">
-                  <span className="text-[10px] sm:text-xs font-bold tracking-wider uppercase text-muted-foreground">
-                    ADMIN KNOWLEDGE BASE INDEX
-                  </span>
-                  <span className="text-[10px] sm:text-xs font-mono text-muted-foreground">
-                    VERIFIED PUBLIC COPY
-                  </span>
-                </div>
-
-                <div className="text-center space-y-1 py-2">
-                  <h4 className="text-xs sm:text-sm font-bold text-foreground uppercase tracking-wide">
-                    {item.title}
-                  </h4>
-                  <p className="text-[11px] text-muted-foreground font-mono">
-                    DOMAIN: {item.category.toUpperCase()} LAW
-                  </p>
-                </div>
-
-                <div className="space-y-4 text-xs leading-relaxed text-foreground/90">
-                  <p className="font-semibold text-foreground">
-                    STATUTORY TEXT &amp; REFERENCE PROVISIONS:
-                  </p>
-                  <p className="bg-muted/40 p-4 rounded-xl border border-border/50 font-sans">
-                    This document represents an indexed statutory publication for{" "}
-                    <strong>{item.title}</strong> in the CloseUrCase admin legal index.
-                  </p>
-                  <p>
-                    1. Provisions contained herein are automatically referenced by Lawyer AI during
-                    counter-argument generation.
-                  </p>
-                  <p>2. Official gazette notification date: {item.uploadedAt}.</p>
-                </div>
+              <div className="mx-auto flex max-w-2xl min-h-[220px] flex-col items-center justify-center gap-2.5 rounded-xl border border-border bg-background p-4 sm:p-6 text-center shadow-sm">
+                <BookOpen className="h-8 w-8 text-primary" />
+                <h4 className="text-sm font-bold text-foreground">
+                  {item.fileName ?? item.title}
+                </h4>
+                <p className="text-xs text-muted-foreground">
+                  {item.categoryName || item.category} · {item.size}
+                </p>
+                <p className="max-w-md text-[11px] text-muted-foreground mt-2">
+                  Document reference available in the knowledge library. Use Full Screen to view the complete document.
+                </p>
               </div>
             }
           />
         </div>
       </DialogContent>
       <DialogFooter className="flex items-center justify-between w-full gap-2">
-        <span className="text-xs text-muted-foreground">Viewing Document in Admin Viewer</span>
+        <span className="text-xs text-muted-foreground">Document Preview</span>
         <Button onClick={onClose} className="w-full sm:w-auto">
           Close Preview
         </Button>

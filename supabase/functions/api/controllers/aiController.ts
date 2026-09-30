@@ -144,7 +144,7 @@ export async function legalQA(c: Context) {
   const sources: string[] = [];
   try {
     const matchedDocs = await db
-      .select({ title: knowledgeItems.title, type: knowledgeItems.type })
+      .select({ title: knowledgeItems.title, category: knowledgeItems.category })
       .from(knowledgeItems)
       .where(
         or(
@@ -155,7 +155,7 @@ export async function legalQA(c: Context) {
       .limit(3);
 
     for (const d of matchedDocs) {
-      sources.push(`${d.title} (${d.type})`);
+      sources.push(`${d.title} (${d.category})`);
     }
   } catch (err) {
     console.warn("DB knowledge items lookup warning:", err);

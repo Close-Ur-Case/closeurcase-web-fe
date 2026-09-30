@@ -1,6 +1,7 @@
 import type { Context } from "hono";
 import { db } from "../config/db.ts";
 import { knowledgeItems } from "../models/knowledgeBase.ts";
+import { caseCategories } from "../models/masterData.ts";
 import { eq, desc, and, or, ilike, isNull } from "drizzle-orm";
 import { ApiResponse } from "../utils/apiResponse.ts";
 import { ApiError } from "../utils/apiError.ts";
@@ -8,7 +9,6 @@ import { ApiError } from "../utils/apiError.ts";
 export async function getKnowledgeBase(c: Context) {
   const user = c.get("user");
   const category = c.req.query("category");
-  const type = c.req.query("type");
   const scope = c.req.query("scope"); // "global" | "personal" | "all"
   const lawyerId = c.req.query("lawyerId") || user?.lawyerId;
   const search = c.req.query("search");
@@ -16,18 +16,21 @@ export async function getKnowledgeBase(c: Context) {
   const conditions: any[] = [];
 
   if (category && category !== "All") {
-    conditions.push(ilike(knowledgeItems.category, category));
+    conditions.push(
+      or(
+        eq(knowledgeItems.category, category),
+        ilike(caseCategories.name, `%${category.trim()}%`),
+        ilike(caseCategories.code, `%${category.trim()}%`)
+      )
+    );
   }
-  if (type && type !== "All") {
-    conditions.push(ilike(knowledgeItems.type, type));
-  }
+
   if (search && search.trim()) {
     const term = `%${search.trim()}%`;
     conditions.push(
       or(
         ilike(knowledgeItems.title, term),
-        ilike(knowledgeItems.category, term),
-        ilike(knowledgeItems.type, term),
+        ilike(caseCategories.name, term),
         ilike(knowledgeItems.fileName, term)
       )
     );
@@ -75,7 +78,25 @@ export async function getKnowledgeBase(c: Context) {
     }
   }
 
-  let query = db.select().from(knowledgeItems);
+  let query = db
+    .select({
+      id: knowledgeItems.id,
+      title: knowledgeItems.title,
+      category: knowledgeItems.category,
+      categoryName: caseCategories.name,
+      size: knowledgeItems.size,
+      fileUrl: knowledgeItems.fileUrl,
+      fileName: knowledgeItems.fileName,
+      fileMimeType: knowledgeItems.fileMimeType,
+      scope: knowledgeItems.scope,
+      uploadedBy: knowledgeItems.uploadedBy,
+      lawyerId: knowledgeItems.lawyerId,
+      uploadedAt: knowledgeItems.uploadedAt,
+      createdAt: knowledgeItems.createdAt,
+    })
+    .from(knowledgeItems)
+    .leftJoin(caseCategories, eq(knowledgeItems.category, caseCategories.id));
+
   if (conditions.length > 0) {
     query = query.where(and(...conditions)) as any;
   }
@@ -86,7 +107,26 @@ export async function getKnowledgeBase(c: Context) {
 
 export async function getKnowledgeItemById(c: Context) {
   const id = c.req.param("id")!;
-  const [item] = await db.select().from(knowledgeItems).where(eq(knowledgeItems.id, id));
+  const [item] = await db
+    .select({
+      id: knowledgeItems.id,
+      title: knowledgeItems.title,
+      category: knowledgeItems.category,
+      categoryName: caseCategories.name,
+      size: knowledgeItems.size,
+      fileUrl: knowledgeItems.fileUrl,
+      fileName: knowledgeItems.fileName,
+      fileMimeType: knowledgeItems.fileMimeType,
+      scope: knowledgeItems.scope,
+      uploadedBy: knowledgeItems.uploadedBy,
+      lawyerId: knowledgeItems.lawyerId,
+      uploadedAt: knowledgeItems.uploadedAt,
+      createdAt: knowledgeItems.createdAt,
+    })
+    .from(knowledgeItems)
+    .leftJoin(caseCategories, eq(knowledgeItems.category, caseCategories.id))
+    .where(eq(knowledgeItems.id, id));
+
   if (!item) {
     throw ApiError.notFound(`Knowledge item '${id}' not found`);
   }
@@ -96,18 +136,47 @@ export async function getKnowledgeItemById(c: Context) {
 export async function addKnowledgeItem(c: Context) {
   const user = c.get("user");
   const body = await c.req.json();
-  const { title, type, category, size, fileUrl, fileName, fileMimeType, scope, lawyerId, uploadedBy } = body;
+  const { title, category, categoryId, size, fileUrl, fileName, fileMimeType, scope, lawyerId, uploadedBy } = body;
 
   if (!title) {
     throw ApiError.badRequest("title is required");
   }
+
+  // Enforce linking knowledge_items.category to case_categories table
+  const inputCategory = (categoryId || category || "").trim();
+  const allCats = await db.select().from(caseCategories);
+
+  let matchedCat = allCats.find(
+    (c) =>
+      c.id.toLowerCase() === inputCategory.toLowerCase() ||
+      c.name.toLowerCase() === inputCategory.toLowerCase() ||
+      c.code.toLowerCase() === inputCategory.toLowerCase()
+  );
+
+  if (!matchedCat && inputCategory) {
+    matchedCat = allCats.find(
+      (c) =>
+        c.name.toLowerCase().includes(inputCategory.toLowerCase()) ||
+        inputCategory.toLowerCase().includes(c.name.toLowerCase())
+    );
+  }
+
+  if (!matchedCat) {
+    if (inputCategory && allCats.length > 0) {
+      throw ApiError.badRequest(
+        `Invalid category '${inputCategory}'. Must match an active category ID in case_categories.`
+      );
+    }
+    matchedCat = allCats[0] || { id: "cat_1", name: "General" };
+  }
+
+  const targetCategory = matchedCat.id;
 
   const isLawyerUser = user?.role === "lawyer";
   const isAdmin = user?.role === "admin" || user?.role === "superadmin" || uploadedBy === "admin";
 
   let targetScope: "global" | "personal" = "global";
   if (isLawyerUser) {
-    // Authenticated lawyer accounts can only upload personal documents to their own My Docs
     targetScope = "personal";
   } else if (scope === "personal" || lawyerId) {
     targetScope = "personal";
@@ -128,8 +197,7 @@ export async function addKnowledgeItem(c: Context) {
     .values({
       id,
       title: title.trim(),
-      type: type || (targetScope === "global" ? "Act" : "Personal Document"),
-      category: category || "General",
+      category: targetCategory,
       size: size || "1 MB",
       fileUrl: fileUrl || null,
       fileName: fileName || title,
@@ -141,7 +209,12 @@ export async function addKnowledgeItem(c: Context) {
     })
     .returning();
 
-  return ApiResponse.created(c, created, "Knowledge item added successfully");
+  const responseItem = {
+    ...created,
+    categoryName: matchedCat.name,
+  };
+
+  return ApiResponse.created(c, responseItem, "Knowledge item added successfully");
 }
 
 export async function deleteKnowledgeItem(c: Context) {
@@ -167,4 +240,3 @@ export async function deleteKnowledgeItem(c: Context) {
   await db.delete(knowledgeItems).where(eq(knowledgeItems.id, id));
   return ApiResponse.success(c, null, "Knowledge item deleted successfully");
 }
-

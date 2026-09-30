@@ -36,6 +36,8 @@ import {
   mergeRemoteNotifications,
   mergeRemoteVideoCalls,
   mergeRemoteWithdrawals,
+  getKnowledgeBase,
+  saveKnowledgeBase,
 } from "@/data/appStore";
 import type {
   AppNotification,
@@ -102,12 +104,14 @@ export function useAppSync() {
         .catch((err) => console.warn("[AppSync] Citizens notice:", err));
     }
 
-    // C. Sync Knowledge Base Items
+    // C. Sync Knowledge Base Items directly from live database
     knowledgeService
-      .getKnowledgeItems<Partial<KnowledgeItem>>()
+      .getKnowledgeItems<Partial<KnowledgeItem>>({ scope: "global" })
       .then((items) => {
-        if (Array.isArray(items) && items.length > 0) {
-          mergeRemoteKnowledgeItems(items);
+        if (Array.isArray(items)) {
+          const current = getKnowledgeBase();
+          const personal = current.filter((k: KnowledgeItem) => k.scope === "personal");
+          saveKnowledgeBase([...personal, ...(items as KnowledgeItem[])]);
         }
       })
       .catch((err) => console.warn("[AppSync] Knowledge items notice:", err));

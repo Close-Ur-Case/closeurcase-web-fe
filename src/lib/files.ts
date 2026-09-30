@@ -115,7 +115,7 @@ export function openDocumentInNewTab(item: {
 
         // For DOCX or non-native browser files: render an interactive full-screen viewer page
         const title = item.title || "Legal Document";
-        const docType = item.type || "Personal Document";
+        const docType = (item as any).categoryName || (item as any).category || "Legal Document";
         const date = item.uploadedAt || "Uploaded";
 
         const docxHtml = `<!DOCTYPE html>
@@ -180,8 +180,8 @@ export function openDocumentInNewTab(item: {
 
   // Fallback HTML preview page for documents without a raw file payload (metadata-only reference items)
   const title = item.title || "Legal Document";
-  const docType = item.type || "Statutory Reference";
-  const domain = item.category ? `${item.category} Law` : "Legal Index";
+  const docType = (item as any).categoryName || (item as any).category || "Statutory Reference";
+  const domain = item.category ? `${(item as any).categoryName || item.category} Law` : "Legal Index";
   const date = item.uploadedAt || "Verified";
 
   const html = `<!DOCTYPE html>

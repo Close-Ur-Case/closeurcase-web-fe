@@ -428,11 +428,6 @@ INSERT INTO public.video_calls (id, case_id, channel_name, with_name, caller_id,
 ('vc_102', 'CUC-20260902112040', 'case_CUC-20260902112040', 'Adv. Srinivas Chowdary', 'u_002', 'l_002', '2026-09-02T17:00:00Z', 980, 'completed', 'citizen')
 ON CONFLICT (id) DO NOTHING;
 
--- 10. Knowledge Items
-INSERT INTO public.knowledge_items (id, title, type, category, size, file_url, file_name, file_mime_type, uploaded_at) VALUES
-('kb_1', 'Bharatiya Nyaya Sanhita (BNS) 2023 Overview', 'Act', 'Criminal', '2.4 MB', 'https://closeurcase.app/docs/bns-2023.pdf', 'bns-2023.pdf', 'application/pdf', '2026-01-15'),
-('kb_2', 'Real Estate (Regulation and Development) Act, 2016', 'Act', 'Property', '1.8 MB', 'https://closeurcase.app/docs/rera-act.pdf', 'rera-act.pdf', 'application/pdf', '2026-02-10')
-ON CONFLICT (id) DO NOTHING;
 
 -- 11. Notifications
 INSERT INTO public.app_notifications (id, role, title, body, at, read) VALUES

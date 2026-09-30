@@ -281,7 +281,7 @@ export function LexBot({
               k.title.toLowerCase().includes(trimmed.toLowerCase()),
           );
           for (const doc of localDocs.slice(0, 2)) {
-            const label = `${doc.title} (${doc.type})`;
+            const label = `${doc.title} (${doc.categoryName || doc.category})`;
             if (!allSources.includes(label)) {
               allSources.push(label);
             }

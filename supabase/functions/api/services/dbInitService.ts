@@ -332,7 +332,6 @@ export class DbInitService {
       CREATE TABLE IF NOT EXISTS public.knowledge_items (
           id VARCHAR(64) PRIMARY KEY,
           title VARCHAR(255) NOT NULL,
-          type VARCHAR(64) NOT NULL,
           category VARCHAR(64) NOT NULL,
           size VARCHAR(64) NOT NULL,
           file_url TEXT,
@@ -342,6 +341,7 @@ export class DbInitService {
           created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW() NOT NULL
       );
 
+      ALTER TABLE public.knowledge_items DROP COLUMN IF EXISTS type;
       ALTER TABLE public.knowledge_items ADD COLUMN IF NOT EXISTS scope VARCHAR(32) NOT NULL DEFAULT 'global';
       ALTER TABLE public.knowledge_items ADD COLUMN IF NOT EXISTS uploaded_by VARCHAR(128);
       ALTER TABLE public.knowledge_items ADD COLUMN IF NOT EXISTS lawyer_id VARCHAR(64);
@@ -358,6 +358,15 @@ export class DbInitService {
           updated_at VARCHAR(64),
           created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW() NOT NULL
       );
+
+      UPDATE public.knowledge_items ki SET category = cc.id FROM public.case_categories cc WHERE ki.category = cc.name OR ki.category = cc.code;
+      UPDATE public.knowledge_items SET category = 'cat_1' WHERE category NOT IN (SELECT id FROM public.case_categories);
+      DO $$ BEGIN
+        IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'fk_knowledge_items_category') THEN
+          ALTER TABLE public.knowledge_items ADD CONSTRAINT fk_knowledge_items_category FOREIGN KEY (category) REFERENCES public.case_categories(id) ON DELETE CASCADE;
+        END IF;
+      END $$;
+      CREATE INDEX IF NOT EXISTS idx_knowledge_items_category ON public.knowledge_items (category);
 
       CREATE TABLE IF NOT EXISTS public.case_specializations (
           id VARCHAR(64) PRIMARY KEY,
@@ -982,11 +991,7 @@ export class DbInitService {
       ('vc_102', 'CUC-20260902112040', 'case_CUC-20260902112040', 'Adv. Srinivas Chowdary', 'u_002', 'l_002', '2026-09-02T17:00:00Z', 980, 'completed', 'citizen')
       ON CONFLICT (id) DO NOTHING;
 
-      -- Knowledge Items
-      INSERT INTO public.knowledge_items (id, title, type, category, size, file_url, file_name, file_mime_type, uploaded_at) VALUES
-      ('kb_1', 'Bharatiya Nyaya Sanhita (BNS) 2023 Overview', 'Act', 'Criminal', '2.4 MB', 'https://closeurcase.app/docs/bns-2023.pdf', 'bns-2023.pdf', 'application/pdf', '2026-01-15'),
-      ('kb_2', 'Real Estate (Regulation and Development) Act, 2016', 'Act', 'Property', '1.8 MB', 'https://closeurcase.app/docs/rera-act.pdf', 'rera-act.pdf', 'application/pdf', '2026-02-10')
-      ON CONFLICT (id) DO NOTHING;
+
 
       -- Notifications
       INSERT INTO public.app_notifications (id, role, title, body, at, read) VALUES

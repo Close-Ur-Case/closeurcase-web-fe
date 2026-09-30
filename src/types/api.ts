@@ -462,8 +462,9 @@ export interface NotificationQueryParams {
 export interface KnowledgeBaseItem {
   id: string;
   title: string;
-  type: string;
   category: string;
+  categoryId?: string;
+  categoryName?: string;
   size?: string;
   fileUrl?: string | null;
   fileName?: string;
@@ -477,8 +478,8 @@ export interface KnowledgeBaseItem {
 
 export interface CreateKnowledgeItemPayload {
   title: string;
-  type?: string;
   category?: string;
+  categoryId?: string;
   size?: string;
   fileUrl?: string | null;
   fileName?: string;
@@ -490,7 +491,7 @@ export interface CreateKnowledgeItemPayload {
 
 export interface KnowledgeQueryParams {
   category?: string;
-  type?: string;
+  categoryId?: string;
   scope?: "global" | "personal" | "all";
   lawyerId?: string;
   search?: string;

@@ -394,8 +394,9 @@ export interface VideoCall {
 export interface KnowledgeItem {
   id: string;
   title: string;
-  type: "Act" | "Rule" | "Regulation" | "Amendment" | "Judgement" | "Order" | string;
   category: LegalCategory | string;
+  categoryId?: string;
+  categoryName?: string;
   uploadedAt: string;
   size: string;
   fileSize?: string;

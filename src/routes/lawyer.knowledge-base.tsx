@@ -7,6 +7,7 @@ import { DocumentPreviewBody } from "@/components/app/DocumentPreview";
 import { SegmentedControl } from "@/components/app/SegmentedControl";
 import {
   getKnowledgeBase,
+  saveKnowledgeBase,
   addKnowledgeItem,
   getLawyers,
   getLawyerDocuments,
@@ -106,7 +107,6 @@ export function LawyerKnowledgeBase() {
 ═══════════════════════════════════════════════════════════════════════ */
 function GlobalDocsTab() {
   const [q, setQ] = useState("");
-  const [typeFilter, setTypeFilter] = useState("All");
   const [domainFilter, setDomainFilter] = useState("All");
   const [sortOrder, setSortOrder] = useState<SortOrder>("newest");
   const [showFilters, setShowFilters] = useState(false);
@@ -123,27 +123,27 @@ function GlobalDocsTab() {
     knowledgeService
       .getKnowledgeItems({ scope: "global" })
       .then((remoteItems) => {
-        if (remoteItems && Array.isArray(remoteItems) && remoteItems.length > 0) {
-          const existingKb = getKnowledgeBase();
-          remoteItems.forEach((r) => {
-            if (!existingKb.some((k) => k.id === r.id || k.title === r.title)) {
-              addKnowledgeItem({
-                id: r.id,
-                title: r.title,
-                type: (r.type as KnowledgeItem["type"]) || "Act",
-                category: (r.category as LegalCategory) || "Criminal",
-                size: r.size || "1.2 MB",
-                fileName: r.fileName || r.title,
-                fileMimeType: r.fileMimeType || "application/pdf",
-                fileUrl: r.fileUrl ?? undefined,
-                fileDataUrl: r.fileUrl ?? undefined,
-                scope: "global",
-                uploadedAt: r.uploadedAt
-                  ? r.uploadedAt.split("T")[0]
-                  : new Date().toISOString().split("T")[0],
-              });
-            }
-          });
+        if (remoteItems && Array.isArray(remoteItems)) {
+          const globalDocs: KnowledgeItem[] = remoteItems.map((r: any) => ({
+            id: r.id,
+            title: r.title,
+            category: r.categoryName || r.category || "General",
+            categoryId: r.category,
+            categoryName: r.categoryName,
+            size: r.size || "1.0 MB",
+            fileName: r.fileName || r.title,
+            fileMimeType: r.fileMimeType || "application/pdf",
+            fileUrl: r.fileUrl ?? undefined,
+            fileDataUrl: r.fileUrl ?? undefined,
+            scope: "global" as const,
+            uploadedAt: r.uploadedAt
+              ? r.uploadedAt.split("T")[0]
+              : new Date().toISOString().split("T")[0],
+          }));
+          const current = getKnowledgeBase();
+          const personal = current.filter((k) => k.scope === "personal");
+          saveKnowledgeBase([...personal, ...globalDocs]);
+          setItems(globalDocs);
         }
       })
       .catch((err) => console.warn("Failed to fetch remote knowledge items for lawyer:", err));
@@ -151,30 +151,24 @@ function GlobalDocsTab() {
     return unsub;
   }, []);
 
-  const availableTypes = useMemo(() => {
-    const typesSet = new Set(items.map((i) => i.type).filter(Boolean));
-    return ["All", ...Array.from(typesSet)];
-  }, [items]);
-
   const availableDomains = useMemo(() => {
-    const domainsSet = new Set(items.map((i) => i.category).filter(Boolean));
+    const domainsSet = new Set(items.map((i) => i.categoryName || i.category).filter(Boolean));
     return ["All", ...Array.from(domainsSet)];
   }, [items]);
 
-  const activeFilterCount = (typeFilter !== "All" ? 1 : 0) + (domainFilter !== "All" ? 1 : 0);
+  const activeFilterCount = domainFilter !== "All" ? 1 : 0;
 
   const rows = items
     .filter((k) => {
+      const catText = (k.categoryName || k.category || "").toLowerCase();
       const matchesSearch =
         k.title.toLowerCase().includes(q.toLowerCase()) ||
-        k.category.toLowerCase().includes(q.toLowerCase()) ||
-        k.type.toLowerCase().includes(q.toLowerCase());
+        catText.includes(q.toLowerCase());
 
-      const matchesType = typeFilter === "All" || k.type.toLowerCase() === typeFilter.toLowerCase();
       const matchesDomain =
-        domainFilter === "All" || k.category.toLowerCase() === domainFilter.toLowerCase();
+        domainFilter === "All" || catText === domainFilter.toLowerCase();
 
-      return matchesSearch && matchesType && matchesDomain;
+      return matchesSearch && matchesDomain;
     })
     .sort((a, b) =>
       sortOrder === "newest"
@@ -195,13 +189,9 @@ function GlobalDocsTab() {
             <span className="block w-full text-xs sm:text-sm font-bold text-foreground leading-snug break-words">
               {r.title}
             </span>
-            {/* Type + Domain + Date fold in here when the table's narrow — their own columns take over above that. */}
             <div className="flex flex-wrap items-center gap-1.5 @5xl:hidden">
-              <span className="inline-block rounded-md bg-primary/10 px-2 py-0.5 text-[10px] font-bold text-primary">
-                {r.type}
-              </span>
               <span className="inline-block rounded-md border border-border bg-background px-2 py-0.5 text-[10px] font-medium text-foreground">
-                {r.category} Law
+                {r.categoryName || r.category}
               </span>
               <span className="text-[10px] text-muted-foreground">· {r.uploadedAt}</span>
             </div>
@@ -210,22 +200,12 @@ function GlobalDocsTab() {
       ),
     },
     {
-      key: "type",
-      header: "Document Type",
-      hideCompact: true,
-      render: (r) => (
-        <span className="inline-block rounded-md bg-primary/10 px-2.5 py-0.5 text-[10px] font-bold text-primary">
-          {r.type}
-        </span>
-      ),
-    },
-    {
       key: "category",
-      header: "Domain",
+      header: "Case Category",
       hideCompact: true,
       render: (r) => (
-        <span className="inline-block rounded-md border border-border bg-background px-2 py-0.5 text-[11px] font-medium text-foreground">
-          {r.category}
+        <span className="inline-block rounded-md border border-border bg-background px-2.5 py-0.5 text-[11px] font-medium text-foreground">
+          {r.categoryName || r.category}
         </span>
       ),
     },
@@ -306,12 +286,11 @@ function GlobalDocsTab() {
               {activeFilterCount > 0 && <Badge count={activeFilterCount} />}
             </div>
 
-            {(typeFilter !== "All" || domainFilter !== "All" || q) && (
+            {(domainFilter !== "All" || q) && (
               <Button
                 variant="text"
                 icon={<RotateCcw className="h-4 w-4" />}
                 onClick={() => {
-                  setTypeFilter("All");
                   setDomainFilter("All");
                   setQ("");
                 }}
@@ -326,35 +305,17 @@ function GlobalDocsTab() {
         {/* COLLAPSIBLE FILTERS PANEL — LIVES UNDER FILTER BUTTON */}
         {showFilters && (
           <div className="border-t border-border pt-3 space-y-3 animate-in fade-in duration-150">
-            {/* Document Type Filter Buttons */}
-            <div className="space-y-1.5">
-              <div className="flex items-center gap-1.5 text-xs font-bold text-foreground">
-                <FileText className="h-3.5 w-3.5 text-primary" />
-                <span>Document Type:</span>
-              </div>
-              <ChipSet>
-                {availableTypes.map((type) => (
-                  <FilterChip
-                    key={type}
-                    label={type === "All" ? "All Types" : type}
-                    selected={typeFilter.toLowerCase() === type.toLowerCase()}
-                    onClick={() => setTypeFilter(type)}
-                  />
-                ))}
-              </ChipSet>
-            </div>
-
             {/* Legal Domain Filter Buttons */}
             <div className="space-y-1.5">
               <div className="flex items-center gap-1.5 text-xs font-bold text-foreground">
                 <Tag className="h-3.5 w-3.5 text-primary" />
-                <span>Legal Domain:</span>
+                <span>Case Category (case_categories):</span>
               </div>
               <ChipSet>
                 {availableDomains.map((domain) => (
                   <FilterChip
                     key={domain}
-                    label={domain === "All" ? "All Domains" : `${domain} Law`}
+                    label={domain === "All" ? "All Categories" : domain}
                     selected={domainFilter.toLowerCase() === domain.toLowerCase()}
                     onClick={() => setDomainFilter(domain)}
                   />
@@ -395,7 +356,7 @@ function GlobalDocsTab() {
                 <div className="min-w-0">
                   <h3 className="truncate text-xs font-bold text-foreground">{activePdf.title}</h3>
                   <p className="text-[10px] text-muted-foreground">
-                    {activePdf.type} · {activePdf.category} Law · {activePdf.size}
+                    {activePdf.categoryName || activePdf.category} · {activePdf.size}
                   </p>
                 </div>
               </div>
@@ -439,7 +400,7 @@ function GlobalDocsTab() {
                         {activePdf.title}
                       </h4>
                       <p className="text-xs text-muted-foreground font-mono">
-                        DOMAIN: {activePdf.category.toUpperCase()} LAW
+                        CATEGORY: {(activePdf.categoryName || activePdf.category).toUpperCase()}
                       </p>
                     </div>
 
@@ -466,8 +427,8 @@ function GlobalDocsTab() {
 
                     <div className="pt-4 border-t border-border flex justify-between items-end text-[11px] text-muted-foreground">
                       <div>
-                        <p className="font-bold text-foreground">INDEXED REFERENCE:</p>
-                        <p>{activePdf.type}</p>
+                        <p className="font-bold text-foreground">CATEGORY:</p>
+                        <p>{activePdf.categoryName || activePdf.category}</p>
                       </div>
                       <div className="text-right font-mono">
                         <p>VERIFIED DOCUMENT</p>
@@ -593,8 +554,8 @@ function MyDocsTab({ state }: { state: { lawyerId: string; docs: LawyerDocument[
       try {
         const created = await knowledgeService.addKnowledgeItem({
           title,
-          type: "Personal Document",
-          category: "General",
+          category: "cat_1",
+          categoryId: "cat_1",
           size: formatFileSize(fileSelected.size),
           fileName: fileSelected.name,
           fileMimeType: fileSelected.type,
@@ -784,7 +745,7 @@ function MyDocsTab({ state }: { state: { lawyerId: string; docs: LawyerDocument[
                 {fileSelected ? fileSelected.name : "Select PDF or DOCX File"}
               </span>
               <span className="text-[10px] text-muted-foreground text-center">
-                Supported format: PDF, DOCX (Up to 4MB — stored in your browser)
+                Supported formats: PDF, DOCX (Up to 4MB — uploaded to your private lawyer storage)
               </span>
               <input
                 type="file"
