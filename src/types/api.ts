@@ -665,6 +665,16 @@ export interface CaseAnalysisPayload {
   caseId?: string;
   briefText?: string;
   text?: string;
+  query?: string;
+  description?: string;
+  raw?: boolean;
+}
+
+export interface DetectedCaseCategory {
+  categoryId: string;
+  categoryName: string;
+  subCategoryId: string;
+  subCategoryName: string;
 }
 
 export interface CaseAnalysisResponse {
@@ -678,6 +688,15 @@ export interface CaseAnalysisResponse {
   recommendedActions: string[];
   relevantPrecedents: string[];
   suggestedTimeline: { step: string; targetDays: string }[];
+  query?: string;
+  status_code?: number;
+  message?: string;
+  categoryId?: string | null;
+  categoryName?: string | null;
+  subCategoryId?: string | null;
+  subCategoryName?: string | null;
+  data?: DetectedCaseCategory | null;
+  detectedCategory?: DetectedCaseCategory | null;
 }
 
 // ============================================================================

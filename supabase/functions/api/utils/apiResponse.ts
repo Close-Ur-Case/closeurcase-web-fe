@@ -2,12 +2,14 @@ import type { Context } from "hono";
 
 export class ApiResponse {
   statusCode: number;
+  status_code: number;
   data: any;
   message: string;
   success: boolean;
 
   constructor(statusCode: number, data: any, message = "Success") {
     this.statusCode = statusCode;
+    this.status_code = statusCode;
     this.data = data;
     this.message = message;
     this.success = statusCode < 400;

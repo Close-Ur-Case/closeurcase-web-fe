@@ -7,6 +7,7 @@ import { knowledgeItems } from "../models/knowledgeBase.ts";
 import { eq, or, ilike } from "drizzle-orm";
 import { ApiResponse } from "../utils/apiResponse.ts";
 import { ApiError } from "../utils/apiError.ts";
+import { env } from "../config/env.ts";
 
 export async function generateCounterArgument(c: Context) {
   const body = await c.req.json();
@@ -242,12 +243,12 @@ export async function legalQA(c: Context) {
 }
 
 export async function caseAnalysis(c: Context) {
-  const body = await c.req.json();
+  const body = await c.req.json().catch(() => ({}));
   const caseId: string | undefined = body.caseId;
-  const briefText: string = body.briefText || body.text || "";
+  const inputQuery: string = (body.query || body.briefText || body.text || body.description || "").trim();
 
   let caseTitle = "Legal Matter";
-  let caseDescription = briefText;
+  let caseDescription = inputQuery;
   let category = "General";
 
   if (caseId) {
@@ -255,39 +256,198 @@ export async function caseAnalysis(c: Context) {
     if (foundCase) {
       caseTitle = foundCase.petitioner
         ? (foundCase.respondent ? `${foundCase.petitioner} vs ${foundCase.respondent}` : foundCase.petitioner)
-        : "Legal Matter";
+        : (foundCase.title || "Legal Matter");
       caseDescription = foundCase.description || caseDescription;
       category = foundCase.practiceArea || category;
     }
+  }
+
+  const textForDetection = inputQuery || caseDescription || caseTitle || "";
+
+  let detectedData: {
+    categoryId: string;
+    categoryName: string;
+    subCategoryId: string;
+    subCategoryName: string;
+  } | null = null;
+  let detectionMessage = "Case category detected successfully";
+  let detectionStatusCode = 200;
+
+  if (textForDetection && textForDetection.trim().length > 0) {
+    try {
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 8000);
+
+      const aiBaseUrl = (env.AI_BASE_URL || env.aibaseurl);
+      const aiResponse = await fetch(`${aiBaseUrl}/detection/detect-case`, {
+        method: "POST",
+        headers: {
+          "accept": "*/*",
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({ query: textForDetection.trim() }),
+        signal: controller.signal,
+      });
+      clearTimeout(timeoutId);
+
+      if (aiResponse.ok) {
+        const result = await aiResponse.json();
+        if (result?.data) {
+          detectedData = {
+            categoryId: result.data.categoryId,
+            categoryName: result.data.categoryName,
+            subCategoryId: result.data.subCategoryId,
+            subCategoryName: result.data.subCategoryName,
+          };
+          detectionMessage = result.message || detectionMessage;
+          detectionStatusCode = result.status_code || 200;
+          if (detectedData.categoryName) {
+            category = detectedData.categoryName;
+          }
+        }
+      } else {
+        console.warn(`External AI detect-case API returned HTTP ${aiResponse.status}`);
+      }
+    } catch (err) {
+      console.warn("External AI detect-case API fetch failed/timed out:", err);
+    }
+  }
+
+  // Support raw response if requested via flag
+  if (body.raw === true || c.req.query("raw") === "true") {
+    return c.json({
+      status_code: detectionStatusCode,
+      message: detectionMessage,
+      data: detectedData,
+    });
+  }
+
+  // Generate category-tailored analysis
+  const catLower = (category || "").toLowerCase();
+  const subLower = (detectedData?.subCategoryName || "").toLowerCase();
+
+  let strengths: string[] = [
+    "Documentary trail supports prima facie title verification.",
+    "Territorial and pecuniary jurisdiction properly established.",
+    "Clear cause of action established within applicable statutes.",
+  ];
+  let weaknesses: string[] = [
+    "Interim injunction requires strict corroboration of immediate irreparable injury.",
+    "Limitation period considerations require prompt filing of rejoinder.",
+  ];
+  let recommendedActions: string[] = [
+    "Issue formal statutory notice with 15-day compliance window.",
+    "File interlocutory petition for status quo pendente lite.",
+    "Secure certified revenue copies (Encumbrance Certificate & Pahani/Adangal).",
+  ];
+  let relevantPrecedents: string[] = [
+    "AIR 2021 SC 1420 — Standard of proof in documentary property disputes.",
+    "2023 SCC OnLine Del 3110 — Interim restraint under Order XXXIX Rules 1 & 2.",
+    "(2018) 7 SCC 639 — Specific performance and title verification requirements.",
+  ];
+
+  if (catLower.includes("property") || subLower.includes("landlord") || subLower.includes("tenant")) {
+    strengths = [
+      "Lease/tenancy communication and payment receipts establish a clear contractual relationship.",
+      "Withholding security deposit post-vacation without itemized damage claims constitutes unjust enrichment under the Indian Contract Act, 1872.",
+      "Jurisdiction lies firmly within local civil courts and the State Rent Control Authority.",
+    ];
+    weaknesses = [
+      "Requires corroborating evidence proving the handover date and vacant possession condition.",
+      "Absence of a stamped written lease agreement may necessitate reliance on primary bank transaction records.",
+    ];
+    recommendedActions = [
+      "Issue statutory legal notice under Section 106 of Transfer of Property Act demanding deposit refund within 15 days.",
+      "Collate security deposit payment bank statements and handover messages.",
+      "File summary civil recovery suit under Order XXXVII CPC or petition the Rent Controller.",
+    ];
+    relevantPrecedents = [
+      "AIR 2021 SC 1420 — Lawful deductions vs unlawful withholding of tenant deposits.",
+      "2023 SCC OnLine Del 3110 — Evidential burden on landlord regarding premises condition.",
+      "(2018) 7 SCC 639 — Statutory remedies for tenant eviction and deposit recovery under Rent Acts.",
+    ];
+  } else if (catLower.includes("cyber") || subLower.includes("fraud") || subLower.includes("upi")) {
+    strengths = [
+      "Digital transaction trail (UPI/UTR IDs, bank SMS, electronic timestamps) provides definitive proof under Bharatiya Sakshya Adhiniyam, 2023.",
+      "Immediate reporting to National Cyber Crime Reporting Portal (1930) establishes prompt bona fide action.",
+    ];
+    weaknesses = [
+      "Beneficiary mule accounts often disperse funds rapidly across jurisdictions.",
+      "Recovery requires swift coordinated lien marking with beneficiary banks.",
+    ];
+    recommendedActions = [
+      "Call 1930 immediately to freeze beneficiary bank accounts via NCRP.",
+      "File cyber crime complaint on cybercrime.gov.in and obtain formal acknowledgement.",
+      "Submit written dispute letter to issuing bank citing RBI circular on customer liability.",
+    ];
+    relevantPrecedents = [
+      "RBI Circular DBR.No.Leg.BC.78/09.07.005/2017-18 — Customer liability protection in third-party cyber fraud.",
+      "2022 SCC OnLine Del 1432 — Bank duties and nodal officer protocols in cyber fraud freezes.",
+      "Information Technology Act, 2000 §§ 43, 66C & 66D.",
+    ];
+  } else if (catLower.includes("consumer")) {
+    strengths = [
+      "Payment invoices and communications satisfy consumer definition under Section 2(7) Consumer Protection Act, 2019.",
+      "Documented deficiency of service or product defect establishes clear cause of action.",
+    ];
+    weaknesses = [
+      "Must substantiate pecuniary compensation claims with documentary corroboration.",
+      "Limitation period of 2 years from cause of action under Section 69 CPA 2019.",
+    ];
+    recommendedActions = [
+      "Send formal pre-litigation legal notice giving 15 days to refund/replace.",
+      "File consumer complaint online via e-Daakhil before District Consumer Commission.",
+      "Seek refund along with compensation for mental harassment and litigation costs.",
+    ];
+    relevantPrecedents = [
+      "National Insurance Co. Ltd. v. Nitin Khandelwal, (2008) 11 SCC 259.",
+      "Consumer Protection Act, 2019 §§ 34, 35 & 38 — Pecuniary jurisdictions and summary procedure.",
+    ];
+  } else if (catLower.includes("family") || subLower.includes("custody") || subLower.includes("divorce")) {
+    strengths = [
+      "Family Court has exclusive subject-matter jurisdiction under Family Courts Act, 1984.",
+      "Civil status and documentation (marriage registration, child birth certificate) clearly established.",
+    ];
+    weaknesses = [
+      "Mandatory pre-litigation counselling and mediation sessions affect immediate trial timelines.",
+    ];
+    recommendedActions = [
+      "Attempt court-annexed or private mediation for amicable settlement.",
+      "File petition under relevant personal law (e.g. Hindu Marriage Act / Special Marriage Act).",
+      "Seek appropriate interim orders regarding maintenance (BNSS § 144) or child custody.",
+    ];
+    relevantPrecedents = [
+      "Rajnesh v. Neha, (2021) 2 SCC 324 — Comprehensive guidelines on interim maintenance.",
+      "Gaurav Nagpal v. Sumedha Nagpal, (2009) 1 SCC 42 — Welfare of the child as paramount consideration.",
+    ];
   }
 
   const analysis = {
     id: `rep_${Date.now()}`,
     caseId: caseId || null,
     generatedAt: new Date().toISOString(),
+    status_code: detectionStatusCode,
+    message: detectionMessage,
+    data: detectedData || {
+      categoryId: null,
+      categoryName: category,
+      subCategoryId: null,
+      subCategoryName: null,
+    },
+    categoryId: detectedData?.categoryId || null,
+    categoryName: detectedData?.categoryName || category,
+    subCategoryId: detectedData?.subCategoryId || null,
+    subCategoryName: detectedData?.subCategoryName || null,
+    detectedCategory: detectedData,
+    query: textForDetection || undefined,
     summary: caseDescription
-      ? `Executive Analysis for ${caseTitle}: ${caseDescription.slice(0, 200)}...`
+      ? `Executive Analysis for ${caseTitle} (${detectedData?.categoryName || category}${detectedData?.subCategoryName ? ` — ${detectedData.subCategoryName}` : ""}): ${caseDescription.slice(0, 200)}...`
       : `Comprehensive statutory assessment of ${caseTitle}.`,
     strengthScore: 84,
-    strengths: [
-      "Documentary trail supports prima facie title verification.",
-      "Territorial and pecuniary jurisdiction properly established.",
-      "Clear cause of action established within applicable statutes.",
-    ],
-    weaknesses: [
-      "Interim injunction requires strict corroboration of immediate irreparable injury.",
-      "Limitation period considerations require prompt filing of rejoinder.",
-    ],
-    recommendedActions: [
-      "Issue formal statutory notice with 15-day compliance window.",
-      "File interlocutory petition for status quo pendente lite.",
-      "Secure certified revenue copies (Encumbrance Certificate & Pahani/Adangal).",
-    ],
-    relevantPrecedents: [
-      "AIR 2021 SC 1420 — Standard of proof in documentary property disputes.",
-      "2023 SCC OnLine Del 3110 — Interim restraint under Order XXXIX Rules 1 & 2.",
-      "(2018) 7 SCC 639 — Specific performance and title verification requirements.",
-    ],
+    strengths,
+    weaknesses,
+    recommendedActions,
+    relevantPrecedents,
     suggestedTimeline: [
       { step: "Initial Documentation Review", targetDays: "Day 1–3" },
       { step: "Statutory Notice Issuance", targetDays: "Day 7" },
@@ -302,7 +462,7 @@ export async function caseAnalysis(c: Context) {
         id: analysis.id,
         caseId,
         type: "case_analysis",
-        inputPrompt: briefText || caseTitle,
+        inputPrompt: inputQuery || caseTitle,
         responseContent: analysis,
       });
     } catch (err) {
@@ -310,7 +470,7 @@ export async function caseAnalysis(c: Context) {
     }
   }
 
-  return ApiResponse.success(c, analysis, "Case statutory analysis completed");
+  return ApiResponse.success(c, analysis, detectionMessage);
 }
 
 

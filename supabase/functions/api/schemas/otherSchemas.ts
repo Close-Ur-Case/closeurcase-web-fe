@@ -56,8 +56,11 @@ export const SummarizeDocSchema = z
 
 export const CaseAnalysisSchema = z
   .object({
+    query: z.string().optional().openapi({ example: "My landlord is refusing to return my security deposit after eviction." }),
     caseId: z.string().optional().openapi({ example: "CS-34410" }),
     briefText: z.string().optional().openapi({ example: "Title verification and civil partition dispute regarding ancestral agricultural property." }),
+    text: z.string().optional().openapi({ example: "Case facts and details." }),
+    description: z.string().optional().openapi({ example: "Case summary description." }),
   })
   .openapi("CaseAnalysisRequest");
 

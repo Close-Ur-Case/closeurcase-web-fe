@@ -111,7 +111,7 @@ const summarizeRoute = createRoute({
   },
 });
 
-const caseAnalysisRoute = createRoute({
+export const caseAnalysisRoute = createRoute({
   method: "post",
   path: "/case-analysis",
   tags: ["AI Assistant"],

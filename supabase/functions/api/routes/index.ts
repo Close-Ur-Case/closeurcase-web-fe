@@ -16,9 +16,13 @@ import adminRoutes from "./adminRoutes.ts";
 import subscriptionRoutes from "./subscriptionRoutes.ts";
 import emailTemplateRoutes from "./emailTemplateRoutes.ts";
 import lookupRoutes from "./lookupRoutes.ts";
+import { caseAnalysis } from "../controllers/aiController.ts";
+import { caseAnalysisRoute } from "./aiRoutes.ts";
 import { ApiResponse } from "../utils/apiResponse.ts";
 
 const api = new OpenAPIHono();
+
+api.openapi(caseAnalysisRoute, caseAnalysis as any);
 
 api.get("/health", (c) => {
   return ApiResponse.success(

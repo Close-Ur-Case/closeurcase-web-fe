@@ -26,6 +26,9 @@ export const env = {
 
   FIREBASE_SERVICE_ACCOUNT_KEY: Deno.env.get("FIREBASE_SERVICE_ACCOUNT_KEY") || "",
 
+  AI_BASE_URL: Deno.env.get("AI_BASE_URL") || "https://closeurcase-be.lomaait.com",
+  aibaseurl: Deno.env.get("AI_BASE_URL") || "https://closeurcase-be.lomaait.com",
+
   STORAGE: {
     CASE_DOCUMENTS: Deno.env.get("STORAGE_CASE_DOCUMENTS_BUCKET") || "case-documents",
     ID_PROOFS: Deno.env.get("STORAGE_ID_PROOFS_BUCKET") || "id-proofs",

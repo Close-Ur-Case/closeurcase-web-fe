@@ -53,6 +53,7 @@ import { caseService } from "@/services/caseService";
 import { lawyerService } from "@/services/lawyerService";
 import { storageService } from "@/services/storageService";
 import { subscriptionService } from "@/services/subscriptionService";
+import { aiService } from "@/services/aiService";
 import type { LawyerQueryParams } from "@/types/api";
 import { useRazorpayCheckout } from "@/hooks/useRazorpayCheckout";
 import { useAuth } from "@/context/useAuth";
@@ -120,6 +121,21 @@ function predictCategory(text: string): LegalCategory {
   if (t.includes("refund") || t.includes("defective")) return "Consumer";
   if (t.includes("fired") || t.includes("salary") || t.includes("termination")) return "Labour";
   if (t.includes("police") || t.includes("fir") || t.includes("assault")) return "Criminal";
+  return "Civil";
+}
+
+function mapDetectedToLegalCategory(name?: string | null): LegalCategory {
+  if (!name) return "Civil";
+  const n = name.toLowerCase();
+  if (n.includes("cyber")) return "Cyber";
+  if (n.includes("property")) return "Property";
+  if (n.includes("family")) return "Family";
+  if (n.includes("consumer")) return "Consumer";
+  if (n.includes("criminal")) return "Criminal";
+  if (n.includes("corporate")) return "Corporate";
+  if (n.includes("labour") || n.includes("labor")) return "Labour";
+  if (n.includes("tax")) return "Tax";
+  if (n.includes("environmental")) return "Environmental";
   return "Civil";
 }
 
@@ -262,6 +278,7 @@ export function FindLawyerWizard() {
   const [isAiAnalyzed, setIsAiAnalyzed] = useState(false);
   const [isInlineAnalyzing, setIsInlineAnalyzing] = useState(false);
   const [predictedCategory, setPredictedCategory] = useState<LegalCategory | null>(null);
+  const [aiSubCategory, setAiSubCategory] = useState<string | null>(null);
 
   // Assign lawyer
   const [assignMode, setAssignMode] = useState<AssignMode>(null);
@@ -600,19 +617,12 @@ export function FindLawyerWizard() {
     startVoiceRecognition();
   }
 
-  function handleContinueFromDetails() {
+  async function handleContinueFromDetails() {
     // The citizen already told us the category via the Practice Area picker —
     // use it directly, no fake AI classification needed.
     if (path === "new" && knowsCaseType === true && hasManualCategoryPick) {
       setPredictedCategory(mapPracticeAreaToCategory(selectedPracticeArea));
-      setStep("assign");
-      return;
-    }
-
-    // The citizen already told us the category via the Practice Area picker —
-    // use it directly, no fake AI classification needed.
-    if (path === "new" && knowsCaseType === true && hasManualCategoryPick) {
-      setPredictedCategory(mapPracticeAreaToCategory(selectedPracticeArea));
+      setAiSubCategory(null);
       setStep("assign");
       return;
     }
@@ -620,13 +630,28 @@ export function FindLawyerWizard() {
     const analysisText = path === "new" ? description.trim() : "";
     if (analysisText) {
       setIsAnalyzing(true);
-      setTimeout(() => {
+      try {
+        const res = await aiService.caseAnalysis({ query: analysisText });
+        const catName = res?.data?.categoryName || res?.categoryName;
+        const subName = res?.data?.subCategoryName || res?.subCategoryName || null;
+        if (catName) {
+          setPredictedCategory(mapDetectedToLegalCategory(catName));
+          setAiSubCategory(subName);
+        } else {
+          setPredictedCategory(predictCategory(analysisText));
+          setAiSubCategory(null);
+        }
+      } catch (err) {
+        console.warn("AI case detection API call failed, falling back to local heuristic:", err);
         setPredictedCategory(predictCategory(analysisText));
+        setAiSubCategory(null);
+      } finally {
         setIsAnalyzing(false);
         setStep("assign");
-      }, 900);
+      }
     } else {
       setPredictedCategory(null);
+      setAiSubCategory(null);
       setStep("assign");
     }
   }
@@ -1286,14 +1311,28 @@ export function FindLawyerWizard() {
                                   <Button
                                     type="button"
                                     disabled={!hasDescriptionText || isInlineAnalyzing}
-                                    onClick={() => {
+                                    onClick={async () => {
+                                      if (!hasDescriptionText || isInlineAnalyzing) return;
                                       setIsInlineAnalyzing(true);
-                                      setTimeout(() => {
-                                        const cat = predictCategory(description);
-                                        setPredictedCategory(cat);
+                                      try {
+                                        const res = await aiService.caseAnalysis({ query: description.trim() });
+                                        const catName = res?.data?.categoryName || res?.categoryName;
+                                        const subName = res?.data?.subCategoryName || res?.subCategoryName || null;
+                                        if (catName) {
+                                          setPredictedCategory(mapDetectedToLegalCategory(catName));
+                                          setAiSubCategory(subName);
+                                        } else {
+                                          setPredictedCategory(predictCategory(description));
+                                          setAiSubCategory(null);
+                                        }
+                                      } catch (err) {
+                                        console.warn("AI analysis call failed, using fallback:", err);
+                                        setPredictedCategory(predictCategory(description));
+                                        setAiSubCategory(null);
+                                      } finally {
                                         setIsInlineAnalyzing(false);
                                         setIsAiAnalyzed(true);
-                                      }, 600);
+                                      }
                                     }}
                                     icon={
                                       isInlineAnalyzing ? (
@@ -1338,29 +1377,46 @@ export function FindLawyerWizard() {
                                         </span>
                                         <button
                                           type="button"
-                                          onClick={() => {
+                                          disabled={isInlineAnalyzing}
+                                          onClick={async () => {
+                                            if (isInlineAnalyzing) return;
                                             setIsInlineAnalyzing(true);
-                                            setTimeout(() => {
-                                              const cat = predictCategory(description);
-                                              setPredictedCategory(cat);
+                                            try {
+                                              const res = await aiService.caseAnalysis({ query: description.trim() });
+                                              const catName = res?.data?.categoryName || res?.categoryName;
+                                              const subName = res?.data?.subCategoryName || res?.subCategoryName || null;
+                                              if (catName) {
+                                                setPredictedCategory(mapDetectedToLegalCategory(catName));
+                                                setAiSubCategory(subName);
+                                              } else {
+                                                setPredictedCategory(predictCategory(description));
+                                                setAiSubCategory(null);
+                                              }
+                                            } catch (err) {
+                                              console.warn("AI re-analysis call failed, using fallback:", err);
+                                              setPredictedCategory(predictCategory(description));
+                                              setAiSubCategory(null);
+                                            } finally {
                                               setIsInlineAnalyzing(false);
-                                            }, 500);
+                                            }
                                           }}
-                                          className="text-[10px] font-semibold text-primary hover:underline"
+                                          className="text-[10px] font-semibold text-primary hover:underline disabled:opacity-50"
                                         >
-                                          Re-analyze
+                                          {isInlineAnalyzing ? "Analyzing…" : "Re-analyze"}
                                         </button>
                                       </div>
                                     </div>
                                     <div className="text-sm font-bold text-foreground">
                                       Looks like a{" "}
                                       {predictedCategory || predictCategory(description)} Law matter
+                                      {aiSubCategory ? ` (${aiSubCategory})` : ""}
                                     </div>
                                     <p className="text-[11px] text-muted-foreground leading-relaxed">
                                       Based on your problem description, our AI analyzed your issue
                                       and identified it as{" "}
                                       <strong>
                                         {predictedCategory || predictCategory(description)} Law
+                                        {aiSubCategory ? ` — ${aiSubCategory}` : ""}
                                       </strong>
                                       . We will prioritize{" "}
                                       <strong>
