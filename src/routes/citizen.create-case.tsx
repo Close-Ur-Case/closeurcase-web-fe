@@ -1772,38 +1772,35 @@ export function FindLawyerWizard() {
                                     <Sparkles className="h-4.5 w-4.5" />
                                   </div>
                                   <div className="min-w-0 flex-1 space-y-1">
-                                    <div className="flex items-center justify-between gap-2">
-                                      <span className="text-[10px] font-bold uppercase tracking-wide text-primary">
-                                        AI Case Analysis Output
-                                      </span>
-                                      <div className="flex items-center gap-2">
-                                        <span className="rounded-full bg-primary/15 px-2 py-0.5 text-[9px] font-bold text-primary">
-                                          Auto-Categorized
-                                        </span>
-                                        <button
+                                      <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+                                        <div className="flex items-center gap-2">
+                                          <span className="text-[10px] font-bold uppercase tracking-wide text-primary">
+                                            AI Case Analysis Output
+                                          </span>
+                                          <span className="rounded-full bg-primary/15 px-2 py-0.5 text-[9px] font-bold text-primary">
+                                            Auto-Categorized
+                                          </span>
+                                        </div>
+                                        <Button
                                           type="button"
-                                          disabled={isInlineAnalyzing || !hasDescriptionText}
+                                          disabled={!hasDescriptionText || isInlineAnalyzing}
                                           onClick={handleRunAiAnalysis}
-                                          className="inline-flex items-center gap-1 text-[10px] font-semibold text-primary hover:underline disabled:opacity-50 cursor-pointer disabled:cursor-not-allowed"
-                                        >
-                                          {isInlineAnalyzing ? (
-                                            <>
+                                          icon={
+                                            isInlineAnalyzing ? (
                                               <CircularProgress
                                                 indeterminate
                                                 ariaLabel="Analyzing"
-                                                className="h-2.5 w-2.5"
+                                                className="h-3.5 w-3.5"
                                               />
-                                              <span>Analyzing…</span>
-                                            </>
-                                          ) : (
-                                            <>
-                                              <Sparkles className="h-2.5 w-2.5" />
-                                              <span>Re-analyze</span>
-                                            </>
-                                          )}
-                                        </button>
+                                            ) : (
+                                              <Sparkles className="h-3.5 w-3.5" />
+                                            )
+                                          }
+                                          className="!h-8 !px-3.5 !text-xs shrink-0 self-start sm:self-auto"
+                                        >
+                                          {isInlineAnalyzing ? "Analyzing…" : "Analyze Case"}
+                                        </Button>
                                       </div>
-                                    </div>
                                     <div className="text-sm font-bold text-foreground">
                                       Looks like a{" "}
                                       {predictedCategory || predictCategory(description)} Law matter
