@@ -11,7 +11,7 @@ import type { AuthUser } from "@/types/api";
 
 import { validateEmail } from "@/lib/validations";
 
-export const Route = createFileRoute("/login")({
+export const Route = createFileRoute("/lawyer-login")({
   beforeLoad: () => {
     if (typeof window !== "undefined") {
       const token = getStoredToken();
@@ -19,14 +19,15 @@ export const Route = createFileRoute("/login")({
       if (token || user) {
         if (user?.role === "admin") throw redirect({ to: "/admin" });
         if (user?.role === "lawyer") throw redirect({ to: "/lawyer" });
+        if (user?.role === "citizen") throw redirect({ to: "/citizen" });
       }
     }
   },
   head: () => ({ meta: [{ title: "Lawyer sign in — CloseUrCase" }] }),
-  component: Login,
+  component: LawyerLogin,
 });
 
-export function Login() {
+export function LawyerLogin() {
   const navigate = useNavigate();
   const lawyerLogin = useLawyerLogin();
   const [email, setEmail] = useState("");

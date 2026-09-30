@@ -49,7 +49,7 @@ The app has three parallel dashboards under one route tree, each with its own la
 
 `src/layouts/DashboardLayout.tsx` is the shared shell (sidebar + header + notification bell + profile menu) parameterized by `role`/`roleLabel`/`nav`. `src/layouts/AuthLayout.tsx` and `PublicLayout.tsx` cover login/marketing pages.
 
-Auth is mocked, not real, and the three roles don't share one mock: citizen login (`src/routes/citizen-login.tsx`) accepts a static OTP (`"0000"`) and writes a session object to `sessionStorage` via `src/features/citizen/session.ts`. Lawyer/admin login (`src/routes/login.tsx`, shared by both roles) doesn't persist a session at all — it just inspects whether the entered email contains `"admin"` and navigates to `/admin` or `/lawyer` accordingly. There's no token/JWT flow, no backend call, and no protected-route guard beyond the UI redirecting on logout — when extending "auth" work, match whichever of these two patterns the role you're touching already uses rather than assuming both work the same way.
+Auth is real via Supabase edge functions: citizen login (`src/routes/citizen-login.tsx`) supports phone OTP and writes session data; lawyer login (`src/routes/lawyer-login.tsx`) authenticates advocates; admin login (`src/routes/admin-login.tsx`) authenticates superadmins.
 
 ### Data layer — localStorage-backed mock store, not an API
 

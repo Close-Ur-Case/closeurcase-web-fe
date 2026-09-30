@@ -90,7 +90,7 @@ export const authService = {
    */
   async verifyCitizenOtp(
     payload: VerifyOtpPayload,
-    options?: { skipStorage?: boolean }
+    options?: { skipStorage?: boolean },
   ): Promise<AuthResponseData> {
     const res = await apiClient.post<RawAuthResponse>("/auth/citizen/verify-otp", payload, {
       skipAuth: true,
@@ -209,7 +209,9 @@ export const authService = {
     });
 
     if (res?.user?.role === "lawyer") {
-      throw new Error("This is a Lawyer account. Please sign in through the Lawyer sign in page (/login).");
+      throw new Error(
+        "This is a Lawyer account. Please sign in through the Lawyer sign in page (/lawyer-login).",
+      );
     }
 
     const token = res?.session?.accessToken || res?.session?.access_token || res?.token;
@@ -313,7 +315,7 @@ export const authService = {
       const res = await apiClient.post<RawAuthResponse>(
         "/auth/refresh",
         { refreshToken },
-        { skipAuth: true }
+        { skipAuth: true },
       );
 
       const token = res?.session?.accessToken || res?.session?.access_token || res?.token;
@@ -380,7 +382,7 @@ export const authService = {
           citizenId: existing?.citizenId,
           lawyerId: existing?.lawyerId,
         },
-        { skipAuth: true }
+        { skipAuth: true },
       );
 
       const token = res?.session?.accessToken || res?.session?.access_token || res?.token;
@@ -394,9 +396,11 @@ export const authService = {
         role: ((res?.user as { role?: string })?.role || role || "citizen") as AuthUser["role"],
         email: res?.user?.email || email,
         phone: res?.user?.phone || phone,
-        name: res?.citizen?.name || res?.lawyer?.name || res?.user?.name || existing?.name || "User",
+        name:
+          res?.citizen?.name || res?.lawyer?.name || res?.user?.name || existing?.name || "User",
         citizenId: res?.citizen?.id || res?.user?.citizenId || existing?.citizenId,
-        lawyerId: res?.lawyer?.id || (res?.user as { lawyerId?: string })?.lawyerId || existing?.lawyerId,
+        lawyerId:
+          res?.lawyer?.id || (res?.user as { lawyerId?: string })?.lawyerId || existing?.lawyerId,
         status:
           (res?.lawyer as { status?: string })?.status ||
           (res?.user as { status?: string })?.status ||

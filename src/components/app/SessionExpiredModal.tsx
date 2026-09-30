@@ -31,14 +31,18 @@ export function SessionExpiredModal() {
 
   if (!isSessionExpired) return null;
 
-  const userRole = role || user?.role || "citizen";
+  const currentPath = typeof window !== "undefined" ? window.location.pathname : "";
+  const userRole =
+    role ||
+    user?.role ||
+    (currentPath.startsWith("/admin")
+      ? "admin"
+      : currentPath.startsWith("/lawyer")
+        ? "lawyer"
+        : "citizen");
   const userDisplayName =
     user?.name ||
-    (userRole === "admin"
-      ? "Platform Admin"
-      : userRole === "lawyer"
-        ? "Advocate"
-        : "Citizen User");
+    (userRole === "admin" ? "Platform Admin" : userRole === "lawyer" ? "Advocate" : "Citizen User");
   const userIdentifier = user?.phone || user?.email || "";
 
   const handleRelogin = async () => {
@@ -62,20 +66,32 @@ export function SessionExpiredModal() {
     } catch (err) {
       setIsSubmitting(false);
       setErrorMessage(
-        err instanceof Error
-          ? err.message
-          : "Auto-login failed. Please sign in again to continue.",
+        err instanceof Error ? err.message : "Auto-login failed. Please sign in again to continue.",
       );
     }
   };
 
   const handleLogout = () => {
     closeSessionExpiredModal();
+    const currentPath = typeof window !== "undefined" ? window.location.pathname : "";
+    const effectiveRole =
+      role ||
+      user?.role ||
+      (currentPath.startsWith("/admin")
+        ? "admin"
+        : currentPath.startsWith("/citizen")
+          ? "citizen"
+          : currentPath.startsWith("/lawyer")
+            ? "lawyer"
+            : null);
+
     logout();
-    if (userRole === "lawyer" || userRole === "admin") {
-      navigate({ to: "/login" });
-    } else {
+    if (effectiveRole === "admin" || currentPath.startsWith("/admin")) {
+      navigate({ to: "/admin-login" });
+    } else if (effectiveRole === "citizen" || currentPath.startsWith("/citizen")) {
       navigate({ to: "/citizen-login" });
+    } else {
+      navigate({ to: "/lawyer-login" });
     }
   };
 
@@ -143,9 +159,7 @@ export function SessionExpiredModal() {
                     </span>
                   </div>
                   {userIdentifier && (
-                    <p className="truncate text-[11px] text-muted-foreground">
-                      {userIdentifier}
-                    </p>
+                    <p className="truncate text-[11px] text-muted-foreground">{userIdentifier}</p>
                   )}
                 </div>
               </div>

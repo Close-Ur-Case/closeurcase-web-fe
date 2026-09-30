@@ -32,13 +32,17 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setSessionExpiredMessage(null);
   }, []);
 
-  const logout = useCallback(() => {
+  const logout = useCallback((redirectTo?: string) => {
     clearAuthStorage();
     clearCitizenSession();
     setTokenState(null);
     setUserState(null);
     setIsSessionExpired(false);
     setSessionExpiredMessage(null);
+
+    if (redirectTo && typeof window !== "undefined") {
+      window.location.href = redirectTo;
+    }
   }, []);
 
   const relogin = useCallback(async (): Promise<boolean> => {
@@ -183,4 +187,3 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     </AuthContext.Provider>
   );
 }
-

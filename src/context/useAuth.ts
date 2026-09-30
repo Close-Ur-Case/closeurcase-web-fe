@@ -16,7 +16,7 @@ export interface AuthContextType {
   loginLawyer: (token: string | undefined, user: AuthUser) => void;
   loginAdmin: (token: string | undefined, user: AuthUser) => void;
   setUser: (user: AuthUser | null) => void;
-  logout: () => void;
+  logout: (redirectTo?: string) => void;
 }
 
 export const AuthContext = createContext<AuthContextType | undefined>(undefined);

@@ -91,7 +91,13 @@ export async function getPayments(c: Context) {
     if (lawyerIdParam) filters.push(eq(payments.lawyerId, lawyerIdParam));
     if (citizenIdParam) filters.push(eq(payments.citizenId, citizenIdParam));
   } else if (user.role === "lawyer") {
-    const [lawyerRecord] = await db.select().from(lawyers).where(eq(lawyers.userId, user.id));
+    let [lawyerRecord] = await db.select().from(lawyers).where(eq(lawyers.userId, user.id));
+    if (!lawyerRecord) {
+      [lawyerRecord] = await db.select().from(lawyers).where(eq(lawyers.id, user.id));
+    }
+    if (!lawyerRecord && lawyerIdParam) {
+      [lawyerRecord] = await db.select().from(lawyers).where(eq(lawyers.id, lawyerIdParam));
+    }
     // No advocate record means nothing is owed to this account yet.
     if (!lawyerRecord) return ApiResponse.success(c, [], "Payments retrieved successfully");
     filters.push(eq(payments.lawyerId, lawyerRecord.id));

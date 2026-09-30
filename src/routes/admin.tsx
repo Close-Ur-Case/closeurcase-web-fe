@@ -11,7 +11,7 @@ export const Route = createFileRoute("/admin")({
       const token = getStoredToken();
       const user = getStoredUser<AuthUser>();
       if (!token && !user) {
-        throw redirect({ to: "/login" });
+        throw redirect({ to: "/admin-login" });
       }
       if (user && user.role && user.role !== "admin") {
         throw redirect({ to: user.role === "lawyer" ? "/lawyer" : "/citizen" });

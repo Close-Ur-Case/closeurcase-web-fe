@@ -16,8 +16,8 @@ import { Route as ApiDocsRouteImport } from './routes/api-docs'
 import { Route as CitizenRouteImport } from './routes/citizen'
 import { Route as CitizenLoginRouteImport } from './routes/citizen-login'
 import { Route as LawyerRouteImport } from './routes/lawyer'
+import { Route as LawyerLoginRouteImport } from './routes/lawyer-login'
 import { Route as LawyerRegisterRouteImport } from './routes/lawyer-register'
-import { Route as LoginRouteImport } from './routes/login'
 import { Route as RegisterRouteImport } from './routes/register'
 import { Route as AdminIndexRouteImport } from './routes/admin.index'
 import { Route as AdminCasesRouteImport } from './routes/admin.cases'
@@ -85,14 +85,14 @@ const LawyerRoute = LawyerRouteImport.update({
   path: '/lawyer',
   getParentRoute: () => rootRouteImport,
 } as any)
+const LawyerLoginRoute = LawyerLoginRouteImport.update({
+  id: '/lawyer-login',
+  path: '/lawyer-login',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const LawyerRegisterRoute = LawyerRegisterRouteImport.update({
   id: '/lawyer-register',
   path: '/lawyer-register',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const LoginRoute = LoginRouteImport.update({
-  id: '/login',
-  path: '/login',
   getParentRoute: () => rootRouteImport,
 } as any)
 const RegisterRoute = RegisterRouteImport.update({
@@ -259,8 +259,8 @@ export interface FileRoutesByFullPath {
   '/citizen': typeof CitizenRouteWithChildren
   '/citizen-login': typeof CitizenLoginRoute
   '/lawyer': typeof LawyerRouteWithChildren
+  '/lawyer-login': typeof LawyerLoginRoute
   '/lawyer-register': typeof LawyerRegisterRoute
-  '/login': typeof LoginRoute
   '/register': typeof RegisterRoute
   '/admin/cases': typeof AdminCasesRoute
   '/admin/data-management': typeof AdminDataManagementRoute
@@ -298,8 +298,8 @@ export interface FileRoutesByTo {
   '/admin-login': typeof AdminLoginRoute
   '/api-docs': typeof ApiDocsRoute
   '/citizen-login': typeof CitizenLoginRoute
+  '/lawyer-login': typeof LawyerLoginRoute
   '/lawyer-register': typeof LawyerRegisterRoute
-  '/login': typeof LoginRoute
   '/register': typeof RegisterRoute
   '/admin/cases': typeof AdminCasesRoute
   '/admin/data-management': typeof AdminDataManagementRoute
@@ -340,8 +340,8 @@ export interface FileRoutesById {
   '/citizen': typeof CitizenRouteWithChildren
   '/citizen-login': typeof CitizenLoginRoute
   '/lawyer': typeof LawyerRouteWithChildren
+  '/lawyer-login': typeof LawyerLoginRoute
   '/lawyer-register': typeof LawyerRegisterRoute
-  '/login': typeof LoginRoute
   '/register': typeof RegisterRoute
   '/admin/cases': typeof AdminCasesRoute
   '/admin/data-management': typeof AdminDataManagementRoute
@@ -384,8 +384,8 @@ export interface FileRouteTypes {
     | '/citizen'
     | '/citizen-login'
     | '/lawyer'
+    | '/lawyer-login'
     | '/lawyer-register'
-    | '/login'
     | '/register'
     | '/admin/cases'
     | '/admin/data-management'
@@ -423,8 +423,8 @@ export interface FileRouteTypes {
     | '/admin-login'
     | '/api-docs'
     | '/citizen-login'
+    | '/lawyer-login'
     | '/lawyer-register'
-    | '/login'
     | '/register'
     | '/admin/cases'
     | '/admin/data-management'
@@ -464,8 +464,8 @@ export interface FileRouteTypes {
     | '/citizen'
     | '/citizen-login'
     | '/lawyer'
+    | '/lawyer-login'
     | '/lawyer-register'
-    | '/login'
     | '/register'
     | '/admin/cases'
     | '/admin/data-management'
@@ -507,8 +507,8 @@ export interface RootRouteChildren {
   CitizenRoute: typeof CitizenRouteWithChildren
   CitizenLoginRoute: typeof CitizenLoginRoute
   LawyerRoute: typeof LawyerRouteWithChildren
+  LawyerLoginRoute: typeof LawyerLoginRoute
   LawyerRegisterRoute: typeof LawyerRegisterRoute
-  LoginRoute: typeof LoginRoute
   RegisterRoute: typeof RegisterRoute
 }
 
@@ -563,18 +563,18 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof LawyerRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/lawyer-login': {
+      id: '/lawyer-login'
+      path: '/lawyer-login'
+      fullPath: '/lawyer-login'
+      preLoaderRoute: typeof LawyerLoginRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/lawyer-register': {
       id: '/lawyer-register'
       path: '/lawyer-register'
       fullPath: '/lawyer-register'
       preLoaderRoute: typeof LawyerRegisterRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/login': {
-      id: '/login'
-      path: '/login'
-      fullPath: '/login'
-      preLoaderRoute: typeof LoginRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/register': {
@@ -901,8 +901,8 @@ const rootRouteChildren: RootRouteChildren = {
   CitizenRoute: CitizenRouteWithChildren,
   CitizenLoginRoute: CitizenLoginRoute,
   LawyerRoute: LawyerRouteWithChildren,
+  LawyerLoginRoute: LawyerLoginRoute,
   LawyerRegisterRoute: LawyerRegisterRoute,
-  LoginRoute: LoginRoute,
   RegisterRoute: RegisterRoute,
 }
 export const routeTree = rootRouteImport

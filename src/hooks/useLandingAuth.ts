@@ -10,9 +10,7 @@ export function useLandingAuth() {
     (!role && (citizenSession.authenticated || Boolean(token && !user?.role)));
   const isLawyer = role === "lawyer";
   const isAdmin = role === "admin";
-  const isLoggedIn = Boolean(
-    isAuthenticated || citizenSession.authenticated || token || user,
-  );
+  const isLoggedIn = Boolean(isAuthenticated || citizenSession.authenticated || token || user);
 
   /**
    * CITIZEN ROUTES:
@@ -30,12 +28,12 @@ export function useLandingAuth() {
    * LAWYER ROUTES:
    * Lawyer features MUST ALWAYS navigate to lawyer routes!
    * - If lawyer is already logged in (not signed out): auto-login directly into lawyer workspace.
-   * - If lawyer is not logged in: navigate to /login or /lawyer-register.
+   * - If lawyer is not logged in: navigate to /lawyer-login or /lawyer-register.
    * - NEVER navigate to /citizen.
    */
-  const lawyerDashboardTo = isLawyer ? "/lawyer" : "/login";
+  const lawyerDashboardTo = isLawyer ? "/lawyer" : "/lawyer-login";
   const lawyerRegisterTo = isLawyer ? "/lawyer" : "/lawyer-register";
-  const lawyerCasesTo = isLawyer ? "/lawyer/cases" : "/login";
+  const lawyerCasesTo = isLawyer ? "/lawyer/cases" : "/lawyer-login";
 
   return {
     user,

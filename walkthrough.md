@@ -144,7 +144,7 @@ All tests executed via `curl` against `http://localhost:8000`:
 - **`citizen.profile.tsx`**: Reads and updates profile details via `citizenService.getMe()` and `citizenService.updateMe()`.
 
 ### 2. Lawyer Portal
-- **`login.tsx`**: Authentic advocate credentials validated against `authService.loginLawyer` (`POST /api/v1/auth/lawyer/login`).
+- **`lawyer-login.tsx`**: Authentic advocate credentials validated against `authService.loginLawyer` (`POST /api/v1/auth/lawyer/login`).
 - **`lawyer-register.tsx`**: Multi-step registration submits bar ID, practice areas, courts, languages, and credential attachments to `/api/v1/auth/lawyer/register`.
 - **`lawyer.cases.$id.tsx`**: Fetches full case dockets via `useCaseDetailSync(id)` (`GET /api/v1/cases/user/:id`).
 - **`lawyer.revenue.tsx`**: Real payout requests submitted via `withdrawalService.requestWithdrawal` (`POST /api/v1/withdrawals`).
@@ -153,7 +153,7 @@ All tests executed via `curl` against `http://localhost:8000`:
 - **`lawyer.profile.tsx`**: Availability toggled through `/api/v1/lawyers/:id/availability`.
 
 ### 3. Admin Portal
-- **`login.tsx`**: Superadmin credentials verified against `authService.loginAdmin` (`POST /api/v1/auth/admin/login`).
+- **`admin-login.tsx`**: Superadmin credentials verified against `authService.loginAdmin` (`POST /api/v1/auth/admin/login`).
 - **`admin.index.tsx`**: Dashboard statistics dynamically fetched via `useAdminDashboardStatsQuery` (`GET /api/v1/admin/dashboard-stats`).
 - **`admin.cases.tsx`**: Advocate assignments dispatched to `caseService.assignLawyer` (`POST /api/v1/cases/user/:id/assign`).
 - **`admin.lawyers.tsx`**: Lawyer approvals and suspensions dispatched to `lawyerService.moderateLawyer` (`PATCH /api/v1/lawyers/:id/moderate`).

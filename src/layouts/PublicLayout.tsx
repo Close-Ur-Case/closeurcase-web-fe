@@ -227,7 +227,7 @@ export function PublicLayout({ children }: { children: ReactNode }) {
                 </Link>
               ) : (
                 <Link
-                  to="/login"
+                  to="/lawyer-login"
                   className={cn(
                     FILLED_LINK_BUTTON_CITIZEN_CLASS,
                     "!h-auto whitespace-nowrap !px-3.5 !py-2 !text-xs",
@@ -596,7 +596,10 @@ export function PublicLayout({ children }: { children: ReactNode }) {
                   </Link>
                 </li>
                 <li>
-                  <Link to={citizenSubscriptionsTo} className="transition-colors hover:text-[#a9853f]">
+                  <Link
+                    to={citizenSubscriptionsTo}
+                    className="transition-colors hover:text-[#a9853f]"
+                  >
                     Auto-Assign &amp; subscriptions
                   </Link>
                 </li>
@@ -670,7 +673,10 @@ export function PublicLayout({ children }: { children: ReactNode }) {
                 {isCitizen ? "Citizen Dashboard" : translate("citizenLoginLabel")}
               </Link>
               <span className="text-slate-300">•</span>
-              <Link to="/login" className="text-slate-600 hover:text-[#a9853f] hover:underline">
+              <Link
+                to="/lawyer-login"
+                className="text-slate-600 hover:text-[#a9853f] hover:underline"
+              >
                 Lawyer sign in
               </Link>
               <span className="text-slate-300">•</span>

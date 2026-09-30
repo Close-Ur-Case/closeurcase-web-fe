@@ -1,12 +1,37 @@
 import type { Context } from "hono";
 import { db } from "../config/db.ts";
 import { withdrawalRequests } from "../models/withdrawals.ts";
+import { lawyers } from "../models/users.ts";
 import { eq, desc } from "drizzle-orm";
 import { ApiResponse } from "../utils/apiResponse.ts";
 import { ApiError } from "../utils/apiError.ts";
 
 export async function requestWithdrawal(c: Context) {
   const { lawyerId, lawyerName, amount, bankName, accountNumber, ifscCode } = await c.req.json();
+
+  if (!lawyerId) {
+    throw ApiError.badRequest("lawyerId is required");
+  }
+
+  const parsedAmount = Number(amount);
+  if (!parsedAmount || parsedAmount <= 0) {
+    throw ApiError.badRequest("Valid withdrawal amount is required");
+  }
+
+  let finalLawyerName = lawyerName;
+  let finalBankName = bankName;
+  let finalAccountNumber = accountNumber;
+  let finalIfscCode = ifscCode;
+
+  if (!finalLawyerName || !finalBankName || !finalAccountNumber || !finalIfscCode) {
+    const [lawyer] = await db.select().from(lawyers).where(eq(lawyers.id, lawyerId));
+    if (lawyer) {
+      if (!finalLawyerName) finalLawyerName = lawyer.name;
+      if (!finalBankName) finalBankName = lawyer.bankName;
+      if (!finalAccountNumber) finalAccountNumber = lawyer.accountNumber;
+      if (!finalIfscCode) finalIfscCode = lawyer.ifscCode;
+    }
+  }
 
   const id = `w_${Date.now()}`;
   const today = new Date().toISOString().slice(0, 10);
@@ -16,13 +41,13 @@ export async function requestWithdrawal(c: Context) {
     .values({
       id,
       lawyerId,
-      lawyerName: lawyerName || "Lawyer",
-      amount: Number(amount),
+      lawyerName: finalLawyerName || "Lawyer",
+      amount: parsedAmount,
       requestedAt: today,
       status: "Pending",
-      bankName,
-      accountNumber,
-      ifscCode,
+      bankName: finalBankName || "",
+      accountNumber: finalAccountNumber || "",
+      ifscCode: finalIfscCode || "",
     })
     .returning();
 

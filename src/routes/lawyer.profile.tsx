@@ -39,6 +39,8 @@ import {
   Landmark,
   Star,
   Clock,
+  Eye,
+  EyeOff,
 } from "lucide-react";
 import { Button, TextField, Select, Checkbox, InputChip, IconButton } from "@/components/m3";
 import {
@@ -92,6 +94,20 @@ function LawyerProfilePage() {
       });
     }
   }, [user?.role, user?.lawyerId]);
+
+  const effectiveLawyerId = user?.lawyerId || (user?.role === "lawyer" ? user?.id : "") || "l_001";
+  useEffect(() => {
+    if (effectiveLawyerId) {
+      lawyerService
+        .getLawyerById<Record<string, unknown>>(effectiveLawyerId)
+        .then((fresh) => {
+          if (fresh) {
+            mergeRemoteLawyers([fresh as Partial<Lawyer>]);
+          }
+        })
+        .catch(() => {});
+    }
+  }, [effectiveLawyerId]);
 
   const lawyer = useMemo(() => {
     if (user) {
@@ -173,11 +189,19 @@ function LawyerProfileForm({ lawyer }: { lawyer: NonNullable<ReturnType<typeof g
   const [awardTitle, setAwardTitle] = useState("");
   const [awardYear, setAwardYear] = useState("");
 
-  // Bank Account Details — one-time entry; locked once saved
-  const bankDetailsLocked = Boolean(lawyer.accountNumber && lawyer.ifscCode);
+  // Bank Account Details — always unlocked and editable anytime
   const [bankName, setBankName] = useState(lawyer.bankName || "");
   const [accountNumber, setAccountNumber] = useState(lawyer.accountNumber || "");
   const [ifscCode, setIfscCode] = useState(lawyer.ifscCode || "");
+  const [showAccountNumber, setShowAccountNumber] = useState(false);
+  const [showIfscCode, setShowIfscCode] = useState(false);
+
+  // Synchronize bank details dynamically when updated elsewhere (e.g. Withdraw Payout in /lawyer/revenue)
+  useEffect(() => {
+    if (lawyer.bankName !== undefined) setBankName(lawyer.bankName || "");
+    if (lawyer.accountNumber !== undefined) setAccountNumber(lawyer.accountNumber || "");
+    if (lawyer.ifscCode !== undefined) setIfscCode(lawyer.ifscCode || "");
+  }, [lawyer.bankName, lawyer.accountNumber, lawyer.ifscCode]);
 
   // Live master entities from Admin Data Management
   const [managedCities, setManagedCities] = useState<string[]>(() =>
@@ -405,13 +429,9 @@ function LawyerProfileForm({ lawyer }: { lawyer: NonNullable<ReturnType<typeof g
       // A suspended lawyer can't touch their presence — don't persist it.
       ...(suspended ? {} : { availabilityStatus }),
       consultationFee: Number(consultationFee) || 1500,
-      ...(bankDetailsLocked
-        ? {}
-        : {
-          bankName: bankName.trim(),
-          accountNumber: accountNumber.trim(),
-          ifscCode: ifscCode.trim().toUpperCase(),
-        }),
+      bankName: bankName.trim(),
+      accountNumber: accountNumber.trim(),
+      ifscCode: ifscCode.trim().toUpperCase(),
     });
 
     // Backend sync: Update profile
@@ -438,8 +458,8 @@ function LawyerProfileForm({ lawyer }: { lawyer: NonNullable<ReturnType<typeof g
       });
     }
 
-    // Backend sync: Update bank details if provided and unlocked
-    if (!bankDetailsLocked && bankName.trim() && accountNumber.trim() && ifscCode.trim()) {
+    // Backend sync: Update bank details if provided
+    if (bankName.trim() && accountNumber.trim() && ifscCode.trim()) {
       lawyerService
         .updateBankDetails(lawyer.id, {
           bankName: bankName.trim(),
@@ -1105,9 +1125,7 @@ function LawyerProfileForm({ lawyer }: { lawyer: NonNullable<ReturnType<typeof g
               <Landmark className="h-4 w-4 text-primary" /> Bank Account Details
             </h3>
             <p className="mt-1 text-[11px] text-muted-foreground">
-              {bankDetailsLocked
-                ? "Your bank details are on file and locked for security. Contact support to update them."
-                : "Add your bank account once to enable withdrawals. Account number and IFSC code can only be entered here one time."}
+              Your registered bank account details for direct payout settlements. You can update these details anytime.
             </p>
           </div>
 
@@ -1117,30 +1135,45 @@ function LawyerProfileForm({ lawyer }: { lawyer: NonNullable<ReturnType<typeof g
               value={bankName}
               onChange={setBankName}
               placeholder="e.g. State Bank of India"
-              disabled={bankDetailsLocked}
             />
             <TextField
               label="Account Number"
-              value={bankDetailsLocked ? `••••••••${accountNumber.slice(-4)}` : accountNumber}
+              type={showAccountNumber ? "text" : "password"}
+              value={accountNumber}
               onChange={(v) => setAccountNumber(v.replace(/\D/g, ""))}
               placeholder="Enter account number"
-              disabled={bankDetailsLocked}
               trailingIcon={
-                bankDetailsLocked ? (
-                  <Lock className="h-3.5 w-3.5 text-muted-foreground" />
-                ) : undefined
+                <IconButton
+                  ariaLabel={showAccountNumber ? "Hide account number" : "Show account number"}
+                  onClick={() => setShowAccountNumber((v) => !v)}
+                  title={showAccountNumber ? "Hide account number" : "Show account number"}
+                >
+                  {showAccountNumber ? (
+                    <EyeOff className="h-4 w-4 text-muted-foreground" />
+                  ) : (
+                    <Eye className="h-4 w-4 text-muted-foreground" />
+                  )}
+                </IconButton>
               }
             />
             <TextField
               label="IFSC Code"
-              value={bankDetailsLocked ? `••••${ifscCode.slice(-4)}` : ifscCode}
+              type={showIfscCode ? "text" : "password"}
+              value={ifscCode}
               onChange={(v) => setIfscCode(v.toUpperCase())}
               placeholder="e.g. SBIN0001234"
-              disabled={bankDetailsLocked}
               trailingIcon={
-                bankDetailsLocked ? (
-                  <Lock className="h-3.5 w-3.5 text-muted-foreground" />
-                ) : undefined
+                <IconButton
+                  ariaLabel={showIfscCode ? "Hide IFSC code" : "Show IFSC code"}
+                  onClick={() => setShowIfscCode((v) => !v)}
+                  title={showIfscCode ? "Hide IFSC code" : "Show IFSC code"}
+                >
+                  {showIfscCode ? (
+                    <EyeOff className="h-4 w-4 text-muted-foreground" />
+                  ) : (
+                    <Eye className="h-4 w-4 text-muted-foreground" />
+                  )}
+                </IconButton>
               }
             />
           </div>

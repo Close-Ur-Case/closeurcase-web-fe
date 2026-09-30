@@ -49,6 +49,8 @@ export const Route = createFileRoute("/citizen-login")({
         }
         throw redirect({ to: "/citizen" });
       }
+      if (user?.role === "admin") throw redirect({ to: "/admin" });
+      if (user?.role === "lawyer") throw redirect({ to: "/lawyer" });
     }
   },
   head: () => ({ meta: [{ title: "Citizen sign in — CloseUrCase" }] }),
@@ -447,7 +449,7 @@ export function CitizenLogin() {
             </Button>
 
             <div className="text-center text-xs text-muted-foreground">
-              <Link to="/login" className="font-semibold text-primary hover:underline">
+              <Link to="/lawyer-login" className="font-semibold text-primary hover:underline">
                 Lawyer?
               </Link>
             </div>

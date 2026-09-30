@@ -419,6 +419,9 @@ export interface LawyerDocument {
   id: string;
   lawyerId: string;
   title: string;
+  category?: string;
+  categoryId?: string;
+  categoryName?: string;
   uploadedAt: string;
   size: string;
   fileUrl?: string | null;

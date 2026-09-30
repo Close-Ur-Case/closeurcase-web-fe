@@ -981,7 +981,11 @@ function LawyerRegister() {
             <strong>Note:</strong> You can log in and explore the Lawyer Workspace while
             verification is underway.
           </div>
-          <Button variant="outlined" onClick={() => navigate({ to: "/login" })} className="w-full">
+          <Button
+            variant="outlined"
+            onClick={() => navigate({ to: "/lawyer-login" })}
+            className="w-full"
+          >
             Back to Sign in
           </Button>
         </div>
@@ -999,7 +1003,7 @@ function LawyerRegister() {
       footer={
         <>
           Already registered?{" "}
-          <Link to="/login" className="font-semibold text-primary hover:underline">
+          <Link to="/lawyer-login" className="font-semibold text-primary hover:underline">
             Sign in
           </Link>
         </>
@@ -1518,7 +1522,9 @@ function LawyerRegister() {
                       className="w-full"
                     />
                     {passwordTouched && !passwordRes.isValid && (
-                      <p className="text-[11px] font-medium text-destructive">{passwordRes.error}</p>
+                      <p className="text-[11px] font-medium text-destructive">
+                        {passwordRes.error}
+                      </p>
                     )}
                   </div>
 
@@ -1548,7 +1554,9 @@ function LawyerRegister() {
                           )}
                         </IconButton>
                       }
-                      error={confirmPasswordTouched && confirmPassword.length > 0 && !passwordsMatch}
+                      error={
+                        confirmPasswordTouched && confirmPassword.length > 0 && !passwordsMatch
+                      }
                       className="w-full"
                     />
                     {confirmPasswordTouched && confirmPassword.length > 0 && !passwordsMatch && (

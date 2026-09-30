@@ -310,8 +310,8 @@ export function DashboardLayout({
   const defaultPhotoUrl = role === "admin" ? "/logo.svg" : undefined;
   const [photoUrl, setPhotoUrl] = useState(() => getProfilePhoto(role) ?? defaultPhotoUrl);
   const [showLocationToast, setShowLocationToast] = useState(false);
-  const [citizenTier, setCitizenTier] = useState<SubscriptionTierId | null>(() =>
-    planTier ?? (role === "citizen" ? (planTierForCitizen(userName) ?? "bronze") : null),
+  const [citizenTier, setCitizenTier] = useState<SubscriptionTierId | null>(
+    () => planTier ?? (role === "citizen" ? (planTierForCitizen(userName) ?? "bronze") : null),
   );
 
   useEffect(() => {
@@ -321,6 +321,19 @@ export function DashboardLayout({
       setCitizenTier(planTierForCitizen(userName) ?? "bronze");
     }
   }, [planTier, role, userName]);
+
+  const handleSignOut = () => {
+    setProfileOpen(false);
+    setMobileMenuOpen(false);
+    logout();
+    if (role === "admin") {
+      navigate({ to: "/admin-login" });
+    } else if (role === "citizen") {
+      navigate({ to: "/citizen-login" });
+    } else {
+      navigate({ to: "/lawyer-login" });
+    }
+  };
 
   useEffect(() => {
     notificationService
@@ -339,7 +352,7 @@ export function DashboardLayout({
       setUnreadCount(getNotifications(role).filter((n) => !n.read).length);
       setPhotoUrl(getProfilePhoto(role) ?? defaultPhotoUrl);
       if (role === "citizen") {
-        setCitizenTier(planTier ?? (planTierForCitizen(userName) ?? "bronze"));
+        setCitizenTier(planTier ?? planTierForCitizen(userName) ?? "bronze");
       }
     };
     return subscribeToStore(sync);
@@ -411,11 +424,7 @@ export function DashboardLayout({
                   </button>
                 )}
                 <button
-                  onClick={() => {
-                    setMobileMenuOpen(false);
-                    logout();
-                    navigate({ to: role === "citizen" ? "/citizen-login" : "/login" });
-                  }}
+                  onClick={handleSignOut}
                   className="flex w-full cursor-pointer items-center gap-3 rounded-[var(--md-sys-shape-corner-full)] px-3.5 py-2.5 text-sm text-[var(--md-sys-color-error)] transition-colors hover:bg-[var(--md-sys-color-error)]/8"
                 >
                   <LogOut className="h-[18px] w-[18px] shrink-0" />
@@ -535,17 +544,21 @@ export function DashboardLayout({
                             <span className="text-xs text-muted-foreground capitalize">
                               {roleLabel}
                             </span>
-                            {role === "citizen" && (() => {
-                              const tierId = citizenTier ?? "bronze";
-                              const tierCfg = SUBSCRIPTION_TIERS[tierId] || SUBSCRIPTION_TIERS.bronze;
-                              const TierIcon = tierCfg.icon;
-                              return (
-                                <span className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[9px] font-black uppercase tracking-wider ${tierCfg.badgeCls}`}>
-                                  <TierIcon className="h-2.5 w-2.5" />
-                                  <span>{tierCfg.shortLabel}</span>
-                                </span>
-                              );
-                            })()}
+                            {role === "citizen" &&
+                              (() => {
+                                const tierId = citizenTier ?? "bronze";
+                                const tierCfg =
+                                  SUBSCRIPTION_TIERS[tierId] || SUBSCRIPTION_TIERS.bronze;
+                                const TierIcon = tierCfg.icon;
+                                return (
+                                  <span
+                                    className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[9px] font-black uppercase tracking-wider ${tierCfg.badgeCls}`}
+                                  >
+                                    <TierIcon className="h-2.5 w-2.5" />
+                                    <span>{tierCfg.shortLabel}</span>
+                                  </span>
+                                );
+                              })()}
                           </div>
                         </div>
                       </div>
@@ -561,11 +574,7 @@ export function DashboardLayout({
                           My Profile
                         </button>
                         <button
-                          onClick={() => {
-                            setProfileOpen(false);
-                            logout();
-                            navigate({ to: role === "citizen" ? "/citizen-login" : "/login" });
-                          }}
+                          onClick={handleSignOut}
                           className="flex w-full cursor-pointer items-center gap-2 rounded-[var(--md-sys-shape-corner-small)] px-3 py-2 text-sm text-[var(--md-sys-color-error)] transition-colors hover:bg-[var(--md-sys-color-error)]/8"
                         >
                           <LogOut className="h-4 w-4" />
