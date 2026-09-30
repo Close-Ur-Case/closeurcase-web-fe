@@ -276,7 +276,7 @@ export async function caseAnalysis(c: Context) {
   if (textForDetection && textForDetection.trim().length > 0) {
     try {
       const controller = new AbortController();
-      const timeoutId = setTimeout(() => controller.abort(), 8000);
+      const timeoutId = setTimeout(() => controller.abort(), 15000);
 
       const aiBaseUrl = (env.AI_BASE_URL || env.aibaseurl);
       const aiResponse = await fetch(`${aiBaseUrl}/detection/detect-case`, {

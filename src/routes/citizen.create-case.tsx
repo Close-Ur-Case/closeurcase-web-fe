@@ -141,6 +141,296 @@ function mapDetectedToLegalCategory(name?: string | null): LegalCategory {
   return "Civil";
 }
 
+function resolvePracticeArea(
+  catName: string,
+  subName: string | null,
+  text: string,
+  tree: LawyerPracticeArea[],
+): LawyerPracticeArea {
+  const effectiveTree = tree && tree.length > 0 ? tree : getLawyerPracticeAreas();
+  const cat = (catName || "").trim().toLowerCase();
+  const sub = (subName || "").trim().toLowerCase();
+  const query = (text || "").trim().toLowerCase();
+
+  // 1. Exact match on practice area category name
+  let found = effectiveTree.find((pa) => pa.category.toLowerCase() === cat);
+  if (found) return found;
+
+  // 2. Keyword heuristic mapping for common legal categories
+  if (
+    cat.includes("cyber") ||
+    sub.includes("cyber") ||
+    query.includes("cyber") ||
+    query.includes("online fraud") ||
+    query.includes("upi fraud")
+  ) {
+    found = effectiveTree.find((pa) => pa.category.toLowerCase().includes("criminal"));
+    if (found) return found;
+  }
+  if (
+    cat.includes("bank") ||
+    cat.includes("finance") ||
+    sub.includes("cheque") ||
+    sub.includes("recovery") ||
+    query.includes("cheque bounce")
+  ) {
+    found = effectiveTree.find((pa) => pa.category.toLowerCase().includes("banking"));
+    if (found) return found;
+  }
+  if (
+    cat.includes("property") ||
+    cat.includes("real estate") ||
+    sub.includes("tenant") ||
+    sub.includes("landlord") ||
+    sub.includes("rera") ||
+    query.includes("rent") ||
+    query.includes("eviction")
+  ) {
+    found = effectiveTree.find((pa) => pa.category.toLowerCase().includes("property"));
+    if (found) return found;
+  }
+  if (
+    cat.includes("family") ||
+    cat.includes("matrimonial") ||
+    sub.includes("divorce") ||
+    sub.includes("custody") ||
+    query.includes("divorce") ||
+    query.includes("marriage")
+  ) {
+    found = effectiveTree.find((pa) => pa.category.toLowerCase().includes("family"));
+    if (found) return found;
+  }
+  if (
+    cat.includes("consumer") ||
+    sub.includes("consumer") ||
+    query.includes("defective") ||
+    query.includes("warranty")
+  ) {
+    found = effectiveTree.find((pa) => pa.category.toLowerCase().includes("consumer"));
+    if (found) return found;
+  }
+  if (
+    cat.includes("corporate") ||
+    cat.includes("company") ||
+    cat.includes("business") ||
+    sub.includes("contract") ||
+    sub.includes("nclt")
+  ) {
+    found = effectiveTree.find((pa) => pa.category.toLowerCase().includes("corporate"));
+    if (found) return found;
+  }
+  if (
+    cat.includes("labour") ||
+    cat.includes("labor") ||
+    cat.includes("employment") ||
+    cat.includes("civil") ||
+    sub.includes("termination") ||
+    query.includes("salary") ||
+    query.includes("wrongful termination")
+  ) {
+    found = effectiveTree.find(
+      (pa) => pa.category.toLowerCase().includes("labour") || pa.category.toLowerCase().includes("civil"),
+    );
+    if (found) return found;
+  }
+  if (cat.includes("tax") || cat.includes("gst")) {
+    found =
+      effectiveTree.find((pa) => pa.category.toLowerCase().includes("banking")) ||
+      effectiveTree.find((pa) => pa.category.toLowerCase().includes("corporate"));
+    if (found) return found;
+  }
+  if (
+    cat.includes("criminal") ||
+    sub.includes("bail") ||
+    sub.includes("fir") ||
+    query.includes("police") ||
+    query.includes("arrest")
+  ) {
+    found = effectiveTree.find((pa) => pa.category.toLowerCase().includes("criminal"));
+    if (found) return found;
+  }
+
+  // 3. Search across all specializations for match
+  if (sub) {
+    for (const pa of effectiveTree) {
+      const match = pa.case_types.some(
+        (ct) =>
+          ct.case_type.toLowerCase() === sub ||
+          ct.case_type.toLowerCase().includes(sub) ||
+          sub.includes(ct.case_type.toLowerCase()),
+      );
+      if (match) return pa;
+    }
+  }
+
+  // 4. Substring inclusion check on category name
+  if (cat) {
+    found = effectiveTree.find(
+      (pa) => pa.category.toLowerCase().includes(cat) || cat.includes(pa.category.toLowerCase()),
+    );
+    if (found) return found;
+  }
+
+  // 5. Fallback based on user description heuristic
+  const predicted = predictCategory(query);
+  if (predicted) {
+    const pLower = predicted.toLowerCase();
+    if (pLower.includes("cyber")) {
+      found = effectiveTree.find((pa) => pa.category.toLowerCase().includes("criminal"));
+    } else {
+      found = effectiveTree.find(
+        (pa) => pa.category.toLowerCase().includes(pLower) || pLower.includes(pa.category.toLowerCase()),
+      );
+    }
+    if (found) return found;
+  }
+
+  // 6. Absolute fallback: first available category
+  return (
+    effectiveTree[0] || {
+      category: "Other",
+      case_types: [{ case_type: "Other", legal_services: ["Other"] }],
+    }
+  );
+}
+
+function resolveSpecialization(
+  matchedPA: LawyerPracticeArea,
+  subName: string | null,
+  catName: string,
+  text: string,
+): LawyerSpecialization {
+  const caseTypes = matchedPA.case_types || [];
+  if (caseTypes.length === 0) {
+    return { case_type: "Other", legal_services: ["Other"] };
+  }
+
+  const sub = (subName || "").trim().toLowerCase();
+  const cat = (catName || "").trim().toLowerCase();
+  const desc = (text || "").trim().toLowerCase();
+
+  // 1. Exact match with subName
+  if (sub) {
+    let found = caseTypes.find((ct) => ct.case_type.toLowerCase() === sub);
+    if (found) return found;
+
+    // 2. Substring match
+    found = caseTypes.find(
+      (ct) => ct.case_type.toLowerCase().includes(sub) || sub.includes(ct.case_type.toLowerCase()),
+    );
+    if (found) return found;
+
+    // 3. Keyword / word token overlap with subName
+    const subWords = sub.split(/[\s,/-]+/).filter((w) => w.length > 2);
+    let bestScore = 0;
+    let bestMatch: LawyerSpecialization | undefined;
+    for (const ct of caseTypes) {
+      let score = 0;
+      const ctNameLower = ct.case_type.toLowerCase();
+      for (const w of subWords) {
+        if (ctNameLower.includes(w)) score += 3;
+        if (ct.legal_services.some((ls) => ls.toLowerCase().includes(w))) score += 2;
+      }
+      if (score > bestScore) {
+        bestScore = score;
+        bestMatch = ct;
+      }
+    }
+    if (bestMatch && bestScore > 0) return bestMatch;
+  }
+
+  // 4. Keyword match with catName (e.g. catName is "Cyber", matches "Cyber Crime")
+  if (cat) {
+    const catWords = cat.split(/[\s,/-]+/).filter((w) => w.length > 2);
+    for (const ct of caseTypes) {
+      if (catWords.some((w) => ct.case_type.toLowerCase().includes(w))) {
+        return ct;
+      }
+    }
+  }
+
+  // 5. Keyword match with description text
+  if (desc) {
+    let bestScore = 0;
+    let bestMatch: LawyerSpecialization | undefined;
+    for (const ct of caseTypes) {
+      const ctLower = ct.case_type.toLowerCase();
+      const ctWords = ctLower.split(/[\s,/-]+/).filter((w) => w.length > 3);
+      let score = 0;
+      for (const w of ctWords) {
+        if (desc.includes(w)) score += 2;
+      }
+      for (const ls of ct.legal_services) {
+        const lsWords = ls.toLowerCase().split(/[\s,/-]+/).filter((w) => w.length > 4);
+        for (const w of lsWords) {
+          if (desc.includes(w)) score += 1;
+        }
+      }
+      if (score > bestScore) {
+        bestScore = score;
+        bestMatch = ct;
+      }
+    }
+    if (bestMatch && bestScore > 0) return bestMatch;
+  }
+
+  // 6. Fallback: first specialization in matchedPA
+  return caseTypes[0];
+}
+
+function resolveLegalService(
+  matchedSpec: LawyerSpecialization,
+  subName: string | null,
+  text: string,
+): string {
+  const services = matchedSpec.legal_services || [];
+  if (services.length === 0) return "Other";
+
+  const sub = (subName || "").trim().toLowerCase();
+  const desc = (text || "").trim().toLowerCase();
+
+  // 1. Direct or substring match with subName
+  if (sub) {
+    const subWords = sub.split(/[\s,/-]+/).filter((w) => w.length > 2);
+    let bestScore = 0;
+    let bestSrv = services[0];
+    for (const srv of services) {
+      const srvLower = srv.toLowerCase();
+      let score = 0;
+      for (const w of subWords) {
+        if (srvLower.includes(w)) score += 2;
+      }
+      if (score > bestScore) {
+        bestScore = score;
+        bestSrv = srv;
+      }
+    }
+    if (bestScore > 0) return bestSrv;
+  }
+
+  // 2. Match with description words
+  if (desc) {
+    let bestScore = 0;
+    let bestSrv = services[0];
+    for (const srv of services) {
+      const srvLower = srv.toLowerCase();
+      const srvWords = srvLower.split(/[\s,/-]+/).filter((w) => w.length > 3);
+      let score = 0;
+      for (const w of srvWords) {
+        if (desc.includes(w)) score += 1;
+      }
+      if (score > bestScore) {
+        bestScore = score;
+        bestSrv = srv;
+      }
+    }
+    if (bestScore > 0) return bestSrv;
+  }
+
+  // 3. Fallback: first legal service
+  return services[0];
+}
+
 function fmtSize(bytes: number) {
   if (bytes < 1024) return `${bytes} B`;
   if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
@@ -574,88 +864,87 @@ export function FindLawyerWizard() {
     setAiSubCategory(null);
   }
 
-  const applyAiDetectionResult = useCallback(
-    (res: any) => {
-      const catName = res?.data?.categoryName || res?.categoryName || "";
-      const subName = res?.data?.subCategoryName || res?.subCategoryName || null;
+  const applyFallbackDetection = useCallback(
+    (currentDesc?: string) => {
+      const text = (currentDesc ?? description).trim();
+      const fallbackCat = predictCategory(text) || "Civil";
 
-      if (catName) {
-        const mapped = mapDetectedToLegalCategory(catName);
-        setPredictedCategory(mapped);
-        setAiSubCategory(subName);
+      const matchedPA = resolvePracticeArea(fallbackCat, null, text, practiceAreaTree);
+      const targetPA = matchedPA.category;
+      const matchedSpec = resolveSpecialization(matchedPA, null, fallbackCat, text);
+      const targetSpec = matchedSpec.case_type;
+      const targetService = resolveLegalService(matchedSpec, null, text);
 
-        // 1. Find matching practice area in practiceAreaTree
-        let matchedPA = practiceAreaTree.find(
-          (pa) =>
-            pa.category.toLowerCase() === catName.toLowerCase() ||
-            pa.category.toLowerCase().includes(catName.toLowerCase()) ||
-            catName.toLowerCase().includes(pa.category.toLowerCase()) ||
-            pa.category.toLowerCase().includes(mapped.toLowerCase()),
-        );
+      setSelectedPracticeArea(targetPA);
+      setSelectedSpecialization(targetSpec);
+      setSelectedLegalServices(targetService ? [targetService] : []);
 
-        // 2. Find matching specialization
-        let matchedSpec: LawyerSpecialization | undefined = undefined;
-        if (subName) {
-          if (matchedPA) {
-            matchedSpec = matchedPA.case_types.find(
-              (s) =>
-                s.case_type.toLowerCase() === subName.toLowerCase() ||
-                s.case_type.toLowerCase().includes(subName.toLowerCase()) ||
-                subName.toLowerCase().includes(s.case_type.toLowerCase()),
-            );
-          }
-
-          // If not in matchedPA, search across entire tree
-          if (!matchedSpec) {
-            for (const pa of practiceAreaTree) {
-              const found = pa.case_types.find(
-                (s) =>
-                  s.case_type.toLowerCase() === subName.toLowerCase() ||
-                  s.case_type.toLowerCase().includes(subName.toLowerCase()) ||
-                  subName.toLowerCase().includes(s.case_type.toLowerCase()),
-              );
-              if (found) {
-                matchedSpec = found;
-                matchedPA = pa;
-                break;
-              }
-            }
-          }
-        }
-
-        const targetPA = matchedPA ? matchedPA.category : catName;
-        setSelectedPracticeArea(targetPA);
-
-        const targetSpec = matchedSpec ? matchedSpec.case_type : (subName || "");
-        setSelectedSpecialization(targetSpec);
-
-        // 3. Find matching legal service
-        const services = matchedSpec?.legal_services ?? [];
-        let bestService = services[0] ?? "";
-        if (description) {
-          const descLower = description.toLowerCase();
-          const matchedService = services.find((srv) => {
-            const srvLower = srv.toLowerCase();
-            return srvLower.split(" ").some((word) => word.length > 3 && descLower.includes(word));
-          });
-          if (matchedService) {
-            bestService = matchedService;
-          }
-        }
-
-        if (bestService) {
-          setSelectedLegalServices([bestService]);
-        } else if (services.length > 0) {
-          setSelectedLegalServices(services);
-        }
-      } else {
-        const fallbackCat = predictCategory(description);
-        setPredictedCategory(fallbackCat);
-        setAiSubCategory(null);
-      }
+      setPredictedCategory(fallbackCat);
+      setAiSubCategory(targetSpec);
     },
     [practiceAreaTree, description],
   );
+
+  const applyAiDetectionResult = useCallback(
+    (res: any, currentDesc?: string) => {
+      const text = (currentDesc ?? description).trim();
+      const rawCat =
+        res?.data?.categoryName ||
+        res?.categoryName ||
+        res?.data?.data?.categoryName ||
+        res?.detectedCategory?.categoryName ||
+        "";
+      const rawSub =
+        res?.data?.subCategoryName ||
+        res?.subCategoryName ||
+        res?.data?.data?.subCategoryName ||
+        res?.detectedCategory?.subCategoryName ||
+        null;
+
+      if (!rawCat && !rawSub) {
+        applyFallbackDetection(text);
+        return;
+      }
+
+      // 1. Resolve Best Practice Area in practiceAreaTree
+      const matchedPA = resolvePracticeArea(rawCat, rawSub, text, practiceAreaTree);
+      const targetPA = matchedPA.category;
+
+      // 2. Resolve Best Specialization in matchedPA.case_types
+      const matchedSpec = resolveSpecialization(matchedPA, rawSub, rawCat, text);
+      const targetSpec = matchedSpec.case_type;
+
+      // 3. Resolve Best Legal Service in matchedSpec.legal_services
+      const targetService = resolveLegalService(matchedSpec, rawSub, text);
+
+      // 4. Update the 3 dropdown states
+      setSelectedPracticeArea(targetPA);
+      setSelectedSpecialization(targetSpec);
+      setSelectedLegalServices(targetService ? [targetService] : []);
+
+      // 5. Update AI output badge / summary category
+      const mapped = mapDetectedToLegalCategory(rawCat || targetPA);
+      setPredictedCategory(mapped);
+      setAiSubCategory(rawSub || targetSpec);
+    },
+    [practiceAreaTree, description, applyFallbackDetection],
+  );
+
+  const handleRunAiAnalysis = useCallback(async () => {
+    const queryText = description.trim();
+    if (!queryText || isInlineAnalyzing) return;
+    setIsInlineAnalyzing(true);
+    try {
+      const res = await aiService.caseAnalysis({ query: queryText });
+      applyAiDetectionResult(res, queryText);
+    } catch (err) {
+      console.warn("AI analysis/re-analysis call failed, using fallback:", err);
+      applyFallbackDetection(queryText);
+    } finally {
+      setIsInlineAnalyzing(false);
+      setIsAiAnalyzed(true);
+    }
+  }, [description, isInlineAnalyzing, applyAiDetectionResult, applyFallbackDetection]);
 
   function toggleLegalService(service: string) {
     setSelectedLegalServices((prev) =>
@@ -784,11 +1073,10 @@ export function FindLawyerWizard() {
       setIsAnalyzing(true);
       try {
         const res = await aiService.caseAnalysis({ query: analysisText });
-        applyAiDetectionResult(res);
+        applyAiDetectionResult(res, analysisText);
       } catch (err) {
         console.warn("AI case detection API call failed, falling back to local heuristic:", err);
-        setPredictedCategory(predictCategory(analysisText));
-        setAiSubCategory(null);
+        applyFallbackDetection(analysisText);
       } finally {
         setIsAnalyzing(false);
         setStep("assign");
@@ -1449,21 +1737,7 @@ export function FindLawyerWizard() {
                                   <Button
                                     type="button"
                                     disabled={!hasDescriptionText || isInlineAnalyzing}
-                                    onClick={async () => {
-                                      if (!hasDescriptionText || isInlineAnalyzing) return;
-                                      setIsInlineAnalyzing(true);
-                                      try {
-                                        const res = await aiService.caseAnalysis({ query: description.trim() });
-                                        applyAiDetectionResult(res);
-                                      } catch (err) {
-                                        console.warn("AI analysis call failed, using fallback:", err);
-                                        setPredictedCategory(predictCategory(description));
-                                        setAiSubCategory(null);
-                                      } finally {
-                                        setIsInlineAnalyzing(false);
-                                        setIsAiAnalyzed(true);
-                                      }
-                                    }}
+                                    onClick={handleRunAiAnalysis}
                                     icon={
                                       isInlineAnalyzing ? (
                                         <CircularProgress
@@ -1508,24 +1782,25 @@ export function FindLawyerWizard() {
                                         </span>
                                         <button
                                           type="button"
-                                          disabled={isInlineAnalyzing}
-                                          onClick={async () => {
-                                            if (isInlineAnalyzing) return;
-                                            setIsInlineAnalyzing(true);
-                                            try {
-                                              const res = await aiService.caseAnalysis({ query: description.trim() });
-                                              applyAiDetectionResult(res);
-                                            } catch (err) {
-                                              console.warn("AI re-analysis call failed, using fallback:", err);
-                                              setPredictedCategory(predictCategory(description));
-                                              setAiSubCategory(null);
-                                            } finally {
-                                              setIsInlineAnalyzing(false);
-                                            }
-                                          }}
-                                          className="text-[10px] font-semibold text-primary hover:underline disabled:opacity-50"
+                                          disabled={isInlineAnalyzing || !hasDescriptionText}
+                                          onClick={handleRunAiAnalysis}
+                                          className="inline-flex items-center gap-1 text-[10px] font-semibold text-primary hover:underline disabled:opacity-50 cursor-pointer disabled:cursor-not-allowed"
                                         >
-                                          {isInlineAnalyzing ? "Analyzing…" : "Re-analyze"}
+                                          {isInlineAnalyzing ? (
+                                            <>
+                                              <CircularProgress
+                                                indeterminate
+                                                ariaLabel="Analyzing"
+                                                className="h-2.5 w-2.5"
+                                              />
+                                              <span>Analyzing…</span>
+                                            </>
+                                          ) : (
+                                            <>
+                                              <Sparkles className="h-2.5 w-2.5" />
+                                              <span>Re-analyze</span>
+                                            </>
+                                          )}
                                         </button>
                                       </div>
                                     </div>
@@ -1552,14 +1827,20 @@ export function FindLawyerWizard() {
                               </Card>
 
                               {/* 3 Dropdowns auto-filled according to API output */}
-                              <div className="space-y-1.5 pt-1 animate-in fade-in slide-in-from-top-2 duration-200">
+                              <div
+                                className={`space-y-1.5 pt-1 animate-in fade-in slide-in-from-top-2 duration-200 transition-opacity ${
+                                  isInlineAnalyzing ? "opacity-60 pointer-events-none" : "opacity-100"
+                                }`}
+                              >
                                 <div className="flex items-center justify-between">
                                   <span className="text-xs font-bold text-foreground flex items-center gap-1.5">
                                     <Sparkles className="h-3.5 w-3.5 text-primary" />
                                     <span>Categorization & Services</span>
                                   </span>
                                   <span className="text-[10px] text-muted-foreground">
-                                    Auto-filled by AI — modify if needed
+                                    {isInlineAnalyzing
+                                      ? "Analyzing & updating categories…"
+                                      : "Auto-filled by AI — modify if needed"}
                                   </span>
                                 </div>
                                 <div className="grid grid-cols-1 gap-2.5 sm:grid-cols-3">
@@ -1569,21 +1850,32 @@ export function FindLawyerWizard() {
                                     value={selectedPracticeArea}
                                     onChange={handlePracticeAreaChange}
                                     options={practiceAreaOptions}
+                                    disabled={isInlineAnalyzing}
                                   />
                                   <Select
                                     label="Specialization"
                                     required
                                     value={selectedSpecialization}
                                     onChange={handleSpecializationChange}
-                                    disabled={!selectedPracticeArea || specializationOptions.length <= 1}
+                                    disabled={
+                                      isInlineAnalyzing ||
+                                      !selectedPracticeArea ||
+                                      specializationOptions.length <= 1
+                                    }
                                     options={specializationOptions}
                                   />
                                   <Select
                                     label="Legal Service"
                                     required
-                                    value={selectedLegalServices[0] || (legalServiceOptions[1]?.value ?? "")}
+                                    value={
+                                      selectedLegalServices[0] || (legalServiceOptions[1]?.value ?? "")
+                                    }
                                     onChange={(val) => setSelectedLegalServices(val ? [val] : [])}
-                                    disabled={!selectedSpecialization || legalServiceOptions.length <= 1}
+                                    disabled={
+                                      isInlineAnalyzing ||
+                                      !selectedSpecialization ||
+                                      legalServiceOptions.length <= 1
+                                    }
                                     options={legalServiceOptions}
                                   />
                                 </div>
