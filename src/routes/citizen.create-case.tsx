@@ -1789,7 +1789,7 @@ export function FindLawyerWizard() {
                                             isInlineAnalyzing ? (
                                               <CircularProgress
                                                 indeterminate
-                                                ariaLabel="Analyzing"
+                                                ariaLabel="Re-Analyzing"
                                                 className="h-3.5 w-3.5"
                                               />
                                             ) : (
@@ -1798,7 +1798,7 @@ export function FindLawyerWizard() {
                                           }
                                           className="!h-8 !px-3.5 !text-xs shrink-0 self-start sm:self-auto"
                                         >
-                                          {isInlineAnalyzing ? "Analyzing…" : "Analyze Case"}
+                                          {isInlineAnalyzing ? "Re-Analyzing…" : "Re-Analyze Case"}
                                         </Button>
                                       </div>
                                     <div className="text-sm font-bold text-foreground">
