@@ -34,6 +34,7 @@ import {
   LAWYER_PRACTICE_AREAS,
   getLawyerPracticeAreas,
   type LawyerPracticeArea,
+  type LawyerSpecialization,
   mapPracticeAreaToCategory,
 } from "@/components/app/lawyerPracticeAreas";
 import {
@@ -495,19 +496,154 @@ export function FindLawyerWizard() {
   );
   const availableLegalServices = currentSpecializationObj?.legal_services ?? [];
 
+  const practiceAreaOptions = useMemo(() => {
+    const opts = [
+      { value: "", label: "-- Select Practice Area --" },
+      ...practiceAreaTree.map((pa) => ({
+        value: pa.category,
+        label: pa.category,
+      })),
+    ];
+    if (selectedPracticeArea && !opts.some((o) => o.value === selectedPracticeArea)) {
+      opts.splice(1, 0, { value: selectedPracticeArea, label: selectedPracticeArea });
+    }
+    return opts;
+  }, [practiceAreaTree, selectedPracticeArea]);
+
+  const specializationOptions = useMemo(() => {
+    const opts = [
+      { value: "", label: "-- Select Specialization --" },
+      ...availableSpecializations.map((s) => ({
+        value: s.case_type,
+        label: s.case_type,
+      })),
+    ];
+    if (selectedSpecialization && !opts.some((o) => o.value === selectedSpecialization)) {
+      opts.splice(1, 0, { value: selectedSpecialization, label: selectedSpecialization });
+    }
+    return opts;
+  }, [availableSpecializations, selectedSpecialization]);
+
+  const legalServiceOptions = useMemo(() => {
+    const opts = [
+      { value: "", label: "-- Select Legal Service --" },
+      ...availableLegalServices.map((ls) => ({
+        value: ls,
+        label: ls,
+      })),
+    ];
+    const curService = selectedLegalServices[0];
+    if (curService && !opts.some((o) => o.value === curService)) {
+      opts.splice(1, 0, { value: curService, label: curService });
+    }
+    return opts;
+  }, [availableLegalServices, selectedLegalServices]);
+
   function handlePracticeAreaChange(v: string) {
     setSelectedPracticeArea(v);
     setSelectedSpecialization("");
     setSelectedLegalServices([]);
-    setSelectedLegalServices([]);
+    if (v) {
+      setPredictedCategory(mapPracticeAreaToCategory(v));
+      setAiSubCategory(null);
+    }
   }
 
   function handleSpecializationChange(v: string) {
     setSelectedSpecialization(v);
+    if (v) {
+      setAiSubCategory(v);
+    }
     const spec = availableSpecializations.find((s) => s.case_type === v);
-    // All legal services under the new specialization are selected by default.
-    setSelectedLegalServices(spec?.legal_services ?? []);
+    if (spec && spec.legal_services.length > 0) {
+      setSelectedLegalServices([spec.legal_services[0]]);
+    } else {
+      setSelectedLegalServices([]);
+    }
   }
+
+  const applyAiDetectionResult = useCallback(
+    (res: any) => {
+      const catName = res?.data?.categoryName || res?.categoryName || "";
+      const subName = res?.data?.subCategoryName || res?.subCategoryName || null;
+
+      if (catName) {
+        const mapped = mapDetectedToLegalCategory(catName);
+        setPredictedCategory(mapped);
+        setAiSubCategory(subName);
+
+        // 1. Find matching practice area in practiceAreaTree
+        let matchedPA = practiceAreaTree.find(
+          (pa) =>
+            pa.category.toLowerCase() === catName.toLowerCase() ||
+            pa.category.toLowerCase().includes(catName.toLowerCase()) ||
+            catName.toLowerCase().includes(pa.category.toLowerCase()) ||
+            pa.category.toLowerCase().includes(mapped.toLowerCase()),
+        );
+
+        // 2. Find matching specialization
+        let matchedSpec: LawyerSpecialization | undefined = undefined;
+        if (subName) {
+          if (matchedPA) {
+            matchedSpec = matchedPA.case_types.find(
+              (s) =>
+                s.case_type.toLowerCase() === subName.toLowerCase() ||
+                s.case_type.toLowerCase().includes(subName.toLowerCase()) ||
+                subName.toLowerCase().includes(s.case_type.toLowerCase()),
+            );
+          }
+
+          // If not in matchedPA, search across entire tree
+          if (!matchedSpec) {
+            for (const pa of practiceAreaTree) {
+              const found = pa.case_types.find(
+                (s) =>
+                  s.case_type.toLowerCase() === subName.toLowerCase() ||
+                  s.case_type.toLowerCase().includes(subName.toLowerCase()) ||
+                  subName.toLowerCase().includes(s.case_type.toLowerCase()),
+              );
+              if (found) {
+                matchedSpec = found;
+                matchedPA = pa;
+                break;
+              }
+            }
+          }
+        }
+
+        const targetPA = matchedPA ? matchedPA.category : catName;
+        setSelectedPracticeArea(targetPA);
+
+        const targetSpec = matchedSpec ? matchedSpec.case_type : (subName || "");
+        setSelectedSpecialization(targetSpec);
+
+        // 3. Find matching legal service
+        const services = matchedSpec?.legal_services ?? [];
+        let bestService = services[0] ?? "";
+        if (description) {
+          const descLower = description.toLowerCase();
+          const matchedService = services.find((srv) => {
+            const srvLower = srv.toLowerCase();
+            return srvLower.split(" ").some((word) => word.length > 3 && descLower.includes(word));
+          });
+          if (matchedService) {
+            bestService = matchedService;
+          }
+        }
+
+        if (bestService) {
+          setSelectedLegalServices([bestService]);
+        } else if (services.length > 0) {
+          setSelectedLegalServices(services);
+        }
+      } else {
+        const fallbackCat = predictCategory(description);
+        setPredictedCategory(fallbackCat);
+        setAiSubCategory(null);
+      }
+    },
+    [practiceAreaTree, description],
+  );
 
   function toggleLegalService(service: string) {
     setSelectedLegalServices((prev) =>
@@ -618,8 +754,12 @@ export function FindLawyerWizard() {
   }
 
   async function handleContinueFromDetails() {
-    // The citizen already told us the category via the Practice Area picker —
-    // use it directly, no fake AI classification needed.
+    if (selectedPracticeArea) {
+      setPredictedCategory(mapPracticeAreaToCategory(selectedPracticeArea));
+      setStep("assign");
+      return;
+    }
+
     if (path === "new" && knowsCaseType === true && hasManualCategoryPick) {
       setPredictedCategory(mapPracticeAreaToCategory(selectedPracticeArea));
       setAiSubCategory(null);
@@ -632,15 +772,7 @@ export function FindLawyerWizard() {
       setIsAnalyzing(true);
       try {
         const res = await aiService.caseAnalysis({ query: analysisText });
-        const catName = res?.data?.categoryName || res?.categoryName;
-        const subName = res?.data?.subCategoryName || res?.subCategoryName || null;
-        if (catName) {
-          setPredictedCategory(mapDetectedToLegalCategory(catName));
-          setAiSubCategory(subName);
-        } else {
-          setPredictedCategory(predictCategory(analysisText));
-          setAiSubCategory(null);
-        }
+        applyAiDetectionResult(res);
       } catch (err) {
         console.warn("AI case detection API call failed, falling back to local heuristic:", err);
         setPredictedCategory(predictCategory(analysisText));
@@ -1316,15 +1448,7 @@ export function FindLawyerWizard() {
                                       setIsInlineAnalyzing(true);
                                       try {
                                         const res = await aiService.caseAnalysis({ query: description.trim() });
-                                        const catName = res?.data?.categoryName || res?.categoryName;
-                                        const subName = res?.data?.subCategoryName || res?.subCategoryName || null;
-                                        if (catName) {
-                                          setPredictedCategory(mapDetectedToLegalCategory(catName));
-                                          setAiSubCategory(subName);
-                                        } else {
-                                          setPredictedCategory(predictCategory(description));
-                                          setAiSubCategory(null);
-                                        }
+                                        applyAiDetectionResult(res);
                                       } catch (err) {
                                         console.warn("AI analysis call failed, using fallback:", err);
                                         setPredictedCategory(predictCategory(description));
@@ -1358,10 +1482,11 @@ export function FindLawyerWizard() {
                                 )}
                               </Card>
                             ) : (
-                              <Card
-                                variant="elevated"
-                                className="p-3.5 border-primary/30 bg-primary/5"
-                              >
+                              <>
+                                <Card
+                                  variant="elevated"
+                                  className="p-3.5 border-primary/30 bg-primary/5"
+                                >
                                 <div className="flex items-start gap-3">
                                   <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-primary/10 text-primary">
                                     <Sparkles className="h-4.5 w-4.5" />
@@ -1383,15 +1508,7 @@ export function FindLawyerWizard() {
                                             setIsInlineAnalyzing(true);
                                             try {
                                               const res = await aiService.caseAnalysis({ query: description.trim() });
-                                              const catName = res?.data?.categoryName || res?.categoryName;
-                                              const subName = res?.data?.subCategoryName || res?.subCategoryName || null;
-                                              if (catName) {
-                                                setPredictedCategory(mapDetectedToLegalCategory(catName));
-                                                setAiSubCategory(subName);
-                                              } else {
-                                                setPredictedCategory(predictCategory(description));
-                                                setAiSubCategory(null);
-                                              }
+                                              applyAiDetectionResult(res);
                                             } catch (err) {
                                               console.warn("AI re-analysis call failed, using fallback:", err);
                                               setPredictedCategory(predictCategory(description));
@@ -1427,6 +1544,45 @@ export function FindLawyerWizard() {
                                   </div>
                                 </div>
                               </Card>
+
+                              {/* 3 Dropdowns auto-filled according to API output */}
+                              <div className="space-y-1.5 pt-1 animate-in fade-in slide-in-from-top-2 duration-200">
+                                <div className="flex items-center justify-between">
+                                  <span className="text-xs font-bold text-foreground flex items-center gap-1.5">
+                                    <Sparkles className="h-3.5 w-3.5 text-primary" />
+                                    <span>Categorization & Services</span>
+                                  </span>
+                                  <span className="text-[10px] text-muted-foreground">
+                                    Auto-filled by AI — modify if needed
+                                  </span>
+                                </div>
+                                <div className="grid grid-cols-1 gap-2.5 sm:grid-cols-3">
+                                  <Select
+                                    label="Practice Area"
+                                    required
+                                    value={selectedPracticeArea}
+                                    onChange={handlePracticeAreaChange}
+                                    options={practiceAreaOptions}
+                                  />
+                                  <Select
+                                    label="Specialization"
+                                    required
+                                    value={selectedSpecialization}
+                                    onChange={handleSpecializationChange}
+                                    disabled={!selectedPracticeArea || specializationOptions.length <= 1}
+                                    options={specializationOptions}
+                                  />
+                                  <Select
+                                    label="Legal Service"
+                                    required
+                                    value={selectedLegalServices[0] || (legalServiceOptions[1]?.value ?? "")}
+                                    onChange={(val) => setSelectedLegalServices(val ? [val] : [])}
+                                    disabled={!selectedSpecialization || legalServiceOptions.length <= 1}
+                                    options={legalServiceOptions}
+                                  />
+                                </div>
+                              </div>
+                            </>
                             )}
                           </div>
                         )}
