@@ -29,6 +29,7 @@ import {
   getCourtHistory,
   getStageHistory,
 } from "@/components/app/caseDocketShared";
+import { formatDateTime } from "@/lib/dateUtils";
 
 export const Route = createFileRoute("/citizen/cases/$id")({
   component: CitizenCaseDetailPage,
@@ -36,11 +37,7 @@ export const Route = createFileRoute("/citizen/cases/$id")({
 
 function formatDate(iso?: string) {
   if (!iso) return undefined;
-  return new Date(iso).toLocaleDateString("en-IN", {
-    day: "numeric",
-    month: "short",
-    year: "numeric",
-  });
+  return formatDateTime(iso);
 }
 
 function MetaLine({ parts }: { parts: (React.ReactNode | false | undefined)[] }) {

@@ -17,6 +17,7 @@ import { PageHeader } from "@/components/app/PageHeader";
 import { DataTable, type Column } from "@/components/app/DataTable";
 import { ConfirmDialog } from "@/components/app/ConfirmDialog";
 import { DocumentPreviewBody } from "@/components/app/DocumentPreview";
+import { formatDateTime } from "@/lib/dateUtils";
 import {
   TextField,
   Select,
@@ -94,7 +95,7 @@ export function KnowledgeBasePage() {
             fileMimeType: r.fileMimeType || "application/pdf",
             fileUrl: r.fileUrl || null,
             fileDataUrl: r.fileUrl || undefined,
-            uploadedAt: r.uploadedAt ? r.uploadedAt.split("T")[0] : new Date().toISOString().split("T")[0],
+            uploadedAt: r.uploadedAt || new Date().toISOString(),
             scope: "global" as const,
             uploadedBy: r.uploadedBy || "admin",
           }))
@@ -205,7 +206,7 @@ export function KnowledgeBasePage() {
               <span className="inline-block rounded-md border border-border bg-background px-2 py-0.5 text-[10px] font-medium text-foreground">
                 {r.categoryName || r.category}
               </span>
-              <span className="text-[10px] text-muted-foreground">· {r.uploadedAt}</span>
+              <span className="text-[10px] text-muted-foreground">· {formatDateTime(r.uploadedAt)}</span>
             </div>
           </div>
         </div>
@@ -225,7 +226,7 @@ export function KnowledgeBasePage() {
       key: "uploadedAt",
       header: "Date Added",
       hideCompact: true,
-      render: (r) => <span className="text-xs text-muted-foreground">{r.uploadedAt}</span>,
+      render: (r) => <span className="text-xs text-muted-foreground">{formatDateTime(r.uploadedAt)}</span>,
     },
     {
       key: "actions",

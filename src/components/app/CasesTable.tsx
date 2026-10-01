@@ -84,6 +84,7 @@ import {
   formatCaseVsTitle,
   type CourtHistoryRow,
 } from "@/components/app/caseDocketShared";
+import { formatDateTime } from "@/lib/dateUtils";
 
 type CnrImportResult =
   | { status: "found"; source: "database" | "ecourts"; title: string }
@@ -153,7 +154,7 @@ function chatMessageToDocument(msg: ChatMessage): CaseDocument {
     id: msg.id,
     name: msg.attachmentName || (isImage ? "Chat Image" : isAudio ? "Voice Note" : "Chat Document"),
     size: msg.attachmentSize || (isAudio && msg.audioDuration ? `${msg.audioDuration}s` : "Chat Media"),
-    uploadedAt: msg.at ? msg.at.slice(0, 10) : new Date().toISOString().slice(0, 10),
+    uploadedAt: msg.at || new Date().toISOString(),
     fileDataUrl: msg.attachmentUrl || "",
     fileMimeType: mimeType,
     uploadedBy: msg.sender,
@@ -1446,7 +1447,7 @@ export function CasesTable({
                       </div>
                       <div className="text-[10px] text-muted-foreground flex items-center gap-2 mt-0.5">
                         <span>
-                          {d.size} · {d.uploadedAt}
+                          {d.size} · {formatDateTime(d.uploadedAt)}
                         </span>
                         <span
                           className={cn(
@@ -2369,7 +2370,7 @@ export function CasesTable({
                         <div className="text-center">
                           <p className="text-xs font-semibold text-foreground">{previewDoc.name}</p>
                           <p className="mt-0.5 text-[11px] text-muted-foreground">
-                            {previewDoc.size} · Uploaded {previewDoc.uploadedAt}
+                            {previewDoc.size} · Uploaded {formatDateTime(previewDoc.uploadedAt)}
                           </p>
                         </div>
                       </div>
@@ -2389,7 +2390,7 @@ export function CasesTable({
                             {docDisplayTitle(previewDoc)}
                           </h4>
                           <p className="font-mono text-xs text-muted-foreground">
-                            Uploaded {previewDoc.uploadedAt}
+                            Uploaded {formatDateTime(previewDoc.uploadedAt)}
                             {previewDoc.uploadedBy ? ` · by ${previewDoc.uploadedBy}` : ""}
                           </p>
                         </div>
@@ -2418,7 +2419,7 @@ export function CasesTable({
                           </div>
                           <div className="text-right font-mono">
                             <p>CloseUrCase FILE</p>
-                            <p>ADDED {previewDoc.uploadedAt}</p>
+                            <p>ADDED {formatDateTime(previewDoc.uploadedAt)}</p>
                           </div>
                         </div>
                       </div>

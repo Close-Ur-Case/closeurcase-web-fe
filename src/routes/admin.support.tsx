@@ -18,6 +18,7 @@ import {
   Phone,
 } from "lucide-react";
 import { PageHeader } from "@/components/app/PageHeader";
+import { formatDateTime } from "@/lib/dateUtils";
 import {
   Card,
   TextField,
@@ -308,13 +309,7 @@ function AdminSupportPage() {
                     </a>
                     <span className="flex items-center gap-1">
                       <Clock className="h-3 w-3" />
-                      {new Date(inq.createdAt).toLocaleString("en-IN", {
-                        day: "numeric",
-                        month: "short",
-                        year: "numeric",
-                        hour: "2-digit",
-                        minute: "2-digit",
-                      })}
+                      {formatDateTime(inq.createdAt)}
                     </span>
                   </div>
                 </div>
@@ -382,13 +377,7 @@ function AdminSupportPage() {
                     Submitted At
                   </span>
                   <p className="font-medium text-foreground mt-0.5">
-                    {new Date(selectedInquiry.createdAt).toLocaleString("en-IN", {
-                      day: "numeric",
-                      month: "short",
-                      year: "numeric",
-                      hour: "2-digit",
-                      minute: "2-digit",
-                    })}
+                    {formatDateTime(selectedInquiry.createdAt)}
                   </p>
                 </div>
               </div>

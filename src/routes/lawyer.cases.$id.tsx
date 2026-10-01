@@ -14,6 +14,7 @@ import {
   getCourtHistory,
   getStageHistory,
 } from "@/components/app/caseDocketShared";
+import { formatDateTime } from "@/lib/dateUtils";
 import {
   ArrowLeft,
   ChevronRight,
@@ -39,11 +40,7 @@ export const Route = createFileRoute("/lawyer/cases/$id")({
 
 function formatDate(iso?: string) {
   if (!iso) return undefined;
-  return new Date(iso).toLocaleDateString("en-IN", {
-    day: "numeric",
-    month: "short",
-    year: "numeric",
-  });
+  return formatDateTime(iso);
 }
 
 function MetaLine({ parts }: { parts: (React.ReactNode | false | undefined)[] }) {

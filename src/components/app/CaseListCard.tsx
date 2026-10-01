@@ -5,6 +5,7 @@ import { StatusBadge } from "@/components/app/caseDocketShared";
 import { ChatButton } from "@/components/app/CaseChat";
 import { IconButton } from "@/components/m3";
 import { formatCaseVsTitle } from "@/components/app/caseDocketShared";
+import { formatDateTime } from "@/lib/dateUtils";
 
 function nextHearing(caseItem: LegalCase) {
   const today = new Date().toISOString().slice(0, 10);
@@ -14,19 +15,15 @@ function nextHearing(caseItem: LegalCase) {
   return upcoming[0];
 }
 
-function formatDate(iso?: string): string | undefined {
+function formatDate(iso?: string, time?: string): string | undefined {
   if (!iso) return undefined;
-  return new Date(iso).toLocaleDateString("en-IN", {
-    day: "numeric",
-    month: "short",
-    year: "numeric",
-  });
+  return formatDateTime(iso, time);
 }
 
 export function CaseListCard({ caseItem }: { caseItem: LegalCase }) {
   const navigate = useNavigate();
   const nextHearingObj = nextHearing(caseItem);
-  const hearingDateFormatted = formatDate(nextHearingObj?.hearingDate);
+  const hearingDateFormatted = formatDate(nextHearingObj?.hearingDate, nextHearingObj?.time);
   const caseRef = caseItem.caseDetails.caseNumber;
   const isImported = caseItem.source === "ecourt";
   const formattedTitle = formatCaseVsTitle(caseItem);

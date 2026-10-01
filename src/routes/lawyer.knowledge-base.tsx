@@ -18,6 +18,7 @@ import {
   isPdfOrDocxFile,
   openDocumentInNewTab,
 } from "@/lib/files";
+import { formatDateTime } from "@/lib/dateUtils";
 import {
   Search,
   BookOpen,
@@ -127,9 +128,7 @@ function GlobalDocsTab() {
             fileUrl: r.fileUrl || null,
             fileDataUrl: r.fileUrl || undefined,
             scope: "global" as const,
-            uploadedAt: r.uploadedAt
-              ? r.uploadedAt.split("T")[0]
-              : new Date().toISOString().split("T")[0],
+            uploadedAt: r.uploadedAt || new Date().toISOString(),
             uploadedBy: r.uploadedBy || "admin",
           }))
         : [];
@@ -200,7 +199,7 @@ function GlobalDocsTab() {
               <span className="inline-block rounded-md border border-border bg-background px-2 py-0.5 text-[10px] font-medium text-foreground">
                 {r.categoryName || r.category}
               </span>
-              <span className="text-[10px] text-muted-foreground">· {r.uploadedAt}</span>
+              <span className="text-[10px] text-muted-foreground">· {formatDateTime(r.uploadedAt)}</span>
             </div>
           </div>
         </div>
@@ -220,7 +219,7 @@ function GlobalDocsTab() {
       key: "date",
       header: "Uploaded Date",
       hideCompact: true,
-      render: (r) => <span className="text-xs text-muted-foreground">{r.uploadedAt}</span>,
+      render: (r) => <span className="text-xs text-muted-foreground">{formatDateTime(r.uploadedAt)}</span>,
     },
     {
       key: "action",
@@ -449,7 +448,7 @@ function GlobalDocsTab() {
                       </div>
                       <div className="text-right font-mono">
                         <p>VERIFIED RECORD</p>
-                        <p>UPLOADED: {activePdf.uploadedAt}</p>
+                        <p>UPLOADED: {formatDateTime(activePdf.uploadedAt)}</p>
                       </div>
                     </div>
                   </div>
@@ -527,9 +526,7 @@ function MyDocsTab({
             fileDataUrl: r.fileUrl || undefined,
             fileName: r.fileName || r.title,
             fileMimeType: r.fileMimeType || "application/pdf",
-            uploadedAt: r.uploadedAt
-              ? r.uploadedAt.split("T")[0]
-              : new Date().toISOString().split("T")[0],
+            uploadedAt: r.uploadedAt || new Date().toISOString(),
             scope: "personal",
             uploadedBy: r.uploadedBy || lawyerId,
           }))
@@ -665,7 +662,7 @@ function MyDocsTab({
                   {r.categoryName}
                 </span>
               )}
-              <span className="text-[10px] text-muted-foreground">· {r.uploadedAt}</span>
+              <span className="text-[10px] text-muted-foreground">· {formatDateTime(r.uploadedAt)}</span>
             </div>
           </div>
         </div>
@@ -685,7 +682,7 @@ function MyDocsTab({
       key: "date",
       header: "Uploaded Date",
       hideCompact: true,
-      render: (r) => <span className="text-xs text-muted-foreground">{r.uploadedAt}</span>,
+      render: (r) => <span className="text-xs text-muted-foreground">{formatDateTime(r.uploadedAt)}</span>,
     },
     {
       key: "action",
@@ -912,7 +909,7 @@ function MyDocsTab({
                   <h3 className="truncate text-xs font-bold text-foreground">{activeDoc.title}</h3>
                   <p className="text-[10px] text-muted-foreground">
                     {activeDoc.categoryName || activeDoc.category || "General"} · {activeDoc.size} ·
-                    Uploaded {activeDoc.uploadedAt}
+                    Uploaded {formatDateTime(activeDoc.uploadedAt)}
                   </p>
                 </div>
               </div>

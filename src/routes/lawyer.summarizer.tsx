@@ -19,6 +19,7 @@ import {
 import { Select, Button } from "@/components/m3";
 import { aiService } from "@/services/aiService";
 import { CaseAttachmentsSelectorModal } from "@/components/app/CaseAttachmentsSelectorModal";
+import { formatDateTime } from "@/lib/dateUtils";
 
 export const Route = createFileRoute("/lawyer/summarizer")({
   component: CaseSummarizer,
@@ -98,11 +99,7 @@ function extractKeyFacts(description: string): string[] {
 
 function formatDateShort(iso: string): string {
   try {
-    return new Date(iso).toLocaleDateString("en-IN", {
-      day: "numeric",
-      month: "short",
-      year: "numeric",
-    });
+    return formatDateTime(iso);
   } catch {
     return iso;
   }

@@ -17,6 +17,7 @@ import {
 } from "@/data/appStore";
 import { caseService } from "@/services/caseService";
 import type { CaseStatus, LegalCase, LegalCategory } from "@/types";
+import { formatDateTime } from "@/lib/dateUtils";
 import { Search, UserCheck, X, Siren, AlertTriangle, Eye, Hash, MapPin } from "lucide-react";
 import {
   TextField,
@@ -275,7 +276,7 @@ function CasesPage() {
                 {/* Footer Action Bar */}
                 <div className="mt-4 flex items-center justify-between gap-2 border-t border-border/50 pt-3">
                   <span className="text-[11px] font-medium text-muted-foreground font-mono">
-                    Created: {r.createdAt}
+                    Created: {formatDateTime(r.createdAt)}
                   </span>
                   <button
                     type="button"

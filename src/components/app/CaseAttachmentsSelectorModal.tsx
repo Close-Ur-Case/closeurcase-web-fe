@@ -25,6 +25,7 @@ import { cn } from "@/lib/utils";
 import { Button, IconButton } from "@/components/m3";
 import { DocxPreview } from "@/components/app/DocumentPreview";
 import { chatService } from "@/services/chatService";
+import { formatDateTime } from "@/lib/dateUtils";
 import type { LegalCase, CaseDocument } from "@/types";
 
 export type AttachmentTab =
@@ -149,11 +150,7 @@ export function CaseAttachmentsSelectorModal({
       size: m.attachmentSize || "Shared in chat",
       fileMimeType,
       uploadedAt: m.timestamp
-        ? new Date(m.timestamp).toLocaleDateString("en-IN", {
-            day: "numeric",
-            month: "short",
-            year: "numeric",
-          })
+        ? formatDateTime(m.timestamp)
         : "Chat",
       fileDataUrl: url,
       uploadedBy: m.sender === "lawyer" ? "lawyer" : "citizen",
@@ -208,11 +205,7 @@ export function CaseAttachmentsSelectorModal({
             name: `Case_Registration_Brief_${caseItem.id}.pdf`,
             size: "24 KB",
             uploadedAt: caseItem.createdAt
-              ? new Date(caseItem.createdAt).toLocaleDateString("en-IN", {
-                  day: "numeric",
-                  month: "short",
-                  year: "numeric",
-                })
+              ? formatDateTime(caseItem.createdAt)
               : "Registration",
             fileMimeType: "application/pdf",
             uploadedBy: "citizen",
@@ -271,10 +264,9 @@ export function CaseAttachmentsSelectorModal({
       fileDataUrl: `data:text/plain;charset=utf-8,${encodeURIComponent(caseItem.description)}`,
       fileMimeType: "text/plain",
       size: `${Math.max(1, Math.round(new Blob([caseItem.description]).size / 1024))} KB`,
-      uploadedAt:
-        caseItem.caseDetails?.filingDate ||
-        caseItem.createdAt?.slice(0, 10) ||
-        new Date().toISOString().slice(0, 10),
+      uploadedAt: formatDateTime(
+        caseItem.createdAt || caseItem.caseDetails?.filingDate || new Date().toISOString(),
+      ),
       uploadedBy: "citizen",
     };
   }, [
@@ -761,7 +753,7 @@ export function CaseAttachmentsSelectorModal({
                         </div>
                         <div className="text-[10px] text-muted-foreground flex items-center gap-2 mt-0.5">
                           <span>
-                            {d.size} · {d.uploadedAt}
+                            {d.size} · {formatDateTime(d.uploadedAt)}
                           </span>
                           <span
                             className={cn(

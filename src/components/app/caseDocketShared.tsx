@@ -1,4 +1,5 @@
 import type { LegalCase, HistoryOfHearing } from "@/types";
+import { formatDateTime } from "@/lib/dateUtils";
 
 /**
  * Formats a case title or party names to ensure " vs " is displayed between Petitioner and Respondent
@@ -300,15 +301,13 @@ export const COURTS_FLAT = COURTS_DATA.courts.flatMap((group) =>
   group.courts.map((c) => ({ name: c.name, location: c.location, type: group.type })),
 );
 
-export function fmtDate(iso?: string) {
+export function fmtDate(iso?: string, timeStr?: string) {
   if (!iso) return "—";
-  const d = new Date(iso + "T00:00:00");
-  if (isNaN(d.getTime())) return iso;
-  return d.toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric" });
+  return formatDateTime(iso, timeStr);
 }
 
 export function todayISO() {
-  return new Date().toISOString().slice(0, 10);
+  return new Date().toISOString();
 }
 
 /** One row of the court roadmap (Part 2 of the case journey — Lawyer to

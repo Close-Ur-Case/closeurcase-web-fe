@@ -5,6 +5,7 @@
 
 import { apiClient } from "./apiClient";
 import { resolveLegalCategoryOr } from "@/lib/caseCategories";
+import { formatDateTime } from "@/lib/dateUtils";
 import type {
   CreateUserCasePayload,
   UpdateLawyerCaseStagePayload,
@@ -230,9 +231,9 @@ export function mapBackendCaseToLegalCase(
   // backend `cat_N` means. The previous inline table here was mis-keyed.
   const category: LegalCategory = resolveLegalCategoryOr(backend.practiceArea);
 
-  const today = new Date().toISOString().slice(0, 10);
-  const createdDate = backend.createdAt ? backend.createdAt.slice(0, 10) : today;
-  const updatedDate = backend.updatedAt ? backend.updatedAt.slice(0, 10) : today;
+  const nowIso = new Date().toISOString();
+  const createdDate = backend.createdAt || nowIso;
+  const updatedDate = backend.updatedAt || nowIso;
 
   // Unpack linked eCourts docket details if available
   const rawImp = backend.importedCase?.rawData || backend.importedCase || {};
@@ -277,7 +278,7 @@ export function mapBackendCaseToLegalCase(
     id: d.id || `doc_${i}`,
     name: d.name || `Document ${i + 1}`,
     size: d.size || "1.0 MB",
-    uploadedAt: d.uploadedAt || createdDate,
+    uploadedAt: formatDateTime(d.uploadedAt || createdDate),
     fileDataUrl: d.fileUrl || d.fileDataUrl || d.url || "",
     fileMimeType: d.fileMimeType || d.type || undefined,
     uploadedBy:
@@ -292,7 +293,7 @@ export function mapBackendCaseToLegalCase(
         id: (f.id as string) || `imp_doc_${i}`,
         name: (f.name as string) || (f.fileName as string) || `Court Document ${i + 1}`,
         size: (f.size as string) || "1.5 MB",
-        uploadedAt: (f.uploadedAt as string) || createdDate,
+        uploadedAt: formatDateTime((f.uploadedAt as string) || createdDate),
         fileDataUrl: (f.fileDataUrl as string) || (f.fileUrl as string) || (f.url as string) || "",
         fileMimeType: (f.fileMimeType as string) || "application/pdf",
         uploadedBy: "citizen" as const,

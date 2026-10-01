@@ -16,6 +16,7 @@ import type { Citizen } from "@/types";
 import { Search } from "lucide-react";
 import { TextField } from "@/components/m3";
 import { Toggle } from "@/components/app/Toggle";
+import { formatDateTime } from "@/lib/dateUtils";
 
 export const Route = createFileRoute("/admin/users")({
   head: () => ({ meta: [{ title: "Manage Users — CloseUrCase" }] }),
@@ -23,13 +24,7 @@ export const Route = createFileRoute("/admin/users")({
 });
 
 function formatLastLogin(iso: string): string {
-  return new Date(iso).toLocaleString("en-IN", {
-    day: "numeric",
-    month: "short",
-    year: "numeric",
-    hour: "numeric",
-    minute: "2-digit",
-  });
+  return formatDateTime(iso);
 }
 
 function countBy<T extends string>(rows: Citizen[], pick: (c: Citizen) => T) {

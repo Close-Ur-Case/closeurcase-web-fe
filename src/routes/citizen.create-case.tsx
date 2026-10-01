@@ -1187,8 +1187,8 @@ export function FindLawyerWizard() {
       const lawyer = assignMode === "browse" ? selectedLawyer : undefined;
       const id = generateCloseUrCaseId();
       const now = new Date();
-      const today = now.toISOString().split("T")[0];
-      const time = now.toLocaleTimeString([], { hour: "numeric", minute: "2-digit" });
+      const today = now.toISOString();
+      const time = now.toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit", hour12: true });
 
       const documentEntries: CaseDocument[] = await Promise.all([
         ...images.map((f, i) => readEntry(f, `d_img_${i}`, today)),
