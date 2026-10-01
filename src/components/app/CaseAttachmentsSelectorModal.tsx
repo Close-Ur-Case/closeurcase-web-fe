@@ -17,6 +17,9 @@ import {
   Maximize2,
   Minimize2,
   FileCheck,
+  AlignLeft,
+  FolderOpen,
+  Copy,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Button, IconButton } from "@/components/m3";
@@ -59,6 +62,8 @@ export function CaseAttachmentsSelectorModal({
   initialSelectedIds,
 }: CaseAttachmentsSelectorModalProps) {
   const [activeTab, setActiveTab] = useState<AttachmentTab>("citizen_submitted");
+  const [citizenSubTab, setCitizenSubTab] = useState<"description" | "files">("files");
+  const [copiedDesc, setCopiedDesc] = useState(false);
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [caseChatMessages, setCaseChatMessages] = useState<LocalChatMessage[]>([]);
   const [previewDoc, setPreviewDoc] = useState<CaseDocument | null>(null);
@@ -243,7 +248,44 @@ export function CaseAttachmentsSelectorModal({
       };
     }, [caseItem, caseChatMessages]);
 
-  // Requirement: Default select all files in tab 1
+  const descDocId = `case_desc_${caseItem?.id || "default"}`;
+  const isDescSelected = selectedIds.has(descDocId);
+
+  const toggleDescSelection = () => {
+    setSelectedIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(descDocId)) {
+        next.delete(descDocId);
+      } else {
+        next.add(descDocId);
+      }
+      return next;
+    });
+  };
+
+  const caseDescriptionDoc: CaseDocument | null = useMemo(() => {
+    if (!caseItem?.description) return null;
+    return {
+      id: descDocId,
+      name: `Case_Description_${caseItem.id}.txt`,
+      fileDataUrl: `data:text/plain;charset=utf-8,${encodeURIComponent(caseItem.description)}`,
+      fileMimeType: "text/plain",
+      size: `${Math.max(1, Math.round(new Blob([caseItem.description]).size / 1024))} KB`,
+      uploadedAt:
+        caseItem.caseDetails?.filingDate ||
+        caseItem.createdAt?.slice(0, 10) ||
+        new Date().toISOString().slice(0, 10),
+      uploadedBy: "citizen",
+    };
+  }, [
+    caseItem?.id,
+    caseItem?.description,
+    caseItem?.createdAt,
+    caseItem?.caseDetails?.filingDate,
+    descDocId,
+  ]);
+
+  // Requirement: Default select all files in tab 1 + Case Description
   useEffect(() => {
     if (!isOpen || !caseItem) {
       initializedCaseIdRef.current = null;
@@ -257,12 +299,21 @@ export function CaseAttachmentsSelectorModal({
       if (initialSelectedIds && initialSelectedIds.length > 0) {
         setSelectedIds(new Set(initialSelectedIds));
       } else {
-        // Default select all files in Tab 1 (Citizen Submitted)
-        const tab1Ids = citizenSubmittedDocs.map((d) => d.id);
+        // Default select Case Description (if available) + files in Tab 1 (Citizen Submitted) up to 5 files
+        const tab1Ids: string[] = [];
+        if (caseItem.description) {
+          tab1Ids.push(descDocId);
+        }
+        for (const d of citizenSubmittedDocs) {
+          const filesCount = tab1Ids.filter((id) => id !== descDocId).length;
+          if (filesCount < 5) {
+            tab1Ids.push(d.id);
+          }
+        }
         setSelectedIds(new Set(tab1Ids));
       }
     }
-  }, [isOpen, caseItem, citizenSubmittedDocs, initialSelectedIds]);
+  }, [isOpen, caseItem, citizenSubmittedDocs, initialSelectedIds, descDocId]);
 
   if (!isOpen || !caseItem) return null;
 
@@ -312,16 +363,24 @@ export function CaseAttachmentsSelectorModal({
     });
   };
 
-  // Requirement 3: poup [Case Attachments] will close only when atleast 1 file should select and click ok
-  const canConfirm = selectedIds.size >= 1;
+  const selectedTextCount = isDescSelected ? 1 : 0;
+  const selectedAttachmentsCount = selectedIds.has(descDocId)
+    ? selectedIds.size - 1
+    : selectedIds.size;
+
+  // Requirement: Validation [Other than Text At least 1 file (Maximun 5) must be selected to proceed]
+  const canConfirm = selectedAttachmentsCount >= 1 && selectedAttachmentsCount <= 5;
 
   const handleOk = () => {
     if (!canConfirm) return;
     const chosenDocs = allDocs.filter((d) => selectedIds.has(d.id));
+    if (isDescSelected && caseDescriptionDoc && !chosenDocs.some((d) => d.id === descDocId)) {
+      chosenDocs.unshift(caseDescriptionDoc);
+    }
     onConfirm(chosenDocs);
   };
 
-  // 4 Tabs definition
+  // 5 Tabs definition
   const TABS: {
     id: AttachmentTab;
     label: string;
@@ -333,10 +392,12 @@ export function CaseAttachmentsSelectorModal({
     {
       id: "citizen_submitted",
       label: "Citizen Submitted",
-      totalCount: citizenSubmittedDocs.length,
-      selectedCount: citizenSubmittedDocs.filter((d) => selectedIds.has(d.id)).length,
+      totalCount: citizenSubmittedDocs.length + (caseDescriptionDoc ? 1 : 0),
+      selectedCount:
+        citizenSubmittedDocs.filter((d) => selectedIds.has(d.id)).length +
+        (isDescSelected && caseDescriptionDoc ? 1 : 0),
       icon: <FileText className="h-3.5 w-3.5 shrink-0" />,
-      hint: "Files shared by user during case registration (default selected)",
+      hint: "Files & description shared by user during case registration (default selected)",
     },
     {
       id: "lawyer_uploaded",
@@ -471,8 +532,148 @@ export function CaseAttachmentsSelectorModal({
           </div>
         </div>
 
-        {/* Tab Subheader & Action Bar */}
-        <div className="px-5 sm:px-6 py-2 shrink-0 flex items-center justify-between gap-2 border-b border-border/40 text-xs">
+        {/* Sub-tabs for Citizen Submitted: [case description(give checkbox to select for ai analysis ) , case files] */}
+        {activeTab === "citizen_submitted" && (
+          <div className="px-5 sm:px-6 pt-1 pb-2 shrink-0 flex items-center gap-2 border-b border-border/40">
+            <button
+              type="button"
+              onClick={() => setCitizenSubTab("description")}
+              className={cn(
+                "inline-flex items-center gap-2 px-3.5 py-1.5 rounded-xl text-xs font-semibold transition-all cursor-pointer",
+                citizenSubTab === "description"
+                  ? "bg-primary text-white shadow-2xs"
+                  : "bg-surface border border-border/70 text-muted-foreground hover:text-foreground hover:bg-muted/40",
+              )}
+            >
+              <div
+                onClick={(e) => {
+                  e.stopPropagation();
+                  toggleDescSelection();
+                }}
+                className={cn(
+                  "flex h-4 w-4 shrink-0 items-center justify-center rounded border transition-colors cursor-pointer",
+                  isDescSelected
+                    ? citizenSubTab === "description"
+                      ? "bg-white text-primary border-white"
+                      : "bg-primary text-primary-foreground border-primary"
+                    : citizenSubTab === "description"
+                      ? "border-white/60 bg-white/10"
+                      : "border-muted-foreground/50 bg-background",
+                )}
+                title={isDescSelected ? "Unselect for AI Analysis" : "Select for AI Analysis"}
+              >
+                {isDescSelected && <Check className="h-3 w-3 stroke-[3]" />}
+              </div>
+              <AlignLeft className="h-3.5 w-3.5" />
+              <span>Case Description</span>
+            </button>
+
+            <button
+              type="button"
+              onClick={() => setCitizenSubTab("files")}
+              className={cn(
+                "inline-flex items-center gap-2 px-3.5 py-1.5 rounded-xl text-xs font-semibold transition-all cursor-pointer",
+                citizenSubTab === "files"
+                  ? "bg-primary text-white shadow-2xs"
+                  : "bg-surface border border-border/70 text-muted-foreground hover:text-foreground hover:bg-muted/40",
+              )}
+            >
+              <FolderOpen className="h-3.5 w-3.5" />
+              <span>Case Files</span>
+              <span
+                className={cn(
+                  "inline-flex items-center justify-center px-1.5 py-0.2 rounded-full text-[10px] font-bold",
+                  citizenSubTab === "files"
+                    ? "bg-white/25 text-white"
+                    : "bg-muted text-muted-foreground",
+                )}
+              >
+                {citizenSubmittedDocs.length}
+              </span>
+            </button>
+          </div>
+        )}
+
+        {/* Tab Body: Case Description view OR File Selection List */}
+        {activeTab === "citizen_submitted" && citizenSubTab === "description" ? (
+          <div className="p-5 sm:p-6 overflow-y-auto space-y-3 min-h-[260px] max-h-[48vh] flex-1">
+            <div className="flex items-center justify-between gap-3">
+              <button
+                type="button"
+                onClick={toggleDescSelection}
+                className="inline-flex items-center gap-2.5 group cursor-pointer select-none"
+                title={isDescSelected ? "Unselect for AI Analysis" : "Select for AI Analysis"}
+              >
+                <div
+                  className={cn(
+                    "flex h-5 w-5 shrink-0 items-center justify-center rounded-md border transition-colors",
+                    isDescSelected
+                      ? "bg-primary border-primary text-primary-foreground"
+                      : "border-muted-foreground/50 bg-background group-hover:border-primary/70",
+                  )}
+                >
+                  {isDescSelected && <Check className="h-3.5 w-3.5 stroke-[3]" />}
+                </div>
+                <span
+                  className={cn(
+                    "text-xs font-semibold transition-colors",
+                    isDescSelected
+                      ? "text-primary dark:text-primary-foreground font-bold"
+                      : "text-foreground group-hover:text-primary",
+                  )}
+                >
+                  Select/Unselect for Ai Analysis
+                </span>
+              </button>
+
+              {caseItem.description && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    navigator.clipboard.writeText(caseItem.description || "");
+                    setCopiedDesc(true);
+                    setTimeout(() => setCopiedDesc(false), 2000);
+                  }}
+                  className="inline-flex items-center gap-1.5 text-xs text-muted-foreground hover:text-foreground cursor-pointer transition-colors px-2.5 py-1 rounded-lg hover:bg-muted/40 shrink-0"
+                  title="Copy Case Description"
+                >
+                  {copiedDesc ? (
+                    <>
+                      <Check className="h-3.5 w-3.5 text-emerald-500" />
+                      <span className="text-emerald-500 font-medium">Copied</span>
+                    </>
+                  ) : (
+                    <>
+                      <Copy className="h-3.5 w-3.5" />
+                      <span>Copy Description</span>
+                    </>
+                  )}
+                </button>
+              )}
+            </div>
+
+            <div
+              onClick={toggleDescSelection}
+              className={cn(
+                "rounded-2xl border p-4 text-xs leading-relaxed text-foreground whitespace-pre-wrap select-text shadow-2xs min-h-[140px] cursor-pointer transition-all",
+                isDescSelected
+                  ? "border-primary/50 bg-primary/[0.03] ring-1 ring-primary/20"
+                  : "border-border bg-card hover:border-border/80",
+              )}
+            >
+              {caseItem.description ? (
+                caseItem.description
+              ) : (
+                <span className="text-muted-foreground italic">
+                  No case description provided for this case during registration.
+                </span>
+              )}
+            </div>
+          </div>
+        ) : (
+          <>
+            {/* Tab Subheader & Action Bar */}
+            <div className="px-5 sm:px-6 py-2 shrink-0 flex items-center justify-between gap-2 border-b border-border/40 text-xs">
           <span className="text-muted-foreground">
             Check or uncheck files to include for AI processing:
           </span>
@@ -634,19 +835,27 @@ export function CaseAttachmentsSelectorModal({
             </ul>
           )}
         </div>
+      </>
+    )}
 
         {/* Modal Footer */}
         <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3 p-5 sm:p-6 pt-3 border-t border-border/80 shrink-0 bg-surface/50">
           <div className="flex items-center gap-2">
             {!canConfirm ? (
               <span className="inline-flex items-center gap-1.5 text-xs font-semibold text-destructive">
-                <AlertCircle className="h-4 w-4" />
-                At least 1 file must be selected to proceed
+                <AlertCircle className="h-4 w-4 shrink-0" />
+                Other than Text At least 1 file (Maximun 5) must be selected to proceed
+                {selectedAttachmentsCount > 5 && (
+                  <span className="font-normal opacity-90">
+                    ({selectedAttachmentsCount} files selected)
+                  </span>
+                )}
               </span>
             ) : (
               <span className="text-xs text-muted-foreground">
-                <strong className="text-foreground">{selectedIds.size}</strong> attachment
-                {selectedIds.size === 1 ? "" : "s"} selected across all tabs
+                <strong className="text-foreground">{selectedTextCount}</strong> text +{" "}
+                <strong className="text-foreground">{selectedAttachmentsCount}</strong> attachment
+                {selectedAttachmentsCount === 1 ? "" : "s"} selected
               </span>
             )}
           </div>

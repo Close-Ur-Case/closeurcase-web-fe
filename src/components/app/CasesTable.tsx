@@ -27,6 +27,9 @@ import {
   Loader2,
   Lock,
   FileCheck,
+  AlignLeft,
+  FolderOpen,
+  Copy,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import {
@@ -180,6 +183,9 @@ export function CasesTable({
 
   const [attachmentsCaseId, setAttachmentsCaseId] = useState<string | null>(null);
   const [attachmentTab, setAttachmentTab] = useState<AttachmentTab>("citizen_submitted");
+  const [citizenSubTab, setCitizenSubTab] = useState<"description" | "files">("description");
+  const [copiedDesc, setCopiedDesc] = useState(false);
+  const [isDescSelectedForAi, setIsDescSelectedForAi] = useState(true);
   const [caseChatMessages, setCaseChatMessages] = useState<ChatMessage[]>([]);
   const [isLoadingChatMessages, setIsLoadingChatMessages] = useState(false);
   const [isUploadingAttachment, setIsUploadingAttachment] = useState(false);
@@ -533,6 +539,7 @@ export function CasesTable({
     setPreviewDoc(null);
     setPreviewFullScreen(false);
     setAttachmentTab("citizen_submitted");
+    setCitizenSubTab("description");
     setAttachmentError("");
     setIsDragging(false);
   }
@@ -1653,101 +1660,231 @@ export function CasesTable({
                           <FileText className="h-4 w-4 shrink-0 text-teal-600 dark:text-teal-400 mt-0.5" />
                           <div className="flex-1">
                             <p className="font-semibold text-foreground">
-                              Citizen Submitted Registration Files
+                              Citizen Submitted Registration Files &amp; Details
                             </p>
                             <p className="text-muted-foreground text-[11px] mt-0.5">
-                              The files and initial documents shared by the user during case
-                              registration &amp; booking.
+                              The statement and documents submitted by citizen during case registration.
                             </p>
                           </div>
                         </div>
 
-                        {/* Case Description */}
-                        <div>
-                          <div className="text-[11px] font-bold uppercase tracking-wider text-primary mb-1.5">
-                            Case Description
-                          </div>
-                          <div className="rounded-2xl border border-border bg-card p-3.5 text-xs leading-relaxed text-foreground whitespace-pre-wrap">
-                            {attachmentsCase.description || "No description provided."}
-                          </div>
-                        </div>
-
-                        {/* Document List */}
-                        <div>
-                          <div className="text-[11px] font-bold uppercase tracking-wider text-primary mb-2">
-                            Submitted Documents ({citizenSubmittedDocs.length})
-                          </div>
-                          {citizenSubmittedDocs.length === 0 ? (
-                            <div className="rounded-2xl border border-dashed border-border bg-card p-6 text-center">
-                              <p className="text-xs text-muted-foreground italic">
-                                No registration documents were submitted by citizen.
-                              </p>
-                            </div>
-                          ) : (
-                            <ul className="space-y-2">
-                              {citizenSubmittedDocs.map((d) =>
-                                renderDocItem(
-                                  d,
-                                  "Citizen Submitted",
-                                  "bg-teal-500/10 text-teal-600 dark:text-teal-400 border border-teal-500/20",
-                                ),
-                              )}
-                            </ul>
-                          )}
-                        </div>
-
-                        {/* Add Attachment — citizen only before case acceptance */}
-                        {!isLawyer && (
-                          <div className="rounded-2xl bg-[var(--md-sys-color-surface-container,#efedf1)] p-4 space-y-2.5">
-                            <div className="text-[11px] font-bold uppercase tracking-wider text-muted-foreground">
-                              Add Registration Attachment
-                            </div>
-                            <input
-                              ref={addAttachmentInputRef}
-                              type="file"
-                              multiple
-                              accept="application/pdf,image/*,.doc,.docx,.txt"
-                              className="hidden"
-                              onChange={handleAddAttachments}
-                              disabled={isCaseAccepted}
-                            />
-                            <Button
-                              variant="tonal"
-                              icon={<Paperclip className="h-4 w-4" />}
-                              onClick={() => {
-                                if (isCaseAccepted) return;
-                                addAttachmentInputRef.current?.click();
-                              }}
-                              disabled={isUploadingAttachment || isCaseAccepted}
-                            >
-                              {isUploadingAttachment ? "Uploading…" : "Add Attachment"}
-                            </Button>
-                            {isCaseAccepted && (
-                              <div className="flex items-start gap-2.5 rounded-xl border border-primary/20 bg-primary/5 p-3 text-xs text-foreground">
-                                <MessageSquare className="h-4 w-4 shrink-0 text-primary mt-0.5" />
-                                <div className="flex-1 space-y-1.5">
-                                  <p className="font-medium text-foreground leading-relaxed">
-                                    Your case is accepted by lawyer so you can share messages and
-                                    documents from chat.
-                                  </p>
-                                  <button
-                                    type="button"
-                                    onClick={() => {
-                                      closeAttachmentsModal();
-                                      navigate({ to: chatTargetRoute });
-                                    }}
-                                    className="inline-flex items-center gap-1.5 font-semibold text-primary hover:underline cursor-pointer text-xs"
-                                  >
-                                    <MessageSquare className="h-3.5 w-3.5" />
-                                    <span>Open Case Chat</span>
-                                  </button>
-                                </div>
-                              </div>
+                        {/* Sub Tabs: [case description(give checkbox to select for ai analysis ) , case files] */}
+                        <div className="flex items-center gap-2 border-b border-border/60 pb-2.5">
+                          <button
+                            type="button"
+                            onClick={() => setCitizenSubTab("description")}
+                            className={cn(
+                              "inline-flex items-center gap-2 px-3.5 py-1.5 rounded-xl text-xs font-semibold transition-all cursor-pointer",
+                              citizenSubTab === "description"
+                                ? "bg-primary text-white shadow-2xs"
+                                : "bg-surface border border-border/70 text-muted-foreground hover:text-foreground hover:bg-muted/40",
                             )}
-                            {attachmentError && (
-                              <p className="text-[11px] font-semibold text-destructive">
-                                {attachmentError}
-                              </p>
+                          >
+                            <div
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                setIsDescSelectedForAi((prev) => !prev);
+                              }}
+                              className={cn(
+                                "flex h-4 w-4 shrink-0 items-center justify-center rounded border transition-colors cursor-pointer",
+                                isDescSelectedForAi
+                                  ? citizenSubTab === "description"
+                                    ? "bg-white text-primary border-white"
+                                    : "bg-primary text-primary-foreground border-primary"
+                                  : citizenSubTab === "description"
+                                    ? "border-white/60 bg-white/10"
+                                    : "border-muted-foreground/50 bg-background",
+                              )}
+                              title={isDescSelectedForAi ? "Unselect for AI Analysis" : "Select for AI Analysis"}
+                            >
+                              {isDescSelectedForAi && <Check className="h-3 w-3 stroke-[3]" />}
+                            </div>
+                            <AlignLeft className="h-3.5 w-3.5" />
+                            <span>Case Description</span>
+                          </button>
+
+                          <button
+                            type="button"
+                            onClick={() => setCitizenSubTab("files")}
+                            className={cn(
+                              "inline-flex items-center gap-2 px-3.5 py-1.5 rounded-xl text-xs font-semibold transition-all cursor-pointer",
+                              citizenSubTab === "files"
+                                ? "bg-primary text-white shadow-2xs"
+                                : "bg-surface border border-border/70 text-muted-foreground hover:text-foreground hover:bg-muted/40",
+                            )}
+                          >
+                            <FolderOpen className="h-3.5 w-3.5" />
+                            <span>Case Files</span>
+                            <span
+                              className={cn(
+                                "inline-flex items-center justify-center px-1.5 py-0.2 rounded-full text-[10px] font-bold",
+                                citizenSubTab === "files"
+                                  ? "bg-white/25 text-white"
+                                  : "bg-muted text-muted-foreground",
+                              )}
+                            >
+                              {citizenSubmittedDocs.length}
+                            </span>
+                          </button>
+                        </div>
+
+                        {/* Sub-tab 1: Case Description */}
+                        {citizenSubTab === "description" ? (
+                          <div className="space-y-3">
+                            <div className="flex items-center justify-between gap-3">
+                              <button
+                                type="button"
+                                onClick={() => setIsDescSelectedForAi((prev) => !prev)}
+                                className="inline-flex items-center gap-2.5 group cursor-pointer select-none"
+                                title={isDescSelectedForAi ? "Unselect for AI Analysis" : "Select for AI Analysis"}
+                              >
+                                <div
+                                  className={cn(
+                                    "flex h-5 w-5 shrink-0 items-center justify-center rounded-md border transition-colors",
+                                    isDescSelectedForAi
+                                      ? "bg-primary border-primary text-primary-foreground"
+                                      : "border-muted-foreground/50 bg-background group-hover:border-primary/70",
+                                  )}
+                                >
+                                  {isDescSelectedForAi && <Check className="h-3.5 w-3.5 stroke-[3]" />}
+                                </div>
+                                <span
+                                  className={cn(
+                                    "text-xs font-semibold transition-colors",
+                                    isDescSelectedForAi
+                                      ? "text-primary dark:text-primary-foreground font-bold"
+                                      : "text-foreground group-hover:text-primary",
+                                  )}
+                                >
+                                  Select/Unselect for Ai Analysis
+                                </span>
+                              </button>
+
+                              {attachmentsCase.description && (
+                                <button
+                                  type="button"
+                                  onClick={() => {
+                                    navigator.clipboard.writeText(attachmentsCase.description || "");
+                                    setCopiedDesc(true);
+                                    setTimeout(() => setCopiedDesc(false), 2000);
+                                  }}
+                                  className="inline-flex items-center gap-1.5 text-xs text-muted-foreground hover:text-foreground cursor-pointer transition-colors px-2.5 py-1 rounded-lg hover:bg-muted/40 shrink-0"
+                                  title="Copy Case Description"
+                                >
+                                  {copiedDesc ? (
+                                    <>
+                                      <Check className="h-3.5 w-3.5 text-emerald-500" />
+                                      <span className="text-emerald-500 font-medium">Copied</span>
+                                    </>
+                                  ) : (
+                                    <>
+                                      <Copy className="h-3.5 w-3.5" />
+                                      <span>Copy Description</span>
+                                    </>
+                                  )}
+                                </button>
+                              )}
+                            </div>
+
+                            <div
+                              onClick={() => setIsDescSelectedForAi((prev) => !prev)}
+                              className={cn(
+                                "rounded-2xl border p-4 text-xs leading-relaxed text-foreground whitespace-pre-wrap select-text shadow-2xs min-h-[140px] cursor-pointer transition-all",
+                                isDescSelectedForAi
+                                  ? "border-primary/50 bg-primary/[0.03] ring-1 ring-primary/20"
+                                  : "border-border bg-card hover:border-border/80",
+                              )}
+                            >
+                              {attachmentsCase.description ? (
+                                attachmentsCase.description
+                              ) : (
+                                <span className="text-muted-foreground italic">
+                                  No case description provided during registration.
+                                </span>
+                              )}
+                            </div>
+                          </div>
+                        ) : (
+                          /* Sub-tab 2: Case Files */
+                          <div className="space-y-4">
+                            {/* Document List */}
+                            <div>
+                              <div className="text-[11px] font-bold uppercase tracking-wider text-teal-600 dark:text-teal-400 mb-2">
+                                Submitted Case Files ({citizenSubmittedDocs.length})
+                              </div>
+                              {citizenSubmittedDocs.length === 0 ? (
+                                <div className="rounded-2xl border border-dashed border-border bg-card p-6 text-center">
+                                  <p className="text-xs text-muted-foreground italic">
+                                    No registration documents were submitted by citizen.
+                                  </p>
+                                </div>
+                              ) : (
+                                <ul className="space-y-2">
+                                  {citizenSubmittedDocs.map((d) =>
+                                    renderDocItem(
+                                      d,
+                                      "Citizen Submitted",
+                                      "bg-teal-500/10 text-teal-600 dark:text-teal-400 border border-teal-500/20",
+                                    ),
+                                  )}
+                                </ul>
+                              )}
+                            </div>
+
+                            {/* Add Attachment — citizen only before case acceptance */}
+                            {!isLawyer && (
+                              <div className="rounded-2xl bg-[var(--md-sys-color-surface-container,#efedf1)] p-4 space-y-2.5">
+                                <div className="text-[11px] font-bold uppercase tracking-wider text-muted-foreground">
+                                  Add Registration Attachment
+                                </div>
+                                <input
+                                  ref={addAttachmentInputRef}
+                                  type="file"
+                                  multiple
+                                  accept="application/pdf,image/*,.doc,.docx,.txt"
+                                  className="hidden"
+                                  onChange={handleAddAttachments}
+                                  disabled={isCaseAccepted}
+                                />
+                                <Button
+                                  variant="tonal"
+                                  icon={<Paperclip className="h-4 w-4" />}
+                                  onClick={() => {
+                                    if (isCaseAccepted) return;
+                                    addAttachmentInputRef.current?.click();
+                                  }}
+                                  disabled={isUploadingAttachment || isCaseAccepted}
+                                >
+                                  {isUploadingAttachment ? "Uploading…" : "Add Attachment"}
+                                </Button>
+                                {isCaseAccepted && (
+                                  <div className="flex items-start gap-2.5 rounded-xl border border-primary/20 bg-primary/5 p-3 text-xs text-foreground">
+                                    <MessageSquare className="h-4 w-4 shrink-0 text-primary mt-0.5" />
+                                    <div className="flex-1 space-y-1.5">
+                                      <p className="font-medium text-foreground leading-relaxed">
+                                        Your case is accepted by lawyer so you can share messages and
+                                        documents from chat.
+                                      </p>
+                                      <button
+                                        type="button"
+                                        onClick={() => {
+                                          closeAttachmentsModal();
+                                          navigate({ to: chatTargetRoute });
+                                        }}
+                                        className="inline-flex items-center gap-1.5 font-semibold text-primary hover:underline cursor-pointer text-xs"
+                                      >
+                                        <MessageSquare className="h-3.5 w-3.5" />
+                                        <span>Open Case Chat</span>
+                                      </button>
+                                    </div>
+                                  </div>
+                                )}
+                                {attachmentError && (
+                                  <p className="text-[11px] font-semibold text-destructive">
+                                    {attachmentError}
+                                  </p>
+                                )}
+                              </div>
                             )}
                           </div>
                         )}
@@ -2146,7 +2283,12 @@ export function CasesTable({
                   </div>
 
                   {/* Modal Footer */}
-                  <div className="flex items-center justify-end p-5 sm:p-6 pt-3 border-t border-border/80 shrink-0">
+                  <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3 p-5 sm:p-6 pt-3 border-t border-border/80 shrink-0 bg-surface/50">
+                    <span className="text-xs text-muted-foreground">
+                      <strong className="text-foreground">{isDescSelectedForAi ? 1 : 0}</strong> text +{" "}
+                      <strong className="text-foreground">{citizenSubmittedDocs.length}</strong> attachment
+                      {citizenSubmittedDocs.length === 1 ? "" : "s"} selected
+                    </span>
                     <Button variant="text" onClick={closeAttachmentsModal}>
                       Close
                     </Button>
