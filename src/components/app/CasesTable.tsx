@@ -186,7 +186,6 @@ export function CasesTable({
   const [attachmentTab, setAttachmentTab] = useState<AttachmentTab>("citizen_submitted");
   const [citizenSubTab, setCitizenSubTab] = useState<"description" | "files">("description");
   const [copiedDesc, setCopiedDesc] = useState(false);
-  const [isDescSelectedForAi, setIsDescSelectedForAi] = useState(false);
   const [caseChatMessages, setCaseChatMessages] = useState<ChatMessage[]>([]);
   const [isLoadingChatMessages, setIsLoadingChatMessages] = useState(false);
   const [isUploadingAttachment, setIsUploadingAttachment] = useState(false);
@@ -541,7 +540,6 @@ export function CasesTable({
     setPreviewFullScreen(false);
     setAttachmentTab("citizen_submitted");
     setCitizenSubTab("description");
-    setIsDescSelectedForAi(false);
     setAttachmentError("");
     setIsDragging(false);
   }
@@ -1670,7 +1668,7 @@ export function CasesTable({
                           </div>
                         </div>
 
-                        {/* Sub Tabs: [case description(give checkbox to select for ai analysis ) , case files] */}
+                        {/* Sub Tabs: [case description, case files] */}
                         <div className="flex items-center gap-2 border-b border-border/60 pb-2.5">
                           <button
                             type="button"
@@ -1682,25 +1680,6 @@ export function CasesTable({
                                 : "bg-surface border border-border/70 text-muted-foreground hover:text-foreground hover:bg-muted/40",
                             )}
                           >
-                            <div
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                setIsDescSelectedForAi((prev) => !prev);
-                              }}
-                              className={cn(
-                                "flex h-4 w-4 shrink-0 items-center justify-center rounded border transition-colors cursor-pointer",
-                                isDescSelectedForAi
-                                  ? citizenSubTab === "description"
-                                    ? "bg-white text-primary border-white"
-                                    : "bg-primary text-primary-foreground border-primary"
-                                  : citizenSubTab === "description"
-                                    ? "border-white/60 bg-white/10"
-                                    : "border-muted-foreground/50 bg-background",
-                              )}
-                              title={isDescSelectedForAi ? "Unselect for AI Analysis" : "Select for AI Analysis"}
-                            >
-                              {isDescSelectedForAi && <Check className="h-3 w-3 stroke-[3]" />}
-                            </div>
                             <AlignLeft className="h-3.5 w-3.5" />
                             <span>Case Description</span>
                           </button>
@@ -1734,33 +1713,9 @@ export function CasesTable({
                         {citizenSubTab === "description" ? (
                           <div className="space-y-3">
                             <div className="flex items-center justify-between gap-3">
-                              <button
-                                type="button"
-                                onClick={() => setIsDescSelectedForAi((prev) => !prev)}
-                                className="inline-flex items-center gap-2.5 group cursor-pointer select-none"
-                                title={isDescSelectedForAi ? "Unselect for AI Analysis" : "Select for AI Analysis"}
-                              >
-                                <div
-                                  className={cn(
-                                    "flex h-5 w-5 shrink-0 items-center justify-center rounded-md border transition-colors",
-                                    isDescSelectedForAi
-                                      ? "bg-primary border-primary text-primary-foreground"
-                                      : "border-muted-foreground/50 bg-background group-hover:border-primary/70",
-                                  )}
-                                >
-                                  {isDescSelectedForAi && <Check className="h-3.5 w-3.5 stroke-[3]" />}
-                                </div>
-                                <span
-                                  className={cn(
-                                    "text-xs font-semibold transition-colors",
-                                    isDescSelectedForAi
-                                      ? "text-primary dark:text-primary-foreground font-bold"
-                                      : "text-foreground group-hover:text-primary",
-                                  )}
-                                >
-                                  Select/Unselect for Ai Analysis
-                                </span>
-                              </button>
+                              <span className="text-xs font-bold uppercase tracking-wider text-teal-600 dark:text-teal-400 flex items-center gap-1.5">
+                                <AlignLeft className="h-3.5 w-3.5" /> Case Description
+                              </span>
 
                               {attachmentsCase.description && (
                                 <button
@@ -1788,15 +1743,7 @@ export function CasesTable({
                               )}
                             </div>
 
-                            <div
-                              onClick={() => setIsDescSelectedForAi((prev) => !prev)}
-                              className={cn(
-                                "rounded-2xl border p-4 text-xs leading-relaxed text-foreground whitespace-pre-wrap select-text shadow-2xs min-h-[140px] cursor-pointer transition-all",
-                                isDescSelectedForAi
-                                  ? "border-primary/50 bg-primary/[0.03] ring-1 ring-primary/20"
-                                  : "border-border bg-card hover:border-border/80",
-                              )}
-                            >
+                            <div className="rounded-2xl border border-border bg-card p-4 text-xs leading-relaxed text-foreground whitespace-pre-wrap select-text shadow-2xs min-h-[140px]">
                               {attachmentsCase.description ? (
                                 attachmentsCase.description
                               ) : (
@@ -2287,9 +2234,7 @@ export function CasesTable({
                   {/* Modal Footer */}
                   <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3 p-5 sm:p-6 pt-3 border-t border-border/80 shrink-0 bg-surface/50">
                     <span className="text-xs text-muted-foreground">
-                      <strong className="text-foreground">{isDescSelectedForAi ? 1 : 0}</strong> text +{" "}
-                      <strong className="text-foreground">{citizenSubmittedDocs.length}</strong> attachment
-                      {citizenSubmittedDocs.length === 1 ? "" : "s"} selected
+                      Total case attachments: <strong className="text-foreground">{allAttachedDocs.length}</strong> file{allAttachedDocs.length === 1 ? "" : "s"}
                     </span>
                     <Button variant="text" onClick={closeAttachmentsModal}>
                       Close
