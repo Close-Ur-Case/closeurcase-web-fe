@@ -13,6 +13,7 @@ export interface UserCaseDocument {
   fileMimeType?: string;
   uploadedAt?: string;
   uploadedBy?: "citizen" | "lawyer";
+  isAffidavit?: boolean;
 }
 
 export interface UserCaseTimelineEvent {

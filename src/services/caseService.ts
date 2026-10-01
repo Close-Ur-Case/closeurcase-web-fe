@@ -165,6 +165,7 @@ export interface BackendUserCaseDocument {
   fileMimeType?: string;
   uploadedAt?: string;
   uploadedBy?: "citizen" | "lawyer";
+  isAffidavit?: boolean;
   createdAt?: string;
   updatedAt?: string;
 }
@@ -283,6 +284,7 @@ export function mapBackendCaseToLegalCase(
       d.uploadedBy === "lawyer" || d.uploaderRole === "lawyer" || d.uploaded_by === "lawyer"
         ? ("lawyer" as const)
         : ("citizen" as const),
+    isAffidavit: Boolean(d.isAffidavit ?? d.is_affidavit ?? false),
   }));
 
   const extraFiles: CaseDocument[] = Array.isArray(impFiles)

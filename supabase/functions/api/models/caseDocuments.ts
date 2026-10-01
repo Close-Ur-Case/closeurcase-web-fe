@@ -1,4 +1,4 @@
-import { pgTable, text, timestamp, varchar } from "drizzle-orm/pg-core";
+import { boolean, pgTable, text, timestamp, varchar } from "drizzle-orm/pg-core";
 import { casesUser } from "./casesUser.ts";
 
 export const caseDocuments = pgTable("case_documents", {
@@ -13,6 +13,7 @@ export const caseDocuments = pgTable("case_documents", {
   size: varchar("size", { length: 64 }),
   fileMimeType: varchar("file_mime_type", { length: 128 }),
   uploadedAt: varchar("uploaded_at", { length: 64 }).notNull(),
+  isAffidavit: boolean("is_affidavit").default(false).notNull(),
   createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
   updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
 });

@@ -16,6 +16,7 @@ import {
   Check,
   Maximize2,
   Minimize2,
+  FileCheck,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Button, IconButton } from "@/components/m3";
@@ -27,7 +28,8 @@ export type AttachmentTab =
   | "citizen_submitted"
   | "lawyer_uploaded"
   | "citizen_shared"
-  | "lawyer_shared";
+  | "lawyer_shared"
+  | "affidavits";
 
 interface LocalChatMessage {
   id: string;
@@ -154,17 +156,24 @@ export function CaseAttachmentsSelectorModal({
   };
 
   // Extract docs for each tab
-  const { citizenSubmittedDocs, lawyerUploadedDocs, citizenSharedDocs, lawyerSharedDocs, allDocs } =
-    useMemo(() => {
-      if (!caseItem) {
-        return {
-          citizenSubmittedDocs: [],
-          lawyerUploadedDocs: [],
-          citizenSharedDocs: [],
-          lawyerSharedDocs: [],
-          allDocs: [],
-        };
-      }
+  const {
+    citizenSubmittedDocs,
+    lawyerUploadedDocs,
+    citizenSharedDocs,
+    lawyerSharedDocs,
+    affidavitDocs,
+    allDocs,
+  } = useMemo(() => {
+    if (!caseItem) {
+      return {
+        citizenSubmittedDocs: [],
+        lawyerUploadedDocs: [],
+        citizenSharedDocs: [],
+        lawyerSharedDocs: [],
+        affidavitDocs: [],
+        allDocs: [],
+      };
+    }
 
       const allAttachedDocs: CaseDocument[] = Array.isArray(caseItem.files)
         ? caseItem.files
@@ -172,12 +181,15 @@ export function CaseAttachmentsSelectorModal({
           ? caseItem.files.files
           : [];
 
+      const isAffidavitDoc = (d: CaseDocument) =>
+        Boolean(d.isAffidavit || (d as any).is_affidavit);
       const isLawyerDoc = (d: CaseDocument) =>
+        !isAffidavitDoc(d) &&
         (d.uploadedBy || (d as any).uploaderRole || (d as any).uploaded_by || "")
           ?.toString()
           .trim()
           .toLowerCase() === "lawyer";
-      const isCitizenDoc = (d: CaseDocument) => !isLawyerDoc(d);
+      const isCitizenDoc = (d: CaseDocument) => !isAffidavitDoc(d) && !isLawyerDoc(d);
 
       // Tab 1: Citizen Submitted ('the files which are shared by user during case registration')
       let tab1Docs: CaseDocument[] = allAttachedDocs.filter(isCitizenDoc);
@@ -216,13 +228,17 @@ export function CaseAttachmentsSelectorModal({
         .filter((m) => Boolean(m.attachmentUrl) && m.sender === "lawyer")
         .map(chatMessageToDocument);
 
-      const allMerged = [...tab1Docs, ...tab2Docs, ...tab3Docs, ...tab4Docs];
+      // Tab 5: Affidavits ('sworn legal affidavits attached to this case')
+      const tab5Docs: CaseDocument[] = allAttachedDocs.filter(isAffidavitDoc);
+
+      const allMerged = [...tab1Docs, ...tab2Docs, ...tab3Docs, ...tab4Docs, ...tab5Docs];
 
       return {
         citizenSubmittedDocs: tab1Docs,
         lawyerUploadedDocs: tab2Docs,
         citizenSharedDocs: tab3Docs,
         lawyerSharedDocs: tab4Docs,
+        affidavitDocs: tab5Docs,
         allDocs: allMerged,
       };
     }, [caseItem, caseChatMessages]);
@@ -272,6 +288,8 @@ export function CaseAttachmentsSelectorModal({
         return citizenSharedDocs;
       case "lawyer_shared":
         return lawyerSharedDocs;
+      case "affidavits":
+        return affidavitDocs;
     }
   };
 
@@ -344,6 +362,14 @@ export function CaseAttachmentsSelectorModal({
       icon: <MessageCircle className="h-3.5 w-3.5 shrink-0" />,
       hint: "Files shared during case chat with citizen",
     },
+    {
+      id: "affidavits",
+      label: "Affidavits",
+      totalCount: affidavitDocs.length,
+      selectedCount: affidavitDocs.filter((d) => selectedIds.has(d.id)).length,
+      icon: <FileCheck className="h-3.5 w-3.5 shrink-0" />,
+      hint: "Sworn legal affidavits attached to this case",
+    },
   ];
 
   return createPortal(
@@ -354,7 +380,7 @@ export function CaseAttachmentsSelectorModal({
         if (e.target === e.currentTarget) onCancel();
       }}
     >
-      <div className="my-auto flex max-h-[92vh] w-full max-w-[780px] flex-col rounded-[28px] bg-[var(--md-sys-color-surface-container-low,#f5f3f7)] shadow-2xl border border-border/80 overflow-hidden text-foreground">
+      <div className="my-auto flex max-h-[92vh] w-full max-w-[880px] flex-col rounded-[28px] bg-[var(--md-sys-color-surface-container-low,#f5f3f7)] shadow-2xl border border-border/80 overflow-hidden text-foreground">
         {/* Modal Header */}
         <div className="flex items-start justify-between gap-4 p-5 sm:p-6 pb-3 shrink-0 border-b border-border/60">
           <div>
@@ -392,10 +418,10 @@ export function CaseAttachmentsSelectorModal({
           </button>
         </div>
 
-        {/* 4 Tabs Bar — full names auto adjusting to next line */}
+        {/* 5 Tabs Bar — Responsive layout: icon + count on top, full-width label below */}
         <div className="px-5 sm:px-6 pt-3 pb-2 shrink-0">
-          <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 p-1.5 bg-surface rounded-2xl border border-border/80 shadow-2xs items-stretch">
-            {TABS.map((t) => {
+          <div className="grid grid-cols-2 sm:grid-cols-5 gap-2 p-1.5 bg-surface rounded-2xl border border-border/80 shadow-2xs items-stretch">
+            {TABS.map((t, idx) => {
               const isActive = activeTab === t.id;
               return (
                 <button
@@ -403,37 +429,41 @@ export function CaseAttachmentsSelectorModal({
                   type="button"
                   onClick={() => setActiveTab(t.id)}
                   className={cn(
-                    "flex h-full min-h-[52px] items-center justify-between gap-2 p-2.5 sm:px-3 sm:py-2.5 rounded-xl transition-all cursor-pointer text-left",
+                    "flex flex-col justify-between gap-1.5 p-2.5 sm:px-3 sm:py-2.5 rounded-xl transition-all cursor-pointer text-left h-full min-h-[58px]",
+                    idx === 4 ? "col-span-2 sm:col-span-1" : "col-span-1",
                     isActive
                       ? "bg-primary text-white shadow-sm ring-1 ring-primary/30"
                       : "text-muted-foreground hover:text-foreground hover:bg-muted/40",
                   )}
                   title={t.hint}
                 >
-                  <div className="flex items-center gap-2 min-w-0 flex-1">
+                  {/* Top row: Icon on left, selected/total count on right */}
+                  <div className="flex items-center justify-between w-full gap-1.5">
                     <span
                       className={cn(
-                        "flex h-7 w-7 shrink-0 items-center justify-center rounded-lg transition-colors",
+                        "flex h-6 w-6 shrink-0 items-center justify-center rounded-lg transition-colors",
                         isActive ? "bg-white/20 text-white" : "bg-primary/10 text-primary",
                       )}
                     >
                       {t.icon}
                     </span>
-                    <span className="text-xs font-bold leading-tight whitespace-normal break-words">
-                      {t.label}
+                    <span
+                      className={cn(
+                        "inline-flex items-center justify-center px-1.5 py-0.5 rounded-full text-[10px] font-bold shrink-0 min-w-[24px] transition-colors",
+                        isActive
+                          ? "bg-white/25 text-white"
+                          : t.selectedCount > 0
+                            ? "bg-primary/15 text-primary font-bold"
+                            : "bg-muted text-muted-foreground",
+                      )}
+                    >
+                      {t.selectedCount}/{t.totalCount}
                     </span>
                   </div>
-                  <span
-                    className={cn(
-                      "inline-flex items-center justify-center px-1.5 py-0.5 rounded-full text-[10px] font-bold shrink-0 ml-1 self-center",
-                      isActive
-                        ? "bg-white/25 text-white"
-                        : t.selectedCount > 0
-                          ? "bg-primary/15 text-primary"
-                          : "bg-muted text-muted-foreground",
-                    )}
-                  >
-                    {t.selectedCount}/{t.totalCount}
+
+                  {/* Bottom row: Tab name with full available width */}
+                  <span className="text-xs font-semibold leading-snug line-clamp-2 break-words w-full text-left">
+                    {t.label}
                   </span>
                 </button>
               );
@@ -472,7 +502,9 @@ export function CaseAttachmentsSelectorModal({
           {currentTabDocs.length === 0 ? (
             <div className="rounded-2xl border border-dashed border-border bg-card p-10 text-center space-y-2">
               <p className="text-xs text-muted-foreground italic">
-                No attachments found in this tab for {caseItem.id}.
+                {activeTab === "affidavits"
+                  ? `No sworn affidavits attached to case ${caseItem.id}.`
+                  : `No attachments found in this tab for ${caseItem.id}.`}
               </p>
               <p className="text-[11px] text-muted-foreground">
                 You can select attachments from other tabs.
@@ -543,22 +575,26 @@ export function CaseAttachmentsSelectorModal({
                           <span
                             className={cn(
                               "inline-flex items-center px-1.5 py-0.2 rounded text-[9px] font-medium",
-                              activeTab === "citizen_submitted"
-                                ? "bg-teal-500/10 text-teal-600 dark:text-teal-400"
-                                : activeTab === "lawyer_uploaded"
-                                  ? "bg-primary/10 text-primary"
-                                  : activeTab === "citizen_shared"
-                                    ? "bg-amber-500/10 text-amber-600 dark:text-amber-400"
-                                    : "bg-indigo-500/10 text-indigo-600 dark:text-indigo-400",
+                              activeTab === "affidavits"
+                                ? "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400"
+                                : activeTab === "citizen_submitted"
+                                  ? "bg-teal-500/10 text-teal-600 dark:text-teal-400"
+                                  : activeTab === "lawyer_uploaded"
+                                    ? "bg-primary/10 text-primary"
+                                    : activeTab === "citizen_shared"
+                                      ? "bg-amber-500/10 text-amber-600 dark:text-amber-400"
+                                      : "bg-indigo-500/10 text-indigo-600 dark:text-indigo-400",
                             )}
                           >
-                            {activeTab === "citizen_submitted"
-                              ? "Registration File"
-                              : activeTab === "lawyer_uploaded"
-                                ? "Lawyer Upload"
-                                : activeTab === "citizen_shared"
-                                  ? "Citizen Shared"
-                                  : "Lawyer Shared"}
+                            {activeTab === "affidavits"
+                              ? "Affidavit"
+                              : activeTab === "citizen_submitted"
+                                ? "Registration File"
+                                : activeTab === "lawyer_uploaded"
+                                  ? "Lawyer Upload"
+                                  : activeTab === "citizen_shared"
+                                    ? "Citizen Shared"
+                                    : "Lawyer Shared"}
                           </span>
                         </div>
                       </div>

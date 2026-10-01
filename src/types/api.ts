@@ -142,6 +142,7 @@ export interface CaseDocumentItem {
   fileMimeType?: string;
   uploadedAt?: string;
   uploadedBy?: "citizen" | "lawyer";
+  isAffidavit?: boolean;
   createdAt?: string;
   updatedAt?: string;
 }

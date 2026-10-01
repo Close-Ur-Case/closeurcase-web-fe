@@ -172,6 +172,7 @@ export interface CaseDocument {
   fileDataUrl?: string;
   fileMimeType?: string;
   uploadedBy?: "citizen" | "lawyer";
+  isAffidavit?: boolean;
 }
 
 export interface TimelineEvent {

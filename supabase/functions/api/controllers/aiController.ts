@@ -256,7 +256,7 @@ export async function caseAnalysis(c: Context) {
     if (foundCase) {
       caseTitle = foundCase.petitioner
         ? (foundCase.respondent ? `${foundCase.petitioner} vs ${foundCase.respondent}` : foundCase.petitioner)
-        : (foundCase.title || "Legal Matter");
+        : ((foundCase as any).title || "Legal Matter");
       caseDescription = foundCase.description || caseDescription;
       category = foundCase.practiceArea || category;
     }

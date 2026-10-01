@@ -163,12 +163,14 @@ export class DbInitService {
           size VARCHAR(64),
           file_mime_type VARCHAR(128),
           uploaded_at VARCHAR(64) NOT NULL,
+          is_affidavit BOOLEAN DEFAULT FALSE NOT NULL,
           created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW() NOT NULL,
           updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW() NOT NULL
       );
 
       CREATE INDEX IF NOT EXISTS idx_case_documents_case_id ON public.case_documents(case_id);
       CREATE INDEX IF NOT EXISTS idx_case_documents_uploaded_by ON public.case_documents(uploaded_by);
+      CREATE INDEX IF NOT EXISTS idx_case_documents_is_affidavit ON public.case_documents(is_affidavit);
 
       CREATE TABLE IF NOT EXISTS public.lawyer_documents (
           id VARCHAR(64) PRIMARY KEY,
@@ -459,6 +461,8 @@ export class DbInitService {
       ALTER TABLE public.cases_user ADD COLUMN IF NOT EXISTS respondent VARCHAR(255);
       ALTER TABLE public.cases_user DROP COLUMN IF EXISTS title;
       ALTER TABLE public.cases_user DROP COLUMN IF EXISTS documents;
+      ALTER TABLE public.case_documents ADD COLUMN IF NOT EXISTS is_affidavit BOOLEAN DEFAULT FALSE NOT NULL;
+      CREATE INDEX IF NOT EXISTS idx_case_documents_is_affidavit ON public.case_documents(is_affidavit);
       ALTER TABLE public.cities ADD COLUMN IF NOT EXISTS state_id VARCHAR(64) REFERENCES public.states(id) ON DELETE SET NULL;
       ALTER TABLE public.cities ADD COLUMN IF NOT EXISTS district_id VARCHAR(64) REFERENCES public.districts(id) ON DELETE SET NULL;
       ALTER TABLE public.courts ADD COLUMN IF NOT EXISTS state_id VARCHAR(64) REFERENCES public.states(id) ON DELETE SET NULL;

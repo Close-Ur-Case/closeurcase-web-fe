@@ -11,6 +11,7 @@ export const CaseDocumentItemSchema = z
     size: z.string().nullable().optional().openapi({ example: "1.2 MB" }),
     fileMimeType: z.string().nullable().optional().openapi({ example: "application/pdf" }),
     uploadedAt: z.string().optional().openapi({ example: "2026-08-31T15:45:12.000Z" }),
+    isAffidavit: z.boolean().optional().default(false).openapi({ example: false, description: "Whether this document is a sworn legal affidavit" }),
   })
   .openapi("CaseDocumentItem");
 
@@ -25,6 +26,7 @@ export const CaseDocumentSchema = z
     size: z.string().nullable().optional().openapi({ example: "1.2 MB" }),
     fileMimeType: z.string().nullable().optional().openapi({ example: "application/pdf" }),
     uploadedAt: z.string().optional().openapi({ example: "2026-08-31T15:45:12.000Z" }),
+    isAffidavit: z.boolean().default(false).openapi({ example: false, description: "Whether this document is a sworn legal affidavit" }),
     createdAt: z.string().optional(),
     updatedAt: z.string().optional(),
   })

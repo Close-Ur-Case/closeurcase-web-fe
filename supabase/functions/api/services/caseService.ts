@@ -19,6 +19,7 @@ export class CaseService {
       fileMimeType: d.fileMimeType || undefined,
       uploadedAt: d.uploadedAt,
       uploadedBy: (d.uploadedBy === "lawyer" ? "lawyer" : "citizen") as "citizen" | "lawyer",
+      isAffidavit: Boolean(d.isAffidavit ?? d.is_affidavit ?? false),
     };
   }
 
@@ -352,6 +353,7 @@ export class CaseService {
         size: d.size || undefined,
         fileMimeType: d.fileMimeType || d.type || undefined,
         uploadedAt: d.uploadedAt || new Date().toISOString().slice(0, 10),
+        isAffidavit: Boolean(d.isAffidavit ?? d.is_affidavit ?? false),
       }));
 
       for (const rec of recordsToInsert) {
@@ -672,6 +674,7 @@ export class CaseService {
             size: d.size || undefined,
             fileMimeType: d.fileMimeType || d.type || undefined,
             uploadedAt: d.uploadedAt || new Date().toISOString().slice(0, 10),
+            isAffidavit: Boolean(d.isAffidavit ?? d.is_affidavit ?? false),
           };
           await db
             .insert(caseDocuments)
@@ -685,6 +688,7 @@ export class CaseService {
                 fileMimeType: docRecord.fileMimeType,
                 uploadedAt: docRecord.uploadedAt,
                 uploadedBy: docRecord.uploadedBy,
+                isAffidavit: docRecord.isAffidavit,
                 updatedAt: new Date(),
               },
             });
@@ -738,6 +742,7 @@ export class CaseService {
       size: d.size || undefined,
       fileMimeType: d.fileMimeType || d.type || undefined,
       uploadedAt: d.uploadedAt || new Date().toISOString().slice(0, 10),
+      isAffidavit: Boolean(d.isAffidavit ?? d.is_affidavit ?? false),
     }));
 
     for (const item of formattedDocs) {
@@ -753,6 +758,7 @@ export class CaseService {
             fileMimeType: item.fileMimeType,
             uploadedAt: item.uploadedAt,
             uploadedBy: item.uploadedBy,
+            isAffidavit: item.isAffidavit,
             updatedAt: new Date(),
           },
         });
@@ -775,16 +781,21 @@ export class CaseService {
     };
   }
 
-  static async getCaseDocuments(caseId: string) {
+  static async getCaseDocuments(caseId: string, isAffidavit?: boolean) {
     const [existing] = await db.select().from(casesUser).where(eq(casesUser.id, caseId));
     if (!existing) {
       throw ApiError.notFound(`Case docket '${caseId}' not found`);
     }
 
+    const conditions = [eq(caseDocuments.caseId, caseId)];
+    if (isAffidavit !== undefined) {
+      conditions.push(eq(caseDocuments.isAffidavit, isAffidavit));
+    }
+
     const docs = await db
       .select()
       .from(caseDocuments)
-      .where(eq(caseDocuments.caseId, caseId))
+      .where(and(...conditions))
       .orderBy(asc(caseDocuments.createdAt));
 
     return docs.map(CaseService.mapDocRecord);

@@ -26,6 +26,7 @@ import {
   ExternalLink,
   Loader2,
   Lock,
+  FileCheck,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import {
@@ -123,7 +124,8 @@ export type AttachmentTab =
   | "citizen_submitted"
   | "lawyer_uploaded"
   | "citizen_shared"
-  | "lawyer_shared";
+  | "lawyer_shared"
+  | "affidavits";
 
 function chatMessageToDocument(msg: ChatMessage): CaseDocument {
   const isImage =
@@ -184,6 +186,7 @@ export function CasesTable({
   const [attachmentError, setAttachmentError] = useState("");
   const addAttachmentInputRef = useRef<HTMLInputElement>(null);
   const lawyerUploadInputRef = useRef<HTMLInputElement>(null);
+  const affidavitUploadInputRef = useRef<HTMLInputElement>(null);
   const [isDragging, setIsDragging] = useState(false);
   const [previewDoc, setPreviewDoc] = useState<CaseDocument | null>(null);
   const [previewFullScreen, setPreviewFullScreen] = useState(false);
@@ -608,6 +611,7 @@ export function CasesTable({
             fileDataUrl,
             fileMimeType: f.type || undefined,
             uploadedBy: uploaderRole,
+            isAffidavit: attachmentTab === "affidavits",
           };
         }),
       );
@@ -642,6 +646,7 @@ export function CasesTable({
           d.uploadedBy === "lawyer" || (d as any).uploaderRole === "lawyer"
             ? ("lawyer" as const)
             : ("citizen" as const),
+        isAffidavit: Boolean(d.isAffidavit || (d as any).is_affidavit),
       }));
 
       try {
@@ -659,6 +664,7 @@ export function CasesTable({
             fileMimeType: d.fileMimeType,
             uploadedAt: d.uploadedAt,
             uploadedBy: d.uploadedBy || uploaderRole,
+            isAffidavit: Boolean(d.isAffidavit || (d as any).is_affidavit),
           }));
           await caseService.addAttachments(attachmentsCaseId, newBackendDocs);
         } catch (fallbackErr) {
@@ -1325,12 +1331,15 @@ export function CasesTable({
               : Array.isArray(attachmentsCase.files?.files)
                 ? attachmentsCase.files.files
                 : [];
+            const isAffidavitDoc = (d: CaseDocument) =>
+              Boolean(d.isAffidavit || (d as any).is_affidavit);
             const isLawyerDoc = (d: CaseDocument) =>
+              !isAffidavitDoc(d) &&
               (d.uploadedBy || (d as any).uploaderRole || (d as any).uploaded_by || "")
                 ?.toString()
                 .trim()
                 .toLowerCase() === "lawyer";
-            const isCitizenDoc = (d: CaseDocument) => !isLawyerDoc(d);
+            const isCitizenDoc = (d: CaseDocument) => !isAffidavitDoc(d) && !isLawyerDoc(d);
 
             // Tab 1: Citizen Submitted ('the files which are shared by user during case registration')
             const citizenSubmittedDocs: CaseDocument[] = allAttachedDocs.filter(isCitizenDoc);
@@ -1347,6 +1356,9 @@ export function CasesTable({
             const lawyerSharedDocs: CaseDocument[] = caseChatMessages
               .filter((m) => Boolean(m.attachmentUrl) && m.sender === "lawyer")
               .map(chatMessageToDocument);
+
+            // Tab 5: Affidavits ('sworn legal affidavits attached to this case')
+            const affidavitDocs: CaseDocument[] = allAttachedDocs.filter(isAffidavitDoc);
 
             const isCitizenViewer = !isLawyer;
             const caseStatusLower = (attachmentsCase.status || "").toString().trim().toLowerCase();
@@ -1520,6 +1532,19 @@ export function CasesTable({
                   ? "files visible only after case accepted"
                   : "Files shared during case chat with citizen",
               },
+              {
+                id: "affidavits",
+                label: "Affidavits",
+                count: isPendingRestricted ? 0 : affidavitDocs.length,
+                icon: isPendingRestricted ? (
+                  <Lock className="h-3.5 w-3.5 shrink-0 text-amber-600 dark:text-amber-400" />
+                ) : (
+                  <FileCheck className="h-3.5 w-3.5 shrink-0" />
+                ),
+                hint: isPendingRestricted
+                  ? "files visible only after case accepted"
+                  : "Sworn legal affidavits attached to this case",
+              },
             ];
 
             return (
@@ -1529,7 +1554,7 @@ export function CasesTable({
                   if (e.target === e.currentTarget) closeAttachmentsModal();
                 }}
               >
-                <div className="my-auto flex max-h-[92vh] w-full max-w-[760px] flex-col rounded-[28px] bg-[var(--md-sys-color-surface-container-low,#f5f3f7)] shadow-2xl border border-border/80 overflow-hidden text-foreground">
+                <div className="my-auto flex max-h-[92vh] w-full max-w-[880px] flex-col rounded-[28px] bg-[var(--md-sys-color-surface-container-low,#f5f3f7)] shadow-2xl border border-border/80 overflow-hidden text-foreground">
                   {/* Modal Header */}
                   <div className="flex items-start justify-between gap-4 p-5 sm:p-6 pb-3 shrink-0 border-b border-border/60">
                     <div>
@@ -1565,10 +1590,10 @@ export function CasesTable({
                     </button>
                   </div>
 
-                  {/* 4 Tabs Bar — Full length names auto-adjusting to next line */}
+                  {/* 5 Tabs Bar — Responsive layout: icon + count on top, full-width label below */}
                   <div className="px-5 sm:px-6 pt-3 pb-2 shrink-0">
-                    <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 p-1.5 bg-surface rounded-2xl border border-border/80 shadow-2xs items-stretch">
-                      {TABS.map((t) => {
+                    <div className="grid grid-cols-2 sm:grid-cols-5 gap-2 p-1.5 bg-surface rounded-2xl border border-border/80 shadow-2xs items-stretch">
+                      {TABS.map((t, idx) => {
                         const isActive = attachmentTab === t.id;
                         return (
                           <button
@@ -1576,17 +1601,19 @@ export function CasesTable({
                             type="button"
                             onClick={() => setAttachmentTab(t.id)}
                             className={cn(
-                              "flex h-full min-h-[50px] items-center justify-between gap-2 p-2.5 sm:px-3 sm:py-2.5 rounded-xl transition-all cursor-pointer text-left",
+                              "flex flex-col justify-between gap-1.5 p-2.5 sm:px-3 sm:py-2.5 rounded-xl transition-all cursor-pointer text-left h-full min-h-[58px]",
+                              idx === 4 ? "col-span-2 sm:col-span-1" : "col-span-1",
                               isActive
                                 ? "bg-primary text-white shadow-sm ring-1 ring-primary/30"
                                 : "text-muted-foreground hover:text-foreground hover:bg-muted/40",
                             )}
                             title={t.hint}
                           >
-                            <div className="flex items-center gap-2 min-w-0 flex-1">
+                            {/* Top row: Icon on left, count badge on right */}
+                            <div className="flex items-center justify-between w-full gap-1.5">
                               <span
                                 className={cn(
-                                  "flex h-7 w-7 shrink-0 items-center justify-center rounded-lg transition-colors",
+                                  "flex h-6 w-6 shrink-0 items-center justify-center rounded-lg transition-colors",
                                   isActive
                                     ? "bg-white/20 text-white"
                                     : "bg-primary/10 text-primary",
@@ -1594,19 +1621,21 @@ export function CasesTable({
                               >
                                 {t.icon}
                               </span>
-                              <span className="text-xs font-bold leading-tight whitespace-normal break-words">
-                                {t.label}
+                              <span
+                                className={cn(
+                                  "inline-flex items-center justify-center px-1.5 py-0.5 rounded-full text-[10px] font-bold shrink-0 min-w-[20px] transition-colors",
+                                  isActive
+                                    ? "bg-white/25 text-white"
+                                    : "bg-muted text-muted-foreground",
+                                )}
+                              >
+                                {t.count}
                               </span>
                             </div>
-                            <span
-                              className={cn(
-                                "inline-flex items-center justify-center px-1.5 py-0.5 rounded-full text-[10px] font-bold shrink-0 ml-1 self-center",
-                                isActive
-                                  ? "bg-white/25 text-white"
-                                  : "bg-muted text-muted-foreground",
-                              )}
-                            >
-                              {t.count}
+
+                            {/* Bottom row: Tab name with full available width */}
+                            <span className="text-xs font-semibold leading-snug line-clamp-2 break-words w-full text-left">
+                              {t.label}
                             </span>
                           </button>
                         );
@@ -2003,6 +2032,113 @@ export function CasesTable({
                                 </ul>
                               </div>
                             )}
+                          </>
+                        )}
+                      </div>
+                    )}
+
+                    {/* ── TAB 5: Affidavits ───────────────────────────── */}
+                    {attachmentTab === "affidavits" && (
+                      <div className="space-y-4">
+                        {isPendingRestricted ? (
+                          renderPendingByLawyerMessage()
+                        ) : (
+                          <>
+                            {/* Info Banner */}
+                            <div className="rounded-xl bg-emerald-500/10 border border-emerald-500/20 p-3 text-xs flex items-start gap-2.5">
+                              <FileCheck className="h-4 w-4 shrink-0 text-emerald-600 dark:text-emerald-400 mt-0.5" />
+                              <div className="flex-1">
+                                <p className="font-semibold text-foreground">
+                                  Sworn Case Affidavits
+                                </p>
+                                <p className="text-muted-foreground text-[11px] mt-0.5">
+                                  Notarized, sworn, or evidentiary affidavits attached to this matter.
+                                </p>
+                              </div>
+                            </div>
+
+                            {/* Upload Affidavit Section */}
+                            <div className="rounded-2xl bg-[var(--md-sys-color-surface-container,#efedf1)] p-4 space-y-2.5 border border-border/70">
+                              <div className="flex items-center justify-between">
+                                <div className="text-[11px] font-bold uppercase tracking-wider text-emerald-600 dark:text-emerald-400">
+                                  Upload Affidavit Document
+                                </div>
+                                <span className="text-[10px] text-muted-foreground">
+                                  PDF, DOC, DOCX, Images (Max 4MB)
+                                </span>
+                              </div>
+                              <p className="text-xs text-muted-foreground">
+                                Attach sworn affidavits, declarations under oath, or notarized exhibits for this case.
+                              </p>
+                              <input
+                                ref={affidavitUploadInputRef}
+                                type="file"
+                                multiple
+                                accept="application/pdf,image/*,.doc,.docx,.txt"
+                                className="hidden"
+                                onChange={handleAddAttachments}
+                              />
+                              <div
+                                onDragOver={(e) => {
+                                  e.preventDefault();
+                                  setIsDragging(true);
+                                }}
+                                onDragLeave={() => setIsDragging(false)}
+                                onDrop={(e) => {
+                                  e.preventDefault();
+                                  setIsDragging(false);
+                                  if (e.dataTransfer.files) {
+                                    handleAddAttachments(e.dataTransfer.files);
+                                  }
+                                }}
+                                onClick={() => affidavitUploadInputRef.current?.click()}
+                                className={cn(
+                                  "flex flex-col items-center justify-center rounded-2xl border-2 border-dashed p-6 text-center cursor-pointer transition-colors bg-card",
+                                  isDragging
+                                    ? "border-emerald-500 bg-emerald-500/5"
+                                    : "border-border hover:border-emerald-500/50 hover:bg-muted/30",
+                                )}
+                              >
+                                <div className="flex h-12 w-12 items-center justify-center rounded-full bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 mb-3">
+                                  <FileCheck className="h-6 w-6" />
+                                </div>
+                                <p className="text-sm font-semibold text-foreground">
+                                  Click to upload affidavit or drag &amp; drop
+                                </p>
+                                <p className="text-xs text-muted-foreground mt-1">
+                                  PDF, DOC, DOCX, TXT or Images (PNG, JPG, WEBP)
+                                </p>
+                              </div>
+                              {attachmentError && (
+                                <p className="text-[11px] font-semibold text-destructive">
+                                  {attachmentError}
+                                </p>
+                              )}
+                            </div>
+
+                            {/* Affidavits List */}
+                            <div>
+                              <div className="text-[11px] font-bold uppercase tracking-wider text-emerald-600 dark:text-emerald-400 mb-2">
+                                Case Affidavits ({affidavitDocs.length})
+                              </div>
+                              {affidavitDocs.length === 0 ? (
+                                <div className="rounded-2xl border border-dashed border-border bg-card p-6 text-center">
+                                  <p className="text-xs text-muted-foreground italic">
+                                    No affidavits attached to this case yet. Use the upload area above to attach a sworn affidavit.
+                                  </p>
+                                </div>
+                              ) : (
+                                <ul className="space-y-2">
+                                  {affidavitDocs.map((d) =>
+                                    renderDocItem(
+                                      d,
+                                      "Affidavit",
+                                      "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20",
+                                    ),
+                                  )}
+                                </ul>
+                              )}
+                            </div>
                           </>
                         )}
                       </div>

@@ -32,6 +32,8 @@ import {
   ListLookupsQuerySchema,
   SuccessResponseSchema,
   ErrorResponseSchema,
+  CaseDocumentItemSchema,
+  CaseDocumentSchema,
 } from "../schemas/index.ts";
 
 const caseRouter = new OpenAPIHono();
@@ -298,7 +300,7 @@ const addCaseAttachmentsRoute = createRoute({
       content: {
         "application/json": {
           schema: z.object({
-            documents: z.array(z.any()),
+            documents: z.array(CaseDocumentItemSchema),
           }),
         },
       },
@@ -321,6 +323,9 @@ const getCaseDocumentsRoute = createRoute({
   request: {
     params: z.object({
       id: z.string().openapi({ example: "CUC-20260831154512" }),
+    }),
+    query: z.object({
+      isAffidavit: z.string().optional().openapi({ example: "true", description: "Filter documents by isAffidavit (true or false)" }),
     }),
   },
   responses: {
@@ -345,7 +350,7 @@ const addRootCaseAttachmentsRoute = createRoute({
       content: {
         "application/json": {
           schema: z.object({
-            documents: z.array(z.any()),
+            documents: z.array(CaseDocumentItemSchema),
           }),
         },
       },
@@ -368,6 +373,9 @@ const getRootCaseDocumentsRoute = createRoute({
   request: {
     params: z.object({
       id: z.string().openapi({ example: "CUC-20260831154512" }),
+    }),
+    query: z.object({
+      isAffidavit: z.string().optional().openapi({ example: "true", description: "Filter documents by isAffidavit (true or false)" }),
     }),
   },
   responses: {

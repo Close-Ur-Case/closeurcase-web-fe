@@ -229,6 +229,7 @@ export async function addCaseAttachments(c: Context) {
   const docsWithRole = docs.map((d: any) => ({
     ...d,
     uploadedBy: d.uploadedBy || userRole || "citizen",
+    isAffidavit: Boolean(d.isAffidavit ?? d.is_affidavit ?? false),
   }));
   const result = await CaseService.addAttachmentsToUserCase(id, docsWithRole);
   return ApiResponse.success(c, result, "Attachments added successfully");
@@ -254,7 +255,9 @@ export async function getCaseDocuments(c: Context) {
       throw ApiError.forbidden("Access denied: You can only view documents for your own cases");
     }
   }
-  const result = await CaseService.getCaseDocuments(id);
+  const isAffidavitParam = c.req.query("isAffidavit") ?? c.req.query("is_affidavit");
+  const isAffidavit = isAffidavitParam !== undefined ? isAffidavitParam === "true" : undefined;
+  const result = await CaseService.getCaseDocuments(id, isAffidavit);
   return ApiResponse.success(c, result, "Case documents retrieved successfully");
 }
 
