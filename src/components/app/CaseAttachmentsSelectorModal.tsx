@@ -299,21 +299,11 @@ export function CaseAttachmentsSelectorModal({
       if (initialSelectedIds && initialSelectedIds.length > 0) {
         setSelectedIds(new Set(initialSelectedIds));
       } else {
-        // Default select Case Description (if available) + files in Tab 1 (Citizen Submitted) up to 5 files
-        const tab1Ids: string[] = [];
-        if (caseItem.description) {
-          tab1Ids.push(descDocId);
-        }
-        for (const d of citizenSubmittedDocs) {
-          const filesCount = tab1Ids.filter((id) => id !== descDocId).length;
-          if (filesCount < 5) {
-            tab1Ids.push(d.id);
-          }
-        }
-        setSelectedIds(new Set(tab1Ids));
+        // Requirement: Initially deselect all checkboxes
+        setSelectedIds(new Set());
       }
     }
-  }, [isOpen, caseItem, citizenSubmittedDocs, initialSelectedIds, descDocId]);
+  }, [isOpen, caseItem, initialSelectedIds]);
 
   if (!isOpen || !caseItem) return null;
 

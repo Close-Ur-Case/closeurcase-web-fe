@@ -185,7 +185,7 @@ export function CasesTable({
   const [attachmentTab, setAttachmentTab] = useState<AttachmentTab>("citizen_submitted");
   const [citizenSubTab, setCitizenSubTab] = useState<"description" | "files">("description");
   const [copiedDesc, setCopiedDesc] = useState(false);
-  const [isDescSelectedForAi, setIsDescSelectedForAi] = useState(true);
+  const [isDescSelectedForAi, setIsDescSelectedForAi] = useState(false);
   const [caseChatMessages, setCaseChatMessages] = useState<ChatMessage[]>([]);
   const [isLoadingChatMessages, setIsLoadingChatMessages] = useState(false);
   const [isUploadingAttachment, setIsUploadingAttachment] = useState(false);
@@ -540,6 +540,7 @@ export function CasesTable({
     setPreviewFullScreen(false);
     setAttachmentTab("citizen_submitted");
     setCitizenSubTab("description");
+    setIsDescSelectedForAi(false);
     setAttachmentError("");
     setIsDragging(false);
   }
