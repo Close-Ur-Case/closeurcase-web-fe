@@ -11,6 +11,8 @@ import type {
   CaseQAResponse,
   SummarizeDocPayload,
   SummarizeDocResponse,
+  SummarizeCasePayload,
+  SummarizeCaseResponse,
   LegalQAPayload,
   LegalQAResponse,
   CaseAnalysisPayload,
@@ -18,6 +20,15 @@ import type {
 } from "@/types/api";
 
 export const aiService = {
+  /**
+   * AI Case Summarization endpoint
+   * Calls /summarization/summarize-case which calls Deno.env.get("AI_BASE_URL")/summarization/summarize-case
+   * POST payload: { urls: string[], case_text: string }
+   * Response: { status_code: 200, message: string, data: { summary: string, key_points: string[] } }
+   */
+  async summarizeCase(payload: SummarizeCasePayload): Promise<SummarizeCaseResponse> {
+    return apiClient.post<SummarizeCaseResponse>("/summarization/summarize-case", payload);
+  },
   /**
    * Ask AI general legal questions powered by Indian statutes, BNSS/BNS, and knowledge base
    */

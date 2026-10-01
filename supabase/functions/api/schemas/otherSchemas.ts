@@ -54,6 +54,44 @@ export const SummarizeDocSchema = z
   })
   .openapi("SummarizeDocRequest");
 
+export const SummarizeCaseSchema = z
+  .object({
+    urls: z
+      .array(z.string())
+      .default([])
+      .openapi({
+        description: "List of document URLs (.doc, .docx, .gif, .jpeg, .jpg, .pdf, .png, .webp)",
+        example: ["https://example.com/case_document.pdf"],
+      }),
+    case_text: z
+      .string()
+      .openapi({
+        description: "Case description, facts, context, and attachments overview",
+        example: "Petitioner filed suit for recovery of possession against tenant after lease expiration in Bangalore.",
+      }),
+  })
+  .openapi("SummarizeCaseRequest");
+
+export const SummarizeCaseResponseSchema = z
+  .object({
+    status_code: z.number().openapi({ example: 200 }),
+    message: z.string().openapi({ example: "Case summarized successfully" }),
+    data: z.object({
+      summary: z.string().openapi({
+        example:
+          "The case involves a petitioner who filed a suit for recovery of possession against a tenant following the expiration of a lease agreement.",
+      }),
+      key_points: z.array(z.string()).openapi({
+        example: [
+          "Petitioner is the landlord seeking recovery of possession.",
+          "Respondent is the tenant occupying the property post lease expiration.",
+          "The lease has expired prior to the filing of the suit.",
+        ],
+      }),
+    }),
+  })
+  .openapi("SummarizeCaseResponse");
+
 export const CaseAnalysisSchema = z
   .object({
     query: z.string().optional().openapi({ example: "My landlord is refusing to return my security deposit after eviction." }),

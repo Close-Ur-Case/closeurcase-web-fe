@@ -5,8 +5,9 @@ import { swaggerUI } from "@hono/swagger-ui";
 import apiRoutes from "./routes/index.ts";
 import { handleHonoError, handleNotFound } from "./middlewares/errorHandler.ts";
 import { DbInitService } from "./services/dbInitService.ts";
-import { caseAnalysis } from "./controllers/aiController.ts";
+import { caseAnalysis, summarizeCase } from "./controllers/aiController.ts";
 import { caseAnalysisRoute } from "./routes/aiRoutes.ts";
+import summarizationRoutes, { rootSummarizeCaseRoute } from "./routes/summarizationRoutes.ts";
 
 const app = new OpenAPIHono();
 
@@ -37,7 +38,9 @@ mainRouter.openAPIRegistry.registerComponent("securitySchemes", "bearerAuth", {
 
 // Mount standard V1 API routes
 mainRouter.route("/v1", apiRoutes);
+mainRouter.route("/summarization", summarizationRoutes);
 mainRouter.openapi(caseAnalysisRoute, caseAnalysis as any);
+mainRouter.openapi(rootSummarizeCaseRoute, summarizeCase as any);
 
 // Dynamic OpenAPI Documentation generated directly in-memory from Zod schemas
 mainRouter.doc("/swagger.json", {

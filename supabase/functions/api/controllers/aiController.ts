@@ -99,34 +99,135 @@ export async function caseQA(c: Context) {
   return ApiResponse.success(c, responseData, "Case Q&A response generated");
 }
 
-export async function summarizeDocument(c: Context) {
-  const body = await c.req.json();
-  const documentTitle = body.documentTitle || body.title;
-  const documentText = body.documentText || body.text;
+export async function summarizeCase(c: Context) {
+  const body = await c.req.json().catch(() => ({}));
+  const rawUrls: string[] = Array.isArray(body.urls) ? body.urls : [];
+  const caseText: string = (body.case_text || body.caseText || body.documentText || body.text || "").trim();
 
-  if (!documentTitle && !documentText) {
-    throw ApiError.badRequest("documentTitle or documentText is required");
+  if (!caseText && rawUrls.length === 0) {
+    throw ApiError.badRequest("case_text or at least one document url is required");
   }
 
-  const title = documentTitle || "Legal Instrument";
-  const summary = `Executive Summary of ${title}: Key covenant obligations identified with standard arbitration clauses. No immediate punitive encumbrances discovered.`;
-  const keyPoints = [
-    "Parties are bound to non-disclosure and equitable performance obligations.",
-    "Dispute resolution mandated via sole arbitrator in accordance with Arbitration and Conciliation Act, 1996.",
-    "Payment and indemnity liabilities strictly capped under liquidated damages provisions.",
-  ];
+  // Filter valid URLs with supported extensions (.doc, .docx, .gif, .jpeg, .jpg, .pdf, .png, .webp)
+  const validExtensions = [".doc", ".docx", ".gif", ".jpeg", ".jpg", ".pdf", ".png", ".webp"];
+  const sanitizedUrls = rawUrls.filter((u) => {
+    if (typeof u !== "string") return false;
+    const lower = u.split("?")[0].toLowerCase();
+    return (u.startsWith("http://") || u.startsWith("https://")) && validExtensions.some((ext) => lower.endsWith(ext) || lower.includes(ext));
+  });
 
-  return ApiResponse.success(
-    c,
-    {
-      title,
-      summary,
-      keyPoints,
-      pageCount: 3,
-      classifiedType: "Commercial Agreement",
-    },
-    "Document analyzed and summarized",
-  );
+  const aiBaseUrl = (
+    Deno.env.get("AI_BASE_URL") ||
+    env.AI_BASE_URL ||
+    env.aibaseurl ||
+    "https://closeurcase-be.lomaait.com"
+  ).replace(/\/+$/, "");
+
+  try {
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 60000);
+
+    const response = await fetch(`${aiBaseUrl}/summarization/summarize-case`, {
+      method: "POST",
+      headers: {
+        "accept": "application/json",
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        urls: sanitizedUrls,
+        case_text: caseText || "Legal case record analysis and summarization request.",
+      }),
+      signal: controller.signal,
+    });
+    clearTimeout(timeoutId);
+
+    if (response.ok) {
+      const result = await response.json();
+      return c.json(result);
+    } else {
+      const errText = await response.text();
+      console.warn(`External AI summarize-case returned HTTP ${response.status}:`, errText);
+      try {
+        const parsed = JSON.parse(errText);
+        return c.json(parsed, response.status as any);
+      } catch {
+        return c.json(
+          {
+            status_code: response.status,
+            message: "Failed to summarize case via AI engine",
+            data: { summary: "", key_points: [] },
+          },
+          response.status as any,
+        );
+      }
+    }
+  } catch (err: any) {
+    console.error("Failed to connect to external AI summarize-case:", err);
+    throw ApiError.internal(`AI Summarization service error: ${err.message || "Failed to reach AI engine"}`);
+  }
+}
+
+export async function summarizeDocument(c: Context) {
+  const body = await c.req.json().catch(() => ({}));
+  const documentTitle = body.documentTitle || body.title;
+  const documentText = body.documentText || body.text;
+  const urls = Array.isArray(body.urls) ? body.urls : [];
+
+  const caseText = documentText || documentTitle || "";
+  if (!caseText && urls.length === 0) {
+    throw ApiError.badRequest("documentTitle, documentText, or urls is required");
+  }
+
+  const aiBaseUrl = (
+    Deno.env.get("AI_BASE_URL") ||
+    env.AI_BASE_URL ||
+    env.aibaseurl ||
+    "https://closeurcase-be.lomaait.com"
+  ).replace(/\/+$/, "");
+
+  try {
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 60000);
+
+    const validExtensions = [".doc", ".docx", ".gif", ".jpeg", ".jpg", ".pdf", ".png", ".webp"];
+    const sanitizedUrls = urls.filter((u: any) => {
+      if (typeof u !== "string") return false;
+      const lower = u.split("?")[0].toLowerCase();
+      return (u.startsWith("http://") || u.startsWith("https://")) && validExtensions.some((ext) => lower.endsWith(ext) || lower.includes(ext));
+    });
+
+    const response = await fetch(`${aiBaseUrl}/summarization/summarize-case`, {
+      method: "POST",
+      headers: {
+        "accept": "application/json",
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        urls: sanitizedUrls,
+        case_text: caseText,
+      }),
+      signal: controller.signal,
+    });
+    clearTimeout(timeoutId);
+
+    if (response.ok) {
+      const result = await response.json();
+      return ApiResponse.success(
+        c,
+        {
+          title: documentTitle || "Case Document",
+          summary: result?.data?.summary || "",
+          keyPoints: result?.data?.key_points || [],
+          raw: result,
+        },
+        result?.message || "Document analyzed and summarized",
+      );
+    }
+  } catch (err: any) {
+    console.warn("External AI summarize-document fetch failed:", err);
+  }
+
+  throw ApiError.internal("Failed to generate AI document summary");
 }
 
 export async function legalQA(c: Context) {

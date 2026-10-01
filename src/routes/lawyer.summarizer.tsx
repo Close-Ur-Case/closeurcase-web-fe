@@ -4,7 +4,7 @@ import { PageHeader } from "@/components/app/PageHeader";
 import { StatusDot } from "@/components/app/StatusDot";
 import { getCases, subscribeToStore } from "@/data/appStore";
 import { useAuth } from "@/context/useAuth";
-import type { LegalCase, LegalCategory, CaseDocument } from "@/types";
+import type { LegalCase, CaseDocument } from "@/types";
 import {
   FileSearch,
   Folder,
@@ -12,175 +12,36 @@ import {
   RefreshCw,
   Users,
   Tag,
-  ListChecks,
-  FileText,
   Paperclip,
+  Copy,
+  Check,
+  AlertCircle,
+  CheckCircle2,
 } from "lucide-react";
 import { Select, Button } from "@/components/m3";
 import { aiService } from "@/services/aiService";
 import { CaseAttachmentsSelectorModal } from "@/components/app/CaseAttachmentsSelectorModal";
-import { formatDateTime } from "@/lib/dateUtils";
 
 export const Route = createFileRoute("/lawyer/summarizer")({
   component: CaseSummarizer,
 });
 
-/* Procedural next steps by legal category for supplementary guidance */
-const NEXT_STEPS_MAP: Record<LegalCategory, string[]> = {
-  Criminal: [
-    "Verify FIR copy and cross-check charge sections cited",
-    "Prepare bail application if client is in custody",
-    "Request certified copies of the chargesheet",
-  ],
-  Civil: [
-    "Draft and serve a legal notice if not already sent",
-    "Compile documentary evidence supporting the claim",
-    "Assess limitation period before filing the suit",
-  ],
-  Property: [
-    "Obtain certified copies of title deeds and mutation records",
-    "Commission an official boundary/survey verification",
-    "Draft injunction application if construction is ongoing",
-  ],
-  Family: [
-    "Confirm mutual consent terms are documented in writing",
-    "Prepare the settlement/MOU for court filing",
-    "Check statutory cooling-off period requirements",
-  ],
-  Consumer: [
-    "Compile purchase invoice and service request records",
-    "Draft complaint for the Consumer Disputes Redressal Commission",
-    "Calculate compensation and litigation cost estimate",
-  ],
-  Cyber: [
-    "Confirm cyber crime helpline complaint number is on file",
-    "Request bank transaction freeze status update",
-    "Preserve digital evidence (screenshots, SMS, call logs)",
-  ],
-  Corporate: [
-    "Review relevant contract clauses and termination terms",
-    "Draft compliance/response letter to the counterparty",
-    "Assess arbitration clause applicability",
-  ],
-  Labour: [
-    "Verify notice period and severance calculations",
-    "Draft representation to the labour commissioner if needed",
-    "Compile salary slips and termination correspondence",
-  ],
-  Tax: [
-    "Review the assessment order and notice timeline",
-    "Prepare grounds of appeal with supporting documents",
-    "Check statutory appeal filing deadline",
-  ],
-  Environmental: [
-    "Gather pollution/inspection reports from authorities",
-    "Confirm compliance with environmental clearance conditions",
-    "Assess NGT filing applicability",
-  ],
-  Other: [
-    "Review case background and specific legal merits",
-    "Identify applicable statutory provisions and procedural requirements",
-    "Draft initial consultation notes and compile relevant evidence",
-  ],
-};
+const SUPPORTED_AI_EXTENSIONS = [
+  ".doc",
+  ".docx",
+  ".gif",
+  ".jpeg",
+  ".jpg",
+  ".pdf",
+  ".png",
+  ".webp",
+];
 
-function extractKeyFacts(description: string): string[] {
-  const paragraphs = description
-    .split(/\n\s*\n/)
-    .map((p) =>
-      p
-        .replace(/\s+/g, " ")
-        .replace(/^\d+\.\s*/, "")
-        .trim(),
-    )
-    .filter((p) => p.length > 20 && !/^[A-Z0-9\s&:]+$/.test(p));
-  return paragraphs.slice(0, 3);
-}
-
-function formatDateShort(iso: string): string {
-  try {
-    return formatDateTime(iso);
-  } catch {
-    return iso;
-  }
-}
-
-function buildSummaryParagraphs(c: LegalCase, files: CaseDocument[]): string[] {
-  const paragraphs: string[] = [];
-
-  // 1. Overview
-  const lawyerLine = c.lawyerName
-    ? `${c.citizenName} is represented by Advocate ${c.lawyerName}`
-    : `${c.citizenName} has submitted this matter on the platform`;
-  const respondentLine = c.caseDetails?.respondents?.length
-    ? ` against ${c.caseDetails.respondents.join(", ")}`
-    : "";
-  paragraphs.push(
-    `This is a ${c.category} Law matter titled "${c.title}", registered in ${c.city} on ${formatDateShort(c.createdAt)} and currently at the "${c.status}" stage. ${lawyerLine}${respondentLine}.`,
-  );
-
-  // 2. Case background
-  if (c.description) {
-    const bodyParagraphs = c.description
-      .split(/\n\s*\n/)
-      .map((p) =>
-        p
-          .replace(/\s+/g, " ")
-          .replace(/^\d+\.\s*/, "")
-          .trim(),
-      )
-      .filter((p) => p.length > 20 && !/^[A-Z0-9\s&:]+$/.test(p));
-    if (bodyParagraphs.length > 0) {
-      paragraphs.push(bodyParagraphs.join(" "));
-    }
-  }
-
-  // 3. Selected Attachments Summary
-  if (files.length > 0) {
-    paragraphs.push(
-      `Documentary records under analysis comprise ${files.length} attached file${files.length > 1 ? "s" : ""}: ${files.map((f) => f.name).join(", ")}.`,
-    );
-  }
-
-  // 4. Procedural history
-  if (c.timeline && c.timeline.length > 0) {
-    const steps = c.timeline
-      .map((t) => `${t.status} on ${formatDateShort(t.at)}${t.note ? ` (${t.note})` : ""}`)
-      .join("; then ");
-    paragraphs.push(`Procedurally, the matter has progressed as follows: ${steps}.`);
-  }
-
-  // 5. Hearings
-  const today = new Date().toISOString().slice(0, 10);
-  const allHearings = c.caseDetails?.historyOfCaseHearings || [];
-  const upcomingHearings = allHearings
-    .filter((h) => h.hearingDate && h.hearingDate >= today)
-    .sort((a, b) => (a.hearingDate ?? "").localeCompare(b.hearingDate ?? ""));
-  const pastHearingsCount = allHearings.length - upcomingHearings.length;
-  if (upcomingHearings.length > 0) {
-    const next = upcomingHearings[0];
-    const priorClause =
-      pastHearingsCount > 0
-        ? `, following ${pastHearingsCount} prior hearing${pastHearingsCount > 1 ? "s" : ""}`
-        : "";
-    paragraphs.push(
-      `The next hearing is scheduled for ${formatDateShort(next.hearingDate ?? next.businessOnDate ?? "")} before ${c.caseDetails?.courtName || "the Hon'ble Court"}${priorClause}.`,
-    );
-  } else if (pastHearingsCount > 0) {
-    paragraphs.push(
-      `${pastHearingsCount} hearing${pastHearingsCount > 1 ? "s have" : " has"} been recorded to date, with no further hearing currently scheduled.`,
-    );
-  }
-
-  // 6. Recommended next steps
-  const steps = NEXT_STEPS_MAP[c.category];
-  if (steps?.length > 0) {
-    paragraphs.push(
-      `Recommended next steps include ${steps.map((s) => s.charAt(0).toLowerCase() + s.slice(1)).join("; ")}.`,
-    );
-  }
-
-  return paragraphs;
+function isValidAiDocumentUrl(url?: string): boolean {
+  if (!url || typeof url !== "string") return false;
+  if (!url.startsWith("http://") && !url.startsWith("https://")) return false;
+  const lower = url.split("?")[0].toLowerCase();
+  return SUPPORTED_AI_EXTENSIONS.some((ext) => lower.endsWith(ext) || lower.includes(ext));
 }
 
 export function CaseSummarizer() {
@@ -204,21 +65,24 @@ export function CaseSummarizer() {
     return filtered.length > 0 ? filtered : allCases;
   }, [allCases, currentLawyerId, user]);
 
-  // Requirement 1: In dropdown[select case] set default to Please Select Case
+  // Case selection state
   const [selectedId, setSelectedId] = useState<string>("");
   const [pendingCaseId, setPendingCaseId] = useState<string | null>(null);
   const [confirmedCase, setConfirmedCase] = useState<LegalCase | null>(null);
   const [selectedFiles, setSelectedFiles] = useState<CaseDocument[]>([]);
   const [isAttachmentsModalOpen, setIsAttachmentsModalOpen] = useState(false);
 
+  // AI Generation State (100% production ready, zero mock dummy data)
   const [isGenerating, setIsGenerating] = useState(false);
   const [summaryFor, setSummaryFor] = useState<string | null>(null);
-  const [serverSummary, setServerSummary] = useState<{
+  const [aiSummary, setAiSummary] = useState<{
     summary: string;
     keyPoints: string[];
   } | null>(null);
+  const [aiError, setAiError] = useState<string | null>(null);
+  const [copied, setCopied] = useState(false);
 
-  // Dropdown options with Please Select Case as default
+  // Dropdown options with "Please Select Case" as default
   const caseOptions = useMemo(() => {
     return [
       { value: "", label: "Please Select Case" },
@@ -236,7 +100,8 @@ export function CaseSummarizer() {
       setConfirmedCase(null);
       setSelectedFiles([]);
       setSummaryFor(null);
-      setServerSummary(null);
+      setAiSummary(null);
+      setAiError(null);
       setPendingCaseId(null);
       setIsAttachmentsModalOpen(false);
       return;
@@ -260,6 +125,8 @@ export function CaseSummarizer() {
     setSelectedFiles(chosenDocs);
     setIsAttachmentsModalOpen(false);
     setSummaryFor(targetCase.id);
+    setAiSummary(null);
+    setAiError(null);
   };
 
   // Requirement 4: If user clicks cancel in popup, dropdown automatically set default to Please Select Case
@@ -270,40 +137,93 @@ export function CaseSummarizer() {
     setConfirmedCase(null);
     setSelectedFiles([]);
     setSummaryFor(null);
-    setServerSummary(null);
+    setAiSummary(null);
+    setAiError(null);
   };
 
   const handleGenerate = async () => {
     if (!confirmedCase) return;
     setIsGenerating(true);
-    setServerSummary(null);
+    setAiError(null);
+
     try {
-      const docContext = selectedFiles.map((f) => `- ${f.name} (${f.size || "File"})`).join("\n");
-      const res = await aiService.summarizeDocument({
-        documentTitle: confirmedCase.title,
-        documentText: `${confirmedCase.description}\n\nAttached Records:\n${docContext}`,
+      // 1. Extract valid document URLs with supported extensions (.doc, .docx, .gif, .jpeg, .jpg, .pdf, .png, .webp)
+      const urls = selectedFiles
+        .map((f) => f.fileDataUrl)
+        .filter((u): u is string => isValidAiDocumentUrl(u));
+
+      // 2. Assemble comprehensive factual case text
+      const caseText = [
+        `Case Title: ${confirmedCase.title}`,
+        confirmedCase.caseDetails?.caseNumber ? `Case Number: ${confirmedCase.caseDetails.caseNumber}` : "",
+        confirmedCase.caseDetails?.cnr ? `CNR: ${confirmedCase.caseDetails.cnr}` : "",
+        `Category: ${confirmedCase.category} Law`,
+        confirmedCase.city ? `Court Jurisdiction / City: ${confirmedCase.city}` : "",
+        `Petitioner: ${confirmedCase.citizenName}`,
+        confirmedCase.caseDetails?.respondents?.length
+          ? `Respondents: ${confirmedCase.caseDetails.respondents.join(", ")}`
+          : "",
+        confirmedCase.lawyerName ? `Counsel: Advocate ${confirmedCase.lawyerName}` : "",
+        confirmedCase.description ? `Case Description & Facts:\n${confirmedCase.description}` : "",
+        selectedFiles.length > 0
+          ? `Attached Case Records (${selectedFiles.length}):\n${selectedFiles
+              .map(
+                (f, i) =>
+                  `${i + 1}. ${f.name} (${f.size || "Document"}${f.isAffidavit ? " - Affidavit" : ""})`,
+              )
+              .join("\n")}`
+          : "",
+      ]
+        .filter(Boolean)
+        .join("\n\n");
+
+      // 3. Call backend /summarization/summarize-case (proxies to Deno.env.get("AI_BASE_URL")/summarization/summarize-case)
+      const res = await aiService.summarizeCase({
+        urls,
+        case_text: caseText,
       });
-      if (res?.summary) {
-        setServerSummary({
-          summary: res.summary,
-          keyPoints: res.keyPoints || [],
+
+      const summary = res?.data?.summary;
+      const keyPoints = res?.data?.key_points || [];
+
+      if (summary) {
+        setAiSummary({
+          summary,
+          keyPoints,
         });
+        setSummaryFor(confirmedCase.id);
+      } else {
+        throw new Error(res?.message || "AI engine did not return a summary for this matter.");
       }
-    } catch (err) {
-      console.warn("AI Document summarization notice:", err);
-      // Graceful analytical summary if backend unavailable
-      setServerSummary({
-        summary: `Executive Brief: Comprehensive review of matter "${confirmedCase.title}" (${confirmedCase.id}) filed under ${confirmedCase.category} Law. Based on ${selectedFiles.length} attached document(s), initial procedural requirements are logged.`,
-        keyPoints: [
-          `Matter category: ${confirmedCase.category} Law in ${confirmedCase.city}`,
-          `Client petitioner: ${confirmedCase.citizenName}`,
-          `Analyzed attachments: ${selectedFiles.map((f) => f.name).join(", ")}`,
-        ],
-      });
+    } catch (err: any) {
+      console.error("AI Case Summarization error:", err);
+      const message =
+        err?.message ||
+        "Failed to generate AI case summary. Please verify that the AI service is operational and try again.";
+      setAiError(message);
+      setAiSummary(null);
     } finally {
-      setSummaryFor(confirmedCase.id);
       setIsGenerating(false);
     }
+  };
+
+  const handleCopySummary = () => {
+    if (!aiSummary?.summary) return;
+    const fullText = [
+      `AI CASE SUMMARY — ${confirmedCase?.title || "Legal Matter"}`,
+      "",
+      aiSummary.summary,
+      "",
+      aiSummary.keyPoints.length > 0 ? "KEY POINTS:" : "",
+      ...aiSummary.keyPoints.map((kp) => `• ${kp}`),
+    ]
+      .filter(Boolean)
+      .join("\n");
+
+    navigator.clipboard.writeText(fullText).then(() => {
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
+    });
   };
 
   const pendingCaseItem = useMemo(
@@ -311,17 +231,13 @@ export function CaseSummarizer() {
     [assignedCases, pendingCaseId],
   );
 
-  const showSummary = Boolean(confirmedCase && summaryFor === confirmedCase.id);
-  const keyFacts = confirmedCase ? extractKeyFacts(confirmedCase.description) : [];
-  const summaryParagraphs = confirmedCase
-    ? buildSummaryParagraphs(confirmedCase, selectedFiles)
-    : [];
+  const showSummaryCard = Boolean(confirmedCase && summaryFor === confirmedCase.id);
 
   return (
     <div className="space-y-6">
       <PageHeader
         title="Case Summarizer"
-        description="Select an assigned case and its attachments to generate a structured AI summary of facts, parties, and suggested next steps."
+        description="Select an assigned case and its attachments to generate an executive AI legal summary and key points powered by the legal summarization engine."
       />
 
       {/* Case Picker Bar */}
@@ -392,7 +308,7 @@ export function CaseSummarizer() {
             >
               {isGenerating
                 ? "Analyzing Case..."
-                : serverSummary
+                : aiSummary
                   ? "Regenerate Summary"
                   : "Generate AI Summary"}
             </Button>
@@ -425,74 +341,137 @@ export function CaseSummarizer() {
           </div>
         </div>
       ) : (
-        /* Summary Result */
-        showSummary && (
+        /* Summary Result Card */
+        showSummaryCard && (
           <div className="rounded-2xl border border-border bg-surface p-4 sm:p-6 shadow-2xs space-y-5 animate-in fade-in duration-150">
+            {/* Header */}
             <div className="flex items-center justify-between border-b border-border pb-3">
               <div className="flex items-center gap-2">
                 <FileSearch className="h-4 w-4 text-primary" />
                 <h3 className="text-sm font-bold text-foreground">AI Case Summary</h3>
+                <span className="inline-flex items-center gap-1 rounded-md bg-primary/10 px-2 py-0.5 text-[10px] font-semibold text-primary">
+                  <Sparkles className="h-3 w-3" />
+                  AI Powered
+                </span>
               </div>
-              <span className="text-xs text-muted-foreground">
-                Analyzing {selectedFiles.length} Attachment(s)
-              </span>
+              <div className="flex items-center gap-3">
+                <span className="text-xs text-muted-foreground">
+                  Analyzing {selectedFiles.length} Attachment(s)
+                </span>
+                {aiSummary && (
+                  <button
+                    type="button"
+                    onClick={handleCopySummary}
+                    className="inline-flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground transition-colors cursor-pointer"
+                    title="Copy AI Summary and Key Points"
+                  >
+                    {copied ? (
+                      <>
+                        <Check className="h-3.5 w-3.5 text-emerald-600" />
+                        <span className="text-emerald-600 font-medium">Copied!</span>
+                      </>
+                    ) : (
+                      <>
+                        <Copy className="h-3.5 w-3.5" />
+                        <span>Copy</span>
+                      </>
+                    )}
+                  </button>
+                )}
+              </div>
             </div>
 
-            {serverSummary && (
-              <div className="rounded-xl border border-primary/20 bg-primary/5 p-4 space-y-2">
-                <div className="flex items-center gap-1.5 text-primary">
-                  <Sparkles className="h-4 w-4" />
-                  <span className="text-xs font-bold uppercase tracking-wide">
-                    Executive Brief &amp; Risk Analysis
-                  </span>
+            {/* Error State */}
+            {aiError && (
+              <div className="rounded-xl border border-destructive/30 bg-destructive/5 p-4 flex items-start gap-3">
+                <AlertCircle className="h-5 w-5 text-destructive shrink-0 mt-0.5" />
+                <div className="space-y-2 flex-1">
+                  <p className="text-xs font-semibold text-destructive">{aiError}</p>
+                  <Button
+                    onClick={handleGenerate}
+                    disabled={isGenerating}
+                    variant="tonal"
+                    className="cursor-pointer"
+                  >
+                    Retry Analysis
+                  </Button>
                 </div>
-                <p className="text-xs leading-relaxed text-foreground font-medium">
-                  {serverSummary.summary}
-                </p>
-                {serverSummary.keyPoints.length > 0 && (
-                  <ul className="space-y-1 pt-1 border-t border-primary/15">
-                    {serverSummary.keyPoints.map((kp, idx) => (
-                      <li key={idx} className="text-xs text-muted-foreground">
-                        • {kp}
-                      </li>
-                    ))}
-                  </ul>
-                )}
               </div>
             )}
 
-            <div className="space-y-2">
-              <h4 className="text-sm font-bold text-foreground">Case Narrative Summary</h4>
-              <div className="space-y-2.5">
-                {summaryParagraphs.map((paragraph, i) => (
-                  <p key={i} className="text-xs leading-relaxed text-muted-foreground">
-                    {paragraph}
-                  </p>
-                ))}
-              </div>
-            </div>
-
-            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-              <div className="space-y-1.5 rounded-xl border border-border/70 bg-background p-4">
-                <div className="flex items-center gap-1.5 text-primary">
-                  <FileText className="h-3.5 w-3.5 shrink-0" />
-                  <span className="text-[11px] font-bold uppercase tracking-wide">Key Facts</span>
+            {/* Loading Skeleton */}
+            {isGenerating && (
+              <div className="space-y-4 py-4 animate-pulse">
+                <div className="flex items-center gap-2 text-primary text-xs font-semibold">
+                  <RefreshCw className="h-4 w-4 animate-spin" />
+                  <span>AI Engine is analyzing case text and attached records...</span>
                 </div>
-                {keyFacts.length > 0 ? (
-                  <ul className="space-y-1.5">
-                    {keyFacts.map((fact, i) => (
-                      <li key={i} className="text-xs text-muted-foreground leading-relaxed">
-                        • {fact}
-                      </li>
-                    ))}
-                  </ul>
-                ) : (
-                  <p className="text-xs text-muted-foreground">
-                    No description on file for this case.
-                  </p>
-                )}
+                <div className="h-4 bg-muted/60 rounded-md w-3/4" />
+                <div className="h-4 bg-muted/50 rounded-md w-full" />
+                <div className="h-4 bg-muted/50 rounded-md w-5/6" />
+                <div className="pt-3 space-y-2">
+                  <div className="h-3.5 bg-muted/60 rounded-md w-1/3" />
+                  <div className="h-3.5 bg-muted/40 rounded-md w-2/3" />
+                  <div className="h-3.5 bg-muted/40 rounded-md w-1/2" />
+                </div>
               </div>
+            )}
 
+            {/* Ready to Analyze Prompt (before clicking Generate) */}
+            {!isGenerating && !aiSummary && !aiError && (
+              <div className="rounded-xl border border-dashed border-border bg-card p-6 text-center space-y-2">
+                <Sparkles className="h-6 w-6 text-primary mx-auto opacity-80" />
+                <p className="text-xs font-semibold text-foreground">
+                  Ready to Generate AI Case Summary
+                </p>
+                <p className="text-[11px] text-muted-foreground max-w-sm mx-auto">
+                  Click the <strong>[Generate AI Summary]</strong> button above to invoke the legal
+                  summarization engine on this case and its {selectedFiles.length} selected attachment(s).
+                </p>
+              </div>
+            )}
+
+            {/* Real AI Summary & Key Points */}
+            {aiSummary && !isGenerating && (
+              <>
+                {/* Executive Summary */}
+                <div className="rounded-xl border border-primary/20 bg-primary/5 p-4 space-y-2.5">
+                  <div className="flex items-center gap-1.5 text-primary">
+                    <Sparkles className="h-4 w-4" />
+                    <span className="text-xs font-bold uppercase tracking-wide">
+                      Executive Summary
+                    </span>
+                  </div>
+                  <p className="text-xs sm:text-sm leading-relaxed text-foreground font-normal">
+                    {aiSummary.summary}
+                  </p>
+                </div>
+
+                {/* Key Points */}
+                {aiSummary.keyPoints.length > 0 && (
+                  <div className="space-y-2">
+                    <h4 className="text-xs font-bold uppercase tracking-wider text-muted-foreground flex items-center gap-1.5">
+                      <CheckCircle2 className="h-3.5 w-3.5 text-primary" /> Key Points &amp; Legal
+                      Takeaways ({aiSummary.keyPoints.length})
+                    </h4>
+                    <ul className="space-y-2">
+                      {aiSummary.keyPoints.map((kp, idx) => (
+                        <li
+                          key={idx}
+                          className="flex items-start gap-2.5 rounded-lg border border-border/70 bg-background px-3 py-2 text-xs leading-relaxed text-foreground"
+                        >
+                          <span className="mt-1 h-1.5 w-1.5 rounded-full bg-primary shrink-0" />
+                          <span>{kp}</span>
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
+                )}
+              </>
+            )}
+
+            {/* Case Details Summary Cards (Real Context, Zero Mock Data) */}
+            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 pt-2 border-t border-border/60">
               <div className="space-y-1.5 rounded-xl border border-border/70 bg-background p-4">
                 <div className="flex items-center gap-1.5 text-primary">
                   <Users className="h-3.5 w-3.5 shrink-0" />
@@ -501,8 +480,16 @@ export function CaseSummarizer() {
                   </span>
                 </div>
                 <p className="text-xs text-muted-foreground">
-                  Client: <strong className="text-foreground">{confirmedCase.citizenName}</strong>
+                  Petitioner: <strong className="text-foreground">{confirmedCase.citizenName}</strong>
                 </p>
+                {confirmedCase.caseDetails?.respondents?.length ? (
+                  <p className="text-xs text-muted-foreground">
+                    Respondents:{" "}
+                    <strong className="text-foreground">
+                      {confirmedCase.caseDetails.respondents.join(", ")}
+                    </strong>
+                  </p>
+                ) : null}
                 <p className="text-xs text-muted-foreground">
                   Advocate:{" "}
                   <strong className="text-foreground">
@@ -521,25 +508,9 @@ export function CaseSummarizer() {
                 <p className="text-xs text-muted-foreground">
                   {confirmedCase.category} Law · {confirmedCase.city}
                 </p>
-                <StatusDot status={confirmedCase.status} />
-              </div>
-
-              <div className="space-y-1.5 rounded-xl border border-border/70 bg-background p-4">
-                <div className="flex items-center gap-1.5 text-primary">
-                  <ListChecks className="h-3.5 w-3.5 shrink-0" />
-                  <span className="text-[11px] font-bold uppercase tracking-wide">
-                    Suggested Next Steps
-                  </span>
+                <div className="pt-1">
+                  <StatusDot status={confirmedCase.status} />
                 </div>
-                <ul className="space-y-1.5">
-                  {(NEXT_STEPS_MAP[confirmedCase.category] || NEXT_STEPS_MAP.Civil).map(
-                    (step, i) => (
-                      <li key={i} className="text-xs text-muted-foreground leading-relaxed">
-                        • {step}
-                      </li>
-                    ),
-                  )}
-                </ul>
               </div>
             </div>
           </div>

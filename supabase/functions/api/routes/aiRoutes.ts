@@ -2,6 +2,7 @@ import { OpenAPIHono, createRoute } from "@hono/zod-openapi";
 import {
   generateCounterArgument,
   caseQA,
+  summarizeCase,
   summarizeDocument,
   legalQA,
   caseAnalysis,
@@ -11,6 +12,8 @@ import {
   GenerateCounterSchema,
   CaseQASchema,
   SummarizeDocSchema,
+  SummarizeCaseSchema,
+  SummarizeCaseResponseSchema,
   CaseAnalysisSchema,
   LegalQASchema,
   SuccessResponseSchema,
@@ -111,6 +114,36 @@ const summarizeRoute = createRoute({
   },
 });
 
+export const summarizeCaseRoute = createRoute({
+  method: "post",
+  path: "/summarize-case",
+  tags: ["AI Assistant"],
+  summary: "AI Legal Case Summarization",
+  description:
+    "Analyzes case details and document attachments by calling external AI engine at Deno.env.get('AI_BASE_URL')/summarization/summarize-case. Returns an executive legal summary and bulleted key points.",
+  security: [{ bearerAuth: [] }],
+  request: {
+    body: {
+      required: true,
+      content: {
+        "application/json": {
+          schema: SummarizeCaseSchema,
+        },
+      },
+    },
+  },
+  responses: {
+    200: {
+      description: "Case successfully summarized by AI engine",
+      content: {
+        "application/json": {
+          schema: SummarizeCaseResponseSchema,
+        },
+      },
+    },
+  },
+});
+
 export const caseAnalysisRoute = createRoute({
   method: "post",
   path: "/case-analysis",
@@ -184,6 +217,7 @@ ai.openapi(generateCounterRoute, generateCounterArgument as any);
 ai.openapi(caseQARoute, caseQA as any);
 ai.openapi(summarizeDocumentRoute, summarizeDocument as any);
 ai.openapi(summarizeRoute, summarizeDocument as any);
+ai.openapi(summarizeCaseRoute, summarizeCase as any);
 ai.openapi(caseAnalysisRoute, caseAnalysis as any);
 ai.openapi(legalQARoute, legalQA as any);
 ai.openapi(qaRoute, legalQA as any);

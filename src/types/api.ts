@@ -662,6 +662,20 @@ export interface SummarizeDocResponse {
   classifiedType?: string;
 }
 
+export interface SummarizeCasePayload {
+  urls: string[];
+  case_text: string;
+}
+
+export interface SummarizeCaseResponse {
+  status_code: number;
+  message: string;
+  data: {
+    summary: string;
+    key_points: string[];
+  };
+}
+
 export interface CaseAnalysisPayload {
   caseId?: string;
   briefText?: string;
