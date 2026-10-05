@@ -25,6 +25,7 @@ import {
   AlertCircle,
   Loader2,
   RefreshCw,
+  Search,
 } from "lucide-react";
 import { PageHeader } from "@/components/app/PageHeader";
 import { UserAvatar } from "@/components/app/UserAvatar";
@@ -970,10 +971,15 @@ export function FindLawyerWizard() {
     );
   }
 
+  const [advocateBrowseTab, setAdvocateBrowseTab] = useState<"matching" | "custom">("matching");
   const [fetchedLawyers, setFetchedLawyers] = useState<Lawyer[]>([]);
+  const [allActiveLawyers, setAllActiveLawyers] = useState<Lawyer[]>([]);
   const [isLoadingLawyers, setIsLoadingLawyers] = useState(false);
+  const [isLoadingAllLawyers, setIsLoadingAllLawyers] = useState(false);
   const [hasFetchedLawyers, setHasFetchedLawyers] = useState(false);
   const [lawyersFetchError, setLawyersFetchError] = useState<string | null>(null);
+  const [customSearchQuery, setCustomSearchQuery] = useState("");
+  const [customCategoryFilter, setCustomCategoryFilter] = useState("all");
 
   const fetchMatchingLawyers = useCallback(async () => {
     setIsLoadingLawyers(true);
@@ -1012,12 +1018,34 @@ export function FindLawyerWizard() {
     }
   }, [selectedPracticeArea, predictedCategory, selectedSpecialization, selectedLegalServices]);
 
+  const fetchAllActiveLawyers = useCallback(async () => {
+    setIsLoadingAllLawyers(true);
+    try {
+      const res = await lawyerService.getLawyers<Lawyer>({
+        status: "Approved",
+        limit: "100",
+      });
+      if (Array.isArray(res) && res.length > 0) {
+        setAllActiveLawyers(res);
+        mergeRemoteLawyers(res);
+      } else {
+        setAllActiveLawyers(getLawyers().filter((l) => l.status === "Approved"));
+      }
+    } catch (err) {
+      console.warn("[CreateCase] Failed to fetch all active lawyers from API:", err);
+      setAllActiveLawyers(getLawyers().filter((l) => l.status === "Approved"));
+    } finally {
+      setIsLoadingAllLawyers(false);
+    }
+  }, []);
+
   // Automatically fetch lawyers when browse mode is selected or case details update
   useEffect(() => {
     if (assignMode === "browse") {
       fetchMatchingLawyers();
+      fetchAllActiveLawyers();
     }
-  }, [assignMode, fetchMatchingLawyers]);
+  }, [assignMode, fetchMatchingLawyers, fetchAllActiveLawyers]);
 
   const sortedLawyers = useMemo(() => {
     const distance = (city: string) =>
@@ -1042,17 +1070,71 @@ export function FindLawyerWizard() {
     });
   }, [hasFetchedLawyers, fetchedLawyers, userCoords]);
 
-  // Cleanly clear selected lawyer if they are no longer in the filtered matching pool
+  const sortedCustomLawyers = useMemo(() => {
+    const distance = (city: string) =>
+      distanceToCity(userCoords.lat, userCoords.lng, city) ?? Number.MAX_SAFE_INTEGER;
+
+    const pool =
+      allActiveLawyers.length > 0
+        ? allActiveLawyers
+        : getLawyers().filter((l) => l.status === "Approved");
+
+    let filtered = pool.filter((l) => l.status === "Approved");
+
+    if (customCategoryFilter && customCategoryFilter !== "all") {
+      const cf = customCategoryFilter.toLowerCase();
+      filtered = filtered.filter((l) => {
+        const catMatch = (l.category || "").toLowerCase() === cf;
+        const paMatch = Array.isArray(l.practiceAreas)
+          ? l.practiceAreas.some((p) => String(p).toLowerCase().includes(cf))
+          : false;
+        return catMatch || paMatch;
+      });
+    }
+
+    if (customSearchQuery.trim()) {
+      const q = customSearchQuery.trim().toLowerCase();
+      filtered = filtered.filter((l) => {
+        const nameMatch = (l.name || "").toLowerCase().includes(q);
+        const cityMatch = (l.city || "").toLowerCase().includes(q);
+        const areaMatch = (l.area || "").toLowerCase().includes(q);
+        const categoryMatch = (l.category || "").toLowerCase().includes(q);
+        const barMatch = (l.barId || "").toLowerCase().includes(q);
+        const specMatch = Array.isArray(l.specializations)
+          ? l.specializations.some((s) => String(s).toLowerCase().includes(q))
+          : false;
+        const servMatch = Array.isArray(l.legalServices)
+          ? l.legalServices.some((s) => String(s).toLowerCase().includes(q))
+          : false;
+        return nameMatch || cityMatch || areaMatch || categoryMatch || barMatch || specMatch || servMatch;
+      });
+    }
+
+    return filtered.sort((a, b) => {
+      const da = distance(a.city);
+      const db = distance(b.city);
+      if (da !== db) return da - db;
+      return (b.rating ?? 0) - (a.rating ?? 0);
+    });
+  }, [allActiveLawyers, customCategoryFilter, customSearchQuery, userCoords]);
+
+  // Cleanly clear selected lawyer if they are no longer in any pool
   useEffect(() => {
-    if (selectedLawyerId && sortedLawyers.length > 0) {
-      const stillPresent = sortedLawyers.some((l) => l.id === selectedLawyerId);
-      if (!stillPresent) {
+    if (selectedLawyerId) {
+      const inMatching = sortedLawyers.some((l) => l.id === selectedLawyerId);
+      const inCustom = sortedCustomLawyers.some((l) => l.id === selectedLawyerId);
+      const inStore = getLawyers().some((l) => l.id === selectedLawyerId && l.status === "Approved");
+      if (!inMatching && !inCustom && !inStore) {
         setSelectedLawyerId("");
       }
     }
-  }, [sortedLawyers, selectedLawyerId]);
+  }, [sortedLawyers, sortedCustomLawyers, selectedLawyerId]);
 
-  const selectedLawyer: Lawyer | undefined = sortedLawyers.find((l) => l.id === selectedLawyerId);
+  const selectedLawyer: Lawyer | undefined =
+    sortedLawyers.find((l) => l.id === selectedLawyerId) ||
+    sortedCustomLawyers.find((l) => l.id === selectedLawyerId) ||
+    allActiveLawyers.find((l) => l.id === selectedLawyerId) ||
+    getLawyers().find((l) => l.id === selectedLawyerId);
   const selectedPlan = SUBSCRIPTION_PLANS.find((p) => p.id === subscriptionPlan);
   const totalFee =
     assignMode === "admin" && hasActiveSubscription
@@ -2273,8 +2355,7 @@ export function FindLawyerWizard() {
                       )}
                     </div>
                     <p className="mt-1 text-xs text-muted-foreground leading-relaxed">
-                      Hand off to our legal admin team — we'll match & assign the best specialist
-                      for you.
+                      Hand off to our legal admin team — we'll match & assign the best specialist for you.
                     </p>
                   </div>
                 </div>
@@ -2295,137 +2376,370 @@ export function FindLawyerWizard() {
                     <p className="text-[11px] text-muted-foreground mt-0.5">
                       {locating
                         ? "Detecting your location…"
-                        : `Sorted by proximity to ${userCityLabel}${selectedPracticeArea
-                          ? ` and ${selectedSpecialization || selectedPracticeArea} expertise`
-                          : predictedCategory
-                            ? ` and ${predictedCategory} Law expertise`
-                            : ""
-                        }.`}
+                        : advocateBrowseTab === "matching"
+                          ? `Sorted by proximity to ${userCityLabel}${selectedPracticeArea
+                            ? ` and ${selectedSpecialization || selectedPracticeArea} expertise`
+                            : predictedCategory
+                              ? ` and ${predictedCategory} Law expertise`
+                              : ""
+                          }.`
+                          : `Browse and search all active verified advocates across all legal domains.`}
                     </p>
                   </div>
                   <Button
                     variant="outlined"
-                    onClick={fetchMatchingLawyers}
-                    disabled={isLoadingLawyers}
+                    onClick={() => {
+                      fetchMatchingLawyers();
+                      fetchAllActiveLawyers();
+                    }}
+                    disabled={isLoadingLawyers || isLoadingAllLawyers}
                     className="self-start sm:self-auto shrink-0 text-xs h-8 px-2.5"
                   >
-                    <RefreshCw className={`h-3.5 w-3.5 mr-1 ${isLoadingLawyers ? "animate-spin" : ""}`} />
+                    <RefreshCw className={`h-3.5 w-3.5 mr-1 ${isLoadingLawyers || isLoadingAllLawyers ? "animate-spin" : ""}`} />
                     Refresh
                   </Button>
                 </div>
 
-                {/* Filter tags indicating exact match criteria */}
-                <div className="flex flex-wrap items-center gap-1.5 text-[11px]">
-                  <span className="text-muted-foreground font-medium">Matching:</span>
-                  {(selectedPracticeArea || predictedCategory) && (
-                    <span className="rounded-md bg-secondary/80 px-2 py-0.5 font-semibold text-secondary-foreground border border-border/50">
-                      {selectedPracticeArea || `${predictedCategory} Law`}
+                {/* 2 Tabs: Matching vs Custom Search (Default showing all active lawyers) */}
+                <div className="grid grid-cols-2 gap-1.5 p-1 bg-muted/60 dark:bg-muted/40 rounded-xl border border-border/50">
+                  <button
+                    type="button"
+                    onClick={() => setAdvocateBrowseTab("matching")}
+                    className={`flex items-center justify-center gap-1.5 py-2 px-3 rounded-lg text-xs font-semibold transition-all cursor-pointer ${
+                      advocateBrowseTab === "matching"
+                        ? "bg-background text-foreground shadow-xs font-bold ring-1 ring-border/50 text-emerald-600 dark:text-emerald-400"
+                        : "text-muted-foreground hover:text-foreground hover:bg-background/40"
+                    }`}
+                  >
+                    <Sparkles className="h-3.5 w-3.5" />
+                    <span>Matching</span>
+                    <span
+                      className={`text-[10px] px-1.5 py-0.2 rounded-full font-mono font-bold ${
+                        advocateBrowseTab === "matching"
+                          ? "bg-emerald-500/15 text-emerald-600 dark:text-emerald-400"
+                          : "bg-muted text-muted-foreground"
+                      }`}
+                    >
+                      {sortedLawyers.length}
                     </span>
-                  )}
-                  {selectedSpecialization && (
-                    <span className="rounded-md bg-secondary/80 px-2 py-0.5 font-semibold text-secondary-foreground border border-border/50">
-                      {selectedSpecialization}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setAdvocateBrowseTab("custom")}
+                    className={`flex items-center justify-center gap-1.5 py-2 px-3 rounded-lg text-xs font-semibold transition-all cursor-pointer ${
+                      advocateBrowseTab === "custom"
+                        ? "bg-background text-foreground shadow-xs font-bold ring-1 ring-border/50 text-emerald-600 dark:text-emerald-400"
+                        : "text-muted-foreground hover:text-foreground hover:bg-background/40"
+                    }`}
+                  >
+                    <Search className="h-3.5 w-3.5" />
+                    <span>Custom Search</span>
+                    <span
+                      className={`text-[10px] px-1.5 py-0.2 rounded-full font-mono font-bold ${
+                        advocateBrowseTab === "custom"
+                          ? "bg-emerald-500/15 text-emerald-600 dark:text-emerald-400"
+                          : "bg-muted text-muted-foreground"
+                      }`}
+                    >
+                      {sortedCustomLawyers.length}
                     </span>
-                  )}
-                  {selectedLegalServices.length > 0 && (
-                    <span className="rounded-md bg-secondary/80 px-2 py-0.5 font-semibold text-secondary-foreground border border-border/50">
-                      {selectedLegalServices.length} {selectedLegalServices.length === 1 ? "Service" : "Services"}
-                    </span>
-                  )}
-                  <span className="rounded-md bg-emerald-500/10 text-emerald-700 dark:text-emerald-300 border border-emerald-500/20 px-2 py-0.5 font-bold">
-                    Approved
-                  </span>
+                  </button>
                 </div>
 
-                {isLoadingLawyers ? (
-                  <div className="flex flex-col items-center justify-center p-10 space-y-3 rounded-xl border border-dashed border-border/80 bg-background/50">
-                    <Loader2 className="h-6 w-6 animate-spin text-emerald-600" />
-                    <p className="text-xs text-muted-foreground font-medium">
-                      Finding available advocates matching your case criteria…
-                    </p>
-                  </div>
-                ) : sortedLawyers.length === 0 ? (
-                  <div className="rounded-xl border border-dashed border-border bg-background p-6 text-center space-y-3">
-                    <div className="mx-auto flex h-10 w-10 items-center justify-center rounded-full bg-amber-500/10 text-amber-600">
-                      <Users className="h-5 w-5" />
+                {advocateBrowseTab === "matching" ? (
+                  <>
+                    {/* Filter tags indicating exact match criteria */}
+                    <div className="flex flex-wrap items-center gap-1.5 text-[11px]">
+                      <span className="text-muted-foreground font-medium">Matching:</span>
+                      {(selectedPracticeArea || predictedCategory) && (
+                        <span className="rounded-md bg-secondary/80 px-2 py-0.5 font-semibold text-secondary-foreground border border-border/50">
+                          {selectedPracticeArea || `${predictedCategory} Law`}
+                        </span>
+                      )}
+                      {selectedSpecialization && (
+                        <span className="rounded-md bg-secondary/80 px-2 py-0.5 font-semibold text-secondary-foreground border border-border/50">
+                          {selectedSpecialization}
+                        </span>
+                      )}
+                      {selectedLegalServices.length > 0 && (
+                        <span className="rounded-md bg-secondary/80 px-2 py-0.5 font-semibold text-secondary-foreground border border-border/50">
+                          {selectedLegalServices.length} {selectedLegalServices.length === 1 ? "Service" : "Services"}
+                        </span>
+                      )}
+                      <span className="rounded-md bg-emerald-500/10 text-emerald-700 dark:text-emerald-300 border border-emerald-500/20 px-2 py-0.5 font-bold">
+                        Approved
+                      </span>
                     </div>
-                    <div>
-                      <div className="text-xs font-bold text-foreground">
-                        No online advocates match all selected criteria
+
+                    {isLoadingLawyers ? (
+                      <div className="flex flex-col items-center justify-center p-10 space-y-3 rounded-xl border border-dashed border-border/80 bg-background/50">
+                        <Loader2 className="h-6 w-6 animate-spin text-emerald-600" />
+                        <p className="text-xs text-muted-foreground font-medium">
+                          Finding available advocates matching your case criteria…
+                        </p>
                       </div>
-                      <p className="mt-1 text-[11px] text-muted-foreground max-w-md mx-auto">
-                        No approved advocates who are currently online match{" "}
-                        {selectedPracticeArea ? `practice area "${selectedPracticeArea}"` : ""}
-                        {selectedSpecialization ? ` and specialization "${selectedSpecialization}"` : ""}.
-                        You can hand off to our legal admin team via Auto-Assign or retry.
-                      </p>
-                    </div>
-                    <div className="flex items-center justify-center gap-2 pt-1">
-                      <Button variant="outlined" onClick={() => setAssignMode("admin")}>
-                        Switch to Auto-Assign
-                      </Button>
-                      <Button variant="filled" onClick={fetchMatchingLawyers}>
-                        Retry Search
-                      </Button>
-                    </div>
-                  </div>
-                ) : (
-                  <div className="max-h-80 space-y-2 overflow-y-auto pr-1">
-                    {sortedLawyers.map((l) => (
-                      <div
-                        key={l.id}
-                        onClick={() => setSelectedLawyerId(l.id)}
-                        className={`flex cursor-pointer items-center justify-between gap-2 rounded-xl border p-3 transition-all ${selectedLawyerId === l.id
-                          ? "border-emerald-500 bg-emerald-500/10 ring-1 ring-emerald-500 shadow-xs"
-                          : "border-border bg-background hover:border-emerald-500/40"
-                          }`}
-                      >
-                        <div className="flex min-w-0 items-center gap-3">
-                          <div className="relative">
-                            <UserAvatar name={l.name} size="sm" role="lawyer" />
-                            <span
-                              className="absolute -bottom-0.5 -right-0.5 h-2.5 w-2.5 rounded-full bg-emerald-500 ring-2 ring-background"
-                              title="Online"
-                            />
-                          </div>
-                          <div className="min-w-0">
-                            <div className="flex items-center gap-1.5 truncate">
-                              <span className="truncate text-xs font-bold text-foreground">
-                                {l.name}
-                              </span>
-                              <span className="text-[10px] font-bold text-emerald-600 dark:text-emerald-400 bg-emerald-500/10 px-1.5 py-0.2 rounded">
-                                Online
-                              </span>
-                            </div>
-                            <div className="text-[11px] text-muted-foreground truncate">
-                              {l.category} Law · {l.area ? `${l.area}, ` : ""}
-                              {l.city} · {l.experienceYears} yrs · ★ {l.rating}
-                            </div>
-                          </div>
+                    ) : sortedLawyers.length === 0 ? (
+                      <div className="rounded-xl border border-dashed border-border bg-background p-6 text-center space-y-3">
+                        <div className="mx-auto flex h-10 w-10 items-center justify-center rounded-full bg-amber-500/10 text-amber-600">
+                          <Users className="h-5 w-5" />
                         </div>
-                        <div className="flex shrink-0 items-center gap-2">
-                          <span
-                            className="inline-flex items-center gap-0.5 font-mono text-xs font-black text-emerald-600 dark:text-emerald-400 bg-emerald-500/10 px-2.5 py-1 rounded-lg border border-emerald-500/20 shadow-2xs"
-                            title="Consultation Fee"
+                        <div>
+                          <div className="text-xs font-bold text-foreground">
+                            No online advocates match all selected criteria
+                          </div>
+                          <p className="mt-1 text-[11px] text-muted-foreground max-w-md mx-auto">
+                            No approved advocates who are currently online match{" "}
+                            {selectedPracticeArea ? `practice area "${selectedPracticeArea}"` : ""}
+                            {selectedSpecialization ? ` and specialization "${selectedSpecialization}"` : ""}.
+                            You can browse all active lawyers in Custom Search, hand off to our admin team, or retry.
+                          </p>
+                        </div>
+                        <div className="flex flex-wrap items-center justify-center gap-2 pt-1">
+                          <Button variant="filled" onClick={() => setAdvocateBrowseTab("custom")}>
+                            <Search className="h-3.5 w-3.5 mr-1" />
+                            Browse All in Custom Search
+                          </Button>
+                          <Button variant="outlined" onClick={() => setAssignMode("admin")}>
+                            Switch to Auto-Assign
+                          </Button>
+                          <Button variant="outlined" onClick={fetchMatchingLawyers}>
+                            Retry Search
+                          </Button>
+                        </div>
+                      </div>
+                    ) : (
+                      <div className="max-h-80 space-y-2 overflow-y-auto pr-1">
+                        {sortedLawyers.map((l) => (
+                          <div
+                            key={l.id}
+                            onClick={() => setSelectedLawyerId(l.id)}
+                            className={`flex cursor-pointer items-center justify-between gap-2 rounded-xl border p-3 transition-all ${selectedLawyerId === l.id
+                              ? "border-emerald-500 bg-emerald-500/10 ring-1 ring-emerald-500 shadow-xs"
+                              : "border-border bg-background hover:border-emerald-500/40"
+                              }`}
                           >
-                            ₹{l.consultationFee ?? 1500}
-                          </span>
+                            <div className="flex min-w-0 items-center gap-3">
+                              <div className="relative">
+                                <UserAvatar name={l.name} size="sm" role="lawyer" />
+                                <span
+                                  className="absolute -bottom-0.5 -right-0.5 h-2.5 w-2.5 rounded-full bg-emerald-500 ring-2 ring-background"
+                                  title="Online"
+                                />
+                              </div>
+                              <div className="min-w-0">
+                                <div className="flex items-center gap-1.5 truncate">
+                                  <span className="truncate text-xs font-bold text-foreground">
+                                    {l.name}
+                                  </span>
+                                  <span className="text-[10px] font-bold text-emerald-600 dark:text-emerald-400 bg-emerald-500/10 px-1.5 py-0.2 rounded">
+                                    Online
+                                  </span>
+                                </div>
+                                <div className="text-[11px] text-muted-foreground truncate">
+                                  {l.category} Law · {l.area ? `${l.area}, ` : ""}
+                                  {l.city} · {l.experienceYears} yrs · ★ {l.rating}
+                                </div>
+                              </div>
+                            </div>
+                            <div className="flex shrink-0 items-center gap-2">
+                              <span
+                                className="inline-flex items-center gap-0.5 font-mono text-xs font-black text-emerald-600 dark:text-emerald-400 bg-emerald-500/10 px-2.5 py-1 rounded-lg border border-emerald-500/20 shadow-2xs"
+                                title="Consultation Fee"
+                              >
+                                ₹{l.consultationFee ?? 1500}
+                              </span>
+                              <Button
+                                variant="outlined"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  setProfileLawyer(l);
+                                }}
+                              >
+                                View
+                              </Button>
+                              {selectedLawyerId === l.id && (
+                                <CheckCircle2 className="h-4 w-4 shrink-0 text-emerald-500" />
+                              )}
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </>
+                ) : (
+                  /* Custom Search tab: Default showing all active lawyers */
+                  <>
+                    <div className="space-y-2.5">
+                      <div className="relative">
+                        <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground pointer-events-none" />
+                        <input
+                          type="text"
+                          value={customSearchQuery}
+                          onChange={(e) => setCustomSearchQuery(e.target.value)}
+                          placeholder="Search active advocates by name, city, practice area, specialization..."
+                          className="w-full pl-9 pr-8 py-2 text-xs rounded-xl border border-border/80 bg-background/80 focus:outline-none focus:ring-1 focus:ring-emerald-500 text-foreground placeholder:text-muted-foreground"
+                        />
+                        {customSearchQuery && (
+                          <button
+                            type="button"
+                            onClick={() => setCustomSearchQuery("")}
+                            className="absolute right-2.5 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground cursor-pointer"
+                          >
+                            <X className="h-3.5 w-3.5" />
+                          </button>
+                        )}
+                      </div>
+
+                      {/* Domain / Category quick pills */}
+                      <div className="flex items-center gap-1.5 overflow-x-auto pb-1 text-[11px] scrollbar-thin">
+                        {[
+                          { id: "all", label: "All Active" },
+                          { id: "Civil", label: "Civil" },
+                          { id: "Criminal", label: "Criminal" },
+                          { id: "Corporate", label: "Corporate" },
+                          { id: "Property", label: "Property" },
+                          { id: "Family", label: "Family" },
+                          { id: "Tax", label: "Tax" },
+                          { id: "Cyber", label: "Cyber" },
+                        ].map((cat) => (
+                          <button
+                            key={cat.id}
+                            type="button"
+                            onClick={() => setCustomCategoryFilter(cat.id)}
+                            className={`px-2.5 py-1 rounded-lg font-medium whitespace-nowrap transition-colors text-xs cursor-pointer ${
+                              customCategoryFilter === cat.id
+                                ? "bg-emerald-600 text-white font-semibold shadow-2xs"
+                                : "bg-muted/70 text-muted-foreground hover:bg-muted hover:text-foreground border border-border/40"
+                            }`}
+                          >
+                            {cat.label}
+                          </button>
+                        ))}
+                      </div>
+
+                      {/* Results status row */}
+                      <div className="flex items-center justify-between text-[11px] text-muted-foreground px-0.5">
+                        <span>
+                          Showing <strong className="text-foreground">{sortedCustomLawyers.length}</strong> active {sortedCustomLawyers.length === 1 ? "advocate" : "advocates"}
+                          {customCategoryFilter !== "all" && ` in ${customCategoryFilter}`}
+                        </span>
+                        {(customSearchQuery || customCategoryFilter !== "all") && (
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setCustomSearchQuery("");
+                              setCustomCategoryFilter("all");
+                            }}
+                            className="text-emerald-600 dark:text-emerald-400 hover:underline text-[11px] font-semibold cursor-pointer"
+                          >
+                            Reset filters
+                          </button>
+                        )}
+                      </div>
+                    </div>
+
+                    {isLoadingAllLawyers ? (
+                      <div className="flex flex-col items-center justify-center p-10 space-y-3 rounded-xl border border-dashed border-border/80 bg-background/50">
+                        <Loader2 className="h-6 w-6 animate-spin text-emerald-600" />
+                        <p className="text-xs text-muted-foreground font-medium">
+                          Loading active advocate directory…
+                        </p>
+                      </div>
+                    ) : sortedCustomLawyers.length === 0 ? (
+                      <div className="rounded-xl border border-dashed border-border bg-background p-6 text-center space-y-3">
+                        <div className="mx-auto flex h-10 w-10 items-center justify-center rounded-full bg-muted text-muted-foreground">
+                          <Search className="h-5 w-5" />
+                        </div>
+                        <div>
+                          <div className="text-xs font-bold text-foreground">
+                            No active advocates match your search
+                          </div>
+                          <p className="mt-1 text-[11px] text-muted-foreground max-w-md mx-auto">
+                            We couldn't find any approved advocates matching "{customSearchQuery || customCategoryFilter}".
+                            Try checking for spelling errors or resetting your search.
+                          </p>
+                        </div>
+                        <div className="flex items-center justify-center gap-2 pt-1">
                           <Button
-                            variant="outlined"
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              setProfileLawyer(l);
+                            variant="filled"
+                            onClick={() => {
+                              setCustomSearchQuery("");
+                              setCustomCategoryFilter("all");
                             }}
                           >
-                            View
+                            Show All Active Advocates
                           </Button>
-                          {selectedLawyerId === l.id && (
-                            <CheckCircle2 className="h-4 w-4 shrink-0 text-emerald-500" />
-                          )}
                         </div>
                       </div>
-                    ))}
-                  </div>
+                    ) : (
+                      <div className="max-h-80 space-y-2 overflow-y-auto pr-1">
+                        {sortedCustomLawyers.map((l) => (
+                          <div
+                            key={l.id}
+                            onClick={() => setSelectedLawyerId(l.id)}
+                            className={`flex cursor-pointer items-center justify-between gap-2 rounded-xl border p-3 transition-all ${selectedLawyerId === l.id
+                              ? "border-emerald-500 bg-emerald-500/10 ring-1 ring-emerald-500 shadow-xs"
+                              : "border-border bg-background hover:border-emerald-500/40"
+                              }`}
+                          >
+                            <div className="flex min-w-0 items-center gap-3">
+                              <div className="relative">
+                                <UserAvatar name={l.name} size="sm" role="lawyer" />
+                                <span
+                                  className={`absolute -bottom-0.5 -right-0.5 h-2.5 w-2.5 rounded-full ring-2 ring-background ${
+                                    l.availabilityStatus === "Online"
+                                      ? "bg-emerald-500"
+                                      : "bg-muted-foreground/60"
+                                  }`}
+                                  title={l.availabilityStatus || "Approved"}
+                                />
+                              </div>
+                              <div className="min-w-0">
+                                <div className="flex items-center gap-1.5 truncate">
+                                  <span className="truncate text-xs font-bold text-foreground">
+                                    {l.name}
+                                  </span>
+                                  <span
+                                    className={`text-[10px] font-bold px-1.5 py-0.2 rounded ${
+                                      l.availabilityStatus === "Online"
+                                        ? "text-emerald-600 dark:text-emerald-400 bg-emerald-500/10"
+                                        : "text-muted-foreground bg-muted"
+                                    }`}
+                                  >
+                                    {l.availabilityStatus === "Online" ? "Online" : "Active"}
+                                  </span>
+                                </div>
+                                <div className="text-[11px] text-muted-foreground truncate">
+                                  {l.category} Law · {l.area ? `${l.area}, ` : ""}
+                                  {l.city} · {l.experienceYears} yrs · ★ {l.rating}
+                                </div>
+                              </div>
+                            </div>
+                            <div className="flex shrink-0 items-center gap-2">
+                              <span
+                                className="inline-flex items-center gap-0.5 font-mono text-xs font-black text-emerald-600 dark:text-emerald-400 bg-emerald-500/10 px-2.5 py-1 rounded-lg border border-emerald-500/20 shadow-2xs"
+                                title="Consultation Fee"
+                              >
+                                ₹{l.consultationFee ?? 1500}
+                              </span>
+                              <Button
+                                variant="outlined"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  setProfileLawyer(l);
+                                }}
+                              >
+                                View
+                              </Button>
+                              {selectedLawyerId === l.id && (
+                                <CheckCircle2 className="h-4 w-4 shrink-0 text-emerald-500" />
+                              )}
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </>
                 )}
               </Card>
             )}

@@ -13,6 +13,7 @@ import {
   Loader2,
   ArrowLeft,
   RotateCw,
+  CheckCircle2,
 } from "lucide-react";
 import { OtpInput, TextField, Button, IconButton } from "@/components/m3";
 import { PermissionsGate } from "@/components/app/PermissionsGate";
@@ -286,7 +287,7 @@ export function CitizenLawyerLogin() {
     );
 
     const userFound = Boolean(res?.userExists || (matchedCitizen && matchedCitizen.name));
-    const detectedName = res?.fullName || res?.name || matchedCitizen?.name || "";
+    const detectedName = (res?.fullName || res?.name || matchedCitizen?.name || "").trim();
 
     if (userFound && detectedName) {
       setIsExistingCitizen(true);
@@ -713,6 +714,9 @@ export function CitizenLawyerLogin() {
                     onClick={() => {
                       setCitizenStep("contact");
                       setCitizenOtpError("");
+                      setIsExistingCitizen(false);
+                      setFullName("");
+                      setFullNameTouched(false);
                     }}
                     className="flex items-center gap-1.5 text-xs font-semibold text-primary hover:underline cursor-pointer"
                   >
@@ -731,27 +735,36 @@ export function CitizenLawyerLogin() {
                   </div>
                 )}
 
-                {!isExistingCitizen && (
-                  <div className="space-y-1">
-                    <TextField
-                      label="Your Full Name"
-                      value={fullName}
-                      onChange={(v) => {
+                <div className="space-y-1">
+                  <TextField
+                    label={isExistingCitizen ? "Full Name" : "Your Full Name"}
+                    value={fullName}
+                    onChange={(v) => {
+                      if (!isExistingCitizen) {
                         setFullName(sanitizeName(v));
                         setFullNameTouched(true);
-                      }}
-                      placeholder="e.g. Ramesh Kumar"
-                      leadingIcon={<User className="h-4 w-4" />}
-                      error={fullNameTouched && !nameRes.isValid}
-                      supportingText={
-                        fullNameTouched && !nameRes.isValid
-                          ? nameRes.error || "Name is required for registration"
-                          : undefined
                       }
-                      className="w-full"
-                    />
-                  </div>
-                )}
+                    }}
+                    disabled={isExistingCitizen}
+                    required={!isExistingCitizen}
+                    placeholder={isExistingCitizen ? "Registered Name" : "e.g. Ramesh Kumar"}
+                    leadingIcon={<User className="h-4 w-4" />}
+                    trailingIcon={
+                      isExistingCitizen ? (
+                        <CheckCircle2 className="h-4 w-4 text-emerald-600 dark:text-emerald-400" />
+                      ) : undefined
+                    }
+                    error={!isExistingCitizen && fullNameTouched && !nameRes.isValid}
+                    supportingText={
+                      isExistingCitizen
+                        ? "Registered account name (pre-filled)"
+                        : fullNameTouched && !nameRes.isValid
+                          ? nameRes.error || "Name is required for registration"
+                          : "Enter your full name to complete registration"
+                    }
+                    className={cn("w-full", isExistingCitizen && "cursor-not-allowed opacity-90")}
+                  />
+                </div>
 
                 <div className="space-y-2 text-center">
                   <label className="text-xs font-medium text-muted-foreground block text-left">
