@@ -13,6 +13,7 @@ import {
   Maximize2,
   Minimize2,
   ChevronRight,
+  ChevronDown,
   CalendarClock,
   Landmark,
   User,
@@ -76,6 +77,8 @@ import {
   COURTS_FLAT,
   PRE_CNR_STAGES,
   StatusBadge,
+  getStatusStyle,
+  resolveCaseFilterStatus,
   fmtDate,
   todayISO,
   getCourtHistory,
@@ -196,6 +199,38 @@ export function CasesTable({
   const [isDragging, setIsDragging] = useState(false);
   const [previewDoc, setPreviewDoc] = useState<CaseDocument | null>(null);
   const [previewFullScreen, setPreviewFullScreen] = useState(false);
+  const [updatingStatusCaseId, setUpdatingStatusCaseId] = useState<string | null>(null);
+
+  async function handleQuickStatusChange(caseItem: LegalCase, newFilterStatus: string) {
+    if (updatingStatusCaseId) return;
+    setUpdatingStatusCaseId(caseItem.id);
+    try {
+      // 1. Optimistically update local state & store
+      updateCaseStatus(caseItem.id, newFilterStatus as CaseStatus);
+      const updatedCase: LegalCase = {
+        ...caseItem,
+        status: newFilterStatus as CaseStatus,
+        caseStatus: newFilterStatus,
+      };
+      onCaseUpdate?.(updatedCase);
+
+      // 2. Persist to backend database
+      await Promise.allSettled([
+        caseService.updateCase(caseItem.id, {
+          status: newFilterStatus,
+          caseStatus: newFilterStatus,
+        }),
+        caseService.updateCaseStage(caseItem.id, {
+          stage: newFilterStatus,
+          status: newFilterStatus,
+        }),
+      ]);
+    } catch (err) {
+      console.error("[CasesTable] Failed to update case status on backend:", err);
+    } finally {
+      setUpdatingStatusCaseId(null);
+    }
+  }
 
   const [partyNames, setPartyNames] = useState("");
   const [partyNameError, setPartyNameError] = useState("");
@@ -512,8 +547,16 @@ export function CasesTable({
           title: trimmedTitle,
           cnr: trimmedCnr || undefined,
           status: caseStatus,
+          caseStatus: caseStatus,
         })
         .catch((err: unknown) => console.warn("[Case Edit] Server notice:", err));
+
+      caseService
+        .updateCaseStage(targetCaseId, {
+          stage: caseStatus,
+          status: caseStatus,
+        })
+        .catch((err: unknown) => console.warn("[Case Edit Stage] Server notice:", err));
     }
 
     setDialogOpen(false);
@@ -755,7 +798,53 @@ export function CasesTable({
                     </div>
                     <div className="flex shrink-0 flex-wrap items-center gap-1.5 self-start sm:self-auto">
                       <CaseTypeBadge caseItem={c} />
-                      <StatusBadge status={c.status} />
+                      {isLawyer ? (
+                        <div
+                          className="relative inline-flex items-center"
+                          onClick={(e) => e.stopPropagation()}
+                        >
+                          {(() => {
+                            const isUpdating = updatingStatusCaseId === c.id;
+                            const filterKey = resolveCaseFilterStatus(c);
+                            const meta = STATUS_META[filterKey] || STATUS_META["Pending by Lawyer"];
+                            const style = getStatusStyle(meta.color);
+                            return (
+                              <div className="relative inline-flex items-center">
+                                <select
+                                  aria-label={`Case Status for ${c.id}`}
+                                  value={filterKey}
+                                  onChange={(e) => handleQuickStatusChange(c, e.target.value)}
+                                  disabled={isUpdating}
+                                  className={`cursor-pointer appearance-none rounded-lg pl-6 pr-6 py-1 text-xs font-semibold border border-border/60 transition-all focus:outline-none focus:ring-1 focus:ring-primary ${style.bg} ${
+                                    isUpdating ? "opacity-60 pointer-events-none" : ""
+                                  }`}
+                                  title={`Case Status: ${meta.label} — ${meta.meaning}`}
+                                >
+                                  {STATUS_LIST.map((s) => (
+                                    <option
+                                      key={s}
+                                      value={s}
+                                      className="bg-card text-foreground font-medium text-xs"
+                                    >
+                                      {STATUS_META[s].label}
+                                    </option>
+                                  ))}
+                                </select>
+                                {isUpdating ? (
+                                  <Loader2 className="absolute left-2 h-3 w-3 animate-spin text-primary pointer-events-none" />
+                                ) : (
+                                  <span
+                                    className={`absolute left-2.5 h-1.5 w-1.5 shrink-0 rounded-full pointer-events-none ${style.dot}`}
+                                  />
+                                )}
+                                <ChevronDown className="absolute right-2 h-3.5 w-3.5 pointer-events-none text-current opacity-70" />
+                              </div>
+                            );
+                          })()}
+                        </div>
+                      ) : (
+                        <StatusBadge status={c} />
+                      )}
                     </div>
                   </div>
 

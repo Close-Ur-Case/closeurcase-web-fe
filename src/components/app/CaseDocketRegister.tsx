@@ -160,6 +160,9 @@ export function CaseDocketRegister({
       ) {
         return true;
       }
+      if (!currentLawyerId && !currentLawyer) {
+        return c.lawyerId === "l_001" || !c.lawyerId;
+      }
       return false;
     },
     [currentLawyerId, currentLawyer, user?.id],
@@ -185,7 +188,7 @@ export function CaseDocketRegister({
         })
         .catch((err) => console.warn("[CaseDocketRegister] Citizen backend sync notice:", err));
     } else {
-      const targetLawyerId = currentLawyerId || currentLawyer?.id;
+      const targetLawyerId = currentLawyerId || currentLawyer?.id || "l_001";
       caseService
         .listUserCases<BackendUserCase>(targetLawyerId ? { lawyerId: targetLawyerId } : {})
         .then((backendCases) => {

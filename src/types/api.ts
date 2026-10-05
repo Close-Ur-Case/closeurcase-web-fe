@@ -180,7 +180,8 @@ export interface CreateUserCasePayload {
 }
 
 export interface UpdateLawyerCaseStagePayload {
-  stage: "accepted" | "rejected" | "filinginprogress" | "cnrgenerated" | string;
+  stage?: "accepted" | "rejected" | "filinginprogress" | "cnrgenerated" | string;
+  status?: string;
   rejectionReason?: string;
   generatedCnr?: string;
 }

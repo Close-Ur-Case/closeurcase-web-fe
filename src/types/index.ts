@@ -344,6 +344,8 @@ export interface LegalCase {
   lawyerName?: string;
   /** This app's own lawyer-workflow pipeline status. */
   status: CaseStatus;
+  caseStatus?: string;
+  lawyerCasestageId?: string;
   city: string;
   createdAt: string;
   updatedAt: string;

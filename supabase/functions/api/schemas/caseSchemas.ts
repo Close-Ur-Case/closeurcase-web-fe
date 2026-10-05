@@ -60,10 +60,12 @@ export const CreateCaseSchema = CreateUserCaseSchema;
 
 export const UpdateLawyerCaseStageSchema = z
   .object({
-    stage: z.enum(["accepted", "rejected", "filinginprogress", "cnrgenerated"]).openapi({ example: "accepted" }),
+    stage: z.string().optional().openapi({ example: "accepted" }),
+    status: z.string().optional().openapi({ example: "Accepted by Lawyer" }),
     rejectionReason: z.string().optional().openapi({ example: "Conflict of interest with opposing party." }),
     generatedCnr: z.string().optional().transform((v) => (v ? v.trim().toUpperCase() : undefined)).openapi({ example: "TSHC010022112026" }),
   })
+  .passthrough()
   .openapi("UpdateLawyerCaseStageRequest");
 
 export const UpdateCaseStatusSchema = UpdateLawyerCaseStageSchema;
@@ -122,8 +124,8 @@ export const UpdateUserCaseSchema = z
     practiceArea: z.string().optional().openapi({ example: "cat_1" }),
     specialization: z.string().optional().openapi({ example: "spec_1_1" }),
     isEmergency: z.boolean().optional(),
-    status: z.string().optional(),
-    caseStatus: z.string().optional(),
+    status: z.string().optional().openapi({ example: "Accepted by Lawyer", description: "Case status or filter status label" }),
+    caseStatus: z.string().optional().openapi({ example: "Accepted by Lawyer", description: "Case status or filter status label" }),
     documents: z.array(z.any()).optional(),
     timeline: z.array(z.any()).optional(),
     notes: z.array(z.any()).optional(),

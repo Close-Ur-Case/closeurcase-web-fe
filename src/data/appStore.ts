@@ -298,20 +298,34 @@ export function addCase(c: LegalCase) {
   }
 }
 
-export function updateCaseStatus(id: string, newStatus: CaseStatus, note?: string) {
+export function updateCaseStatus(id: string, newStatus: CaseStatus | string, note?: string) {
   const current = getCases();
   const now = new Date();
   const today = now.toISOString().slice(0, 10);
   const time = now.toLocaleTimeString([], { hour: "numeric", minute: "2-digit" });
 
-  const updated = current.map((c) => {
+  const updated: LegalCase[] = current.map((c) => {
     if (c.id !== id) return c;
     const timeline = c.timeline || [];
+    const validStatus: CaseStatus = (
+      ["Pending", "Submitted", "Assigned", "Rejected", "Under Review", "In Progress", "Awaiting Documents", "Resolved", "Closed"].includes(newStatus)
+        ? newStatus
+        : newStatus.toLowerCase().includes("progress") || newStatus.toLowerCase().includes("filing")
+        ? "In Progress"
+        : newStatus.toLowerCase().includes("accepted") || newStatus.toLowerCase().includes("assigned")
+        ? "Assigned"
+        : newStatus.toLowerCase().includes("cnr")
+        ? "Assigned"
+        : newStatus.toLowerCase().includes("reject")
+        ? "Rejected"
+        : "Submitted"
+    ) as CaseStatus;
+
     const newTimeline = [
       ...timeline,
       {
         id: `t_${Date.now()}`,
-        status: newStatus,
+        status: validStatus,
         at: today,
         time,
         note: note || `Status updated to ${newStatus}`,
@@ -319,7 +333,8 @@ export function updateCaseStatus(id: string, newStatus: CaseStatus, note?: strin
     ];
     return {
       ...c,
-      status: newStatus,
+      status: validStatus,
+      caseStatus: String(newStatus),
       updatedAt: today,
       timeline: newTimeline,
     };

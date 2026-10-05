@@ -213,18 +213,33 @@ export function mapBackendCaseToLegalCase(
   const lawyer = lawyersList?.find((l) => l.id === backend.lawyerId);
 
   // Status mapping
-  const rawStatus = (backend.lawyerCasestageId || backend.caseStatus || "submitted").toLowerCase();
+  const stage = String(backend.lawyerCasestageId || "").toLowerCase();
+  const rawStatus = String(backend.caseStatus || "").trim();
   let status: CaseStatus = "Submitted";
-  if (rawStatus === "accepted") {
+  if (
+    stage === "accepted" ||
+    rawStatus.toLowerCase().includes("accepted") ||
+    rawStatus.toLowerCase().includes("assigned")
+  ) {
     status = "Assigned";
-  } else if (rawStatus === "filinginprogress") {
+  } else if (
+    stage === "filinginprogress" ||
+    rawStatus.toLowerCase().includes("filing") ||
+    rawStatus.toLowerCase().includes("progress")
+  ) {
     status = "In Progress";
-  } else if (rawStatus === "cnrgenerated") {
+  } else if (
+    stage === "cnrgenerated" ||
+    rawStatus.toLowerCase().includes("cnr") ||
+    rawStatus.toLowerCase().includes("registered")
+  ) {
     status = "Assigned";
-  } else if (rawStatus === "rejected") {
+  } else if (stage === "rejected" || rawStatus.toLowerCase().includes("reject")) {
     status = "Rejected";
-  } else if (rawStatus === "closed") {
-    status = "Closed";
+  } else if (stage === "submitted" || rawStatus.toLowerCase().includes("pending")) {
+    status = "Submitted";
+  } else if (rawStatus) {
+    status = (rawStatus as CaseStatus) || "Submitted";
   }
 
   // Category mapping — shared with the lawyer merge so both agree on what a
@@ -468,6 +483,8 @@ export function mapBackendCaseToLegalCase(
     lawyerId: backend.lawyerId || undefined,
     lawyerName: lawyer?.name || (backend.lawyerId ? "Assigned Counsel" : undefined),
     status,
+    caseStatus: backend.caseStatus || undefined,
+    lawyerCasestageId: backend.lawyerCasestageId || undefined,
     city: citizen?.city || impCaseDetails.district || "Hyderabad",
     createdAt: createdDate,
     updatedAt: updatedDate,

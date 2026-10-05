@@ -523,17 +523,45 @@ export class CaseService {
    * Lawyer updates case stage from lookup table lawyer_casestages:
    * accepted, rejected, filinginprogress, cnrgenerated.
    */
+  static normalizeStage(stageStr: string): string {
+    const raw = String(stageStr || "").trim().toLowerCase();
+    const map: Record<string, string> = {
+      "pending by lawyer": "submitted",
+      "pending": "submitted",
+      "submitted": "submitted",
+      "accepted by lawyer": "accepted",
+      "accepted": "accepted",
+      "assigned": "accepted",
+      "under review": "accepted",
+      "awaiting documents": "accepted",
+      "filing in progress": "filinginprogress",
+      "filinginprogress": "filinginprogress",
+      "filing": "filinginprogress",
+      "in progress": "filinginprogress",
+      "registered": "cnrgenerated",
+      "cnr generated": "cnrgenerated",
+      "cnrgenerated": "cnrgenerated",
+      "rejected by lawyer": "rejected",
+      "rejected": "rejected",
+      "closed": "cnrgenerated",
+      "resolved": "cnrgenerated",
+      "disposed": "cnrgenerated",
+    };
+    return map[raw] || raw.replace(/[\s_-]+/g, "");
+  }
+
   static async updateLawyerStage(
     caseId: string,
     lawyerId: string | null,
-    updateData: { stage: string; rejectionReason?: string; generatedCnr?: string }
+    updateData: { stage?: string; status?: string; rejectionReason?: string; generatedCnr?: string }
   ) {
     const [existing] = await db.select().from(casesUser).where(eq(casesUser.id, caseId));
     if (!existing) {
       throw ApiError.notFound(`Case docket '${caseId}' not found`);
     }
 
-    const targetStage = updateData.stage.trim().toLowerCase();
+    const rawStage = String(updateData.stage || updateData.status || "").trim();
+    const targetStage = this.normalizeStage(rawStage);
     const [stageRecord] = await db
       .select()
       .from(lookups)
@@ -543,7 +571,7 @@ export class CaseService {
       const validStages = (
         await db.select({ id: lookups.id }).from(lookups).where(eq(lookups.category, "lawyer_casestage"))
       ).map((s) => s.id).join(", ");
-      throw ApiError.badRequest(`Invalid stage '${targetStage}'. Must be one of: ${validStages}`);
+      throw ApiError.badRequest(`Invalid stage '${rawStage}'. Must be one of: ${validStages}`);
     }
 
     const generatedCnr = this.normalizeCnr(updateData.generatedCnr);
@@ -571,7 +599,7 @@ export class CaseService {
     });
 
     const updateFields: any = {
-      caseStatus: targetStage,
+      caseStatus: rawStage || stageRecord.label,
       lawyerCasestageId: targetStage,
       rejectionReason: updateData.rejectionReason || null,
       timeline,
@@ -698,9 +726,16 @@ export class CaseService {
     if (updates.timeline !== undefined) updateFields.timeline = updates.timeline;
     if (updates.notes !== undefined) updateFields.notes = updates.notes;
     if (updates.status !== undefined || updates.caseStatus !== undefined) {
-      const st = (updates.status || updates.caseStatus).toLowerCase();
-      updateFields.caseStatus = st;
-      updateFields.lawyerCasestageId = st;
+      const rawStatus = String(updates.status || updates.caseStatus).trim();
+      updateFields.caseStatus = rawStatus;
+      const targetStage = this.normalizeStage(rawStatus);
+      const [stageRecord] = await db
+        .select({ id: lookups.id })
+        .from(lookups)
+        .where(and(eq(lookups.id, targetStage), eq(lookups.category, "lawyer_casestage")));
+      if (stageRecord) {
+        updateFields.lawyerCasestageId = stageRecord.id;
+      }
     }
 
     // Auto-seed imported case if new CNR provided

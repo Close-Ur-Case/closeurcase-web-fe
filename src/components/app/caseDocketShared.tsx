@@ -80,23 +80,90 @@ export const STATUS_META: Record<string, StatusMetaItem> = {
     color: "info",
     meaning: "Case filed and a CNR number has been generated",
   },
+  Disposed: {
+    label: "Disposed",
+    color: "closed",
+    meaning: "Case proceedings completed or disposed",
+  },
 };
 
-export const STATUS_LIST = Object.keys(STATUS_META);
+export const STATUS_LIST = [
+  "Pending by Lawyer",
+  "Accepted by Lawyer",
+  "Filing in progress",
+  "CNR Generated",
+  "Rejected by Lawyer",
+];
 
-// Maps the legacy CaseStatus values (stored in DB) to the display filter keys above.
-// This lets filters work without changing stored data or other parts of the app.
+// Maps stored CaseStatus values, lookup IDs, and variations to the display filter keys above.
 export const STORED_STATUS_TO_FILTER: Record<string, string> = {
+  // Pending / Submitted
   Submitted: "Pending by Lawyer",
+  submitted: "Pending by Lawyer",
+  Pending: "Pending by Lawyer",
+  pending: "Pending by Lawyer",
+  "Pending by Lawyer": "Pending by Lawyer",
+
+  // Accepted
   Assigned: "Accepted by Lawyer",
-  Rejected: "Rejected by Lawyer",
+  assigned: "Accepted by Lawyer",
+  Accepted: "Accepted by Lawyer",
+  accepted: "Accepted by Lawyer",
+  "Accepted by Lawyer": "Accepted by Lawyer",
   "Under Review": "Accepted by Lawyer",
-  "In Progress": "Registered",
+  "under review": "Accepted by Lawyer",
   "Awaiting Documents": "Accepted by Lawyer",
-  Pending: "Pending",
+  "awaiting documents": "Accepted by Lawyer",
+
+  // Filing in progress
+  "In Progress": "Filing in progress",
+  "in progress": "Filing in progress",
+  "Filing in progress": "Filing in progress",
+  "Filing in Progress": "Filing in progress",
+  filinginprogress: "Filing in progress",
+  filing: "Filing in progress",
+
+  // CNR Generated
+  "CNR Generated": "CNR Generated",
+  cnrgenerated: "CNR Generated",
+  Registered: "CNR Generated",
+  registered: "CNR Generated",
+
+  // Rejected
+  Rejected: "Rejected by Lawyer",
+  rejected: "Rejected by Lawyer",
+  "Rejected by Lawyer": "Rejected by Lawyer",
+
+  // Closed / Disposed
   Resolved: "Disposed",
+  resolved: "Disposed",
   Closed: "Disposed",
+  closed: "Disposed",
+  Disposed: "Disposed",
+  disposed: "Disposed",
 };
+
+/**
+ * Resolves any case or status object/string into one of the official display filter keys.
+ */
+export function resolveCaseFilterStatus(
+  c: { status?: string; caseStatus?: string; lawyerCasestageId?: string } | string | null | undefined,
+): string {
+  if (!c) return "Pending by Lawyer";
+  if (typeof c === "string") {
+    return STORED_STATUS_TO_FILTER[c] ?? c;
+  }
+  if (c.caseStatus && STORED_STATUS_TO_FILTER[c.caseStatus]) {
+    return STORED_STATUS_TO_FILTER[c.caseStatus];
+  }
+  if (c.lawyerCasestageId && STORED_STATUS_TO_FILTER[c.lawyerCasestageId]) {
+    return STORED_STATUS_TO_FILTER[c.lawyerCasestageId];
+  }
+  if (c.status && STORED_STATUS_TO_FILTER[c.status]) {
+    return STORED_STATUS_TO_FILTER[c.status];
+  }
+  return c.caseStatus || c.status || "Pending by Lawyer";
+}
 
 /** The pre-court pipeline a case moves through before it gets a CNR and is
  * registered in court — shown as a timestamped stage history in the lawyer's
@@ -391,9 +458,12 @@ export function getStatusStyle(colorKey: StatusMetaItem["color"]) {
   }
 }
 
-export function StatusBadge({ status }: { status: string }) {
-  // status may be a stored CaseStatus ("In Progress") or a filter key ("Registered")
-  const filterKey = STORED_STATUS_TO_FILTER[status] ?? status;
+export function StatusBadge({
+  status,
+}: {
+  status: string | { status?: string; caseStatus?: string; lawyerCasestageId?: string };
+}) {
+  const filterKey = typeof status === "object" ? resolveCaseFilterStatus(status) : (STORED_STATUS_TO_FILTER[status] ?? status);
   const meta = STATUS_META[filterKey] || STATUS_META["Pending by Lawyer"];
   const style = getStatusStyle(meta.color);
   return (
