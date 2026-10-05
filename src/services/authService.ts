@@ -225,7 +225,7 @@ export const authService = {
 
     if (res?.user?.role === "lawyer") {
       throw new Error(
-        "This is a Lawyer account. Please sign in through the Lawyer sign in page (/lawyer-login).",
+        "This is a Lawyer account. Please sign in through the Lawyer sign in page (/citizen-lawyer-login?role=lawyer).",
       );
     }
 

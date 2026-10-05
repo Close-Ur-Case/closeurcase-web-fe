@@ -111,7 +111,11 @@ export function TrustedLawyers() {
         <div className="relative overflow-hidden mask-[linear-gradient(to_right,transparent,black_8%,black_92%,transparent)]">
           <div className="flex w-max animate-marquee divide-x divide-border">
             {track.map((lawyer, i) => (
-              <Link key={`${lawyer.name}-${i}`} to="/citizen-login">
+              <Link
+                key={`${lawyer.name}-${i}`}
+                to="/citizen-lawyer-login"
+                search={{ role: "citizen" }}
+              >
                 <LawyerCard lawyer={lawyer} />
               </Link>
             ))}

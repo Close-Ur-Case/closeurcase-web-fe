@@ -20,7 +20,7 @@ export const Route = createFileRoute("/citizen")({
       const user = getStoredUser<AuthUser>();
       const isAuthenticated = session.authenticated || Boolean(token) || Boolean(user);
       if (!isAuthenticated) {
-        throw redirect({ to: "/citizen-login" });
+        throw redirect({ to: "/citizen-lawyer-login", search: { id: "citizen", role: "citizen" } });
       }
       if (user && user.role && user.role !== "citizen") {
         throw redirect({ to: user.role === "admin" ? "/admin" : "/lawyer" });

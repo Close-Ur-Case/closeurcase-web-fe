@@ -19,7 +19,8 @@ export function CitizenLoginButton({
   if (size === "header") {
     return (
       <Link
-        to="/citizen-login"
+        to="/citizen-lawyer-login"
+        search={{ id: "citizen", role: "citizen" }}
         className={cn(FILLED_LINK_BUTTON_CITIZEN_CLASS, "whitespace-nowrap", className)}
       >
         <Phone className="h-4 w-4 shrink-0" aria-hidden />
@@ -30,7 +31,8 @@ export function CitizenLoginButton({
 
   return (
     <Link
-      to="/citizen-login"
+      to="/citizen-lawyer-login"
+      search={{ id: "citizen", role: "citizen" }}
       title={subtitle}
       className={cn(FILLED_LINK_BUTTON_CITIZEN_CLASS, className)}
     >

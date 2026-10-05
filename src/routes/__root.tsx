@@ -136,6 +136,15 @@ function ScrollToTop() {
     return router.subscribe("onRendered", () => {
       const nextPath = router.state.location.pathname;
       const changedPath = nextPath !== lastPath;
+      if (changedPath) {
+        if (lastPath && lastPath !== "/citizen-lawyer-login") {
+          try {
+            sessionStorage.setItem("cuc_prev_pathname", lastPath);
+          } catch {
+            // ignore
+          }
+        }
+      }
       lastPath = nextPath;
       // Leave scroll alone for hash-only navigations and for the hash
       // being cleared afterwards — only jump to top on an actual route change.

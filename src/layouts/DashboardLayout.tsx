@@ -330,9 +330,9 @@ export function DashboardLayout({
     if (role === "admin") {
       navigate({ to: "/admin-login" });
     } else if (role === "citizen") {
-      navigate({ to: "/citizen-login" });
+      navigate({ to: "/citizen-lawyer-login", search: { id: "citizen", role: "citizen" } });
     } else {
-      navigate({ to: "/lawyer-login" });
+      navigate({ to: "/citizen-lawyer-login", search: { id: "lawyer", role: "lawyer" } });
     }
   };
 

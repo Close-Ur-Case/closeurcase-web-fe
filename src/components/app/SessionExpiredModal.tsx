@@ -89,9 +89,9 @@ export function SessionExpiredModal() {
     if (effectiveRole === "admin" || currentPath.startsWith("/admin")) {
       navigate({ to: "/admin-login" });
     } else if (effectiveRole === "citizen" || currentPath.startsWith("/citizen")) {
-      navigate({ to: "/citizen-login" });
+      navigate({ to: "/citizen-lawyer-login", search: { id: "citizen", role: "citizen" } });
     } else {
-      navigate({ to: "/lawyer-login" });
+      navigate({ to: "/citizen-lawyer-login", search: { id: "lawyer", role: "lawyer" } });
     }
   };
 

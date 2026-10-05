@@ -26,36 +26,36 @@ export function useLandingAuth() {
     ? isSuspended
       ? "/citizen/profile"
       : "/citizen/create-case"
-    : "/citizen-login";
+    : "/citizen-lawyer-login";
   const citizenDashboardTo = isCitizen
     ? isSuspended
       ? "/citizen/profile"
       : "/citizen"
-    : "/citizen-login";
+    : "/citizen-lawyer-login";
   const citizenMyCasesTo = isCitizen
     ? isSuspended
       ? "/citizen/profile"
       : "/citizen/my-cases"
-    : "/citizen-login";
+    : "/citizen-lawyer-login";
   const citizenSubscriptionsTo = isCitizen
     ? isSuspended
       ? "/citizen/profile"
       : "/citizen/subscriptions"
-    : "/citizen-login";
+    : "/citizen-lawyer-login";
 
   /**
    * LAWYER ROUTES:
    * Lawyer features MUST ALWAYS navigate to lawyer routes!
    * - If lawyer is already logged in (not signed out): auto-login directly into lawyer workspace.
    * - If lawyer is suspended: route only to /lawyer/profile.
-   * - If lawyer is not logged in: navigate to /lawyer-login or /lawyer-register.
+   * - If lawyer is not logged in: navigate to /citizen-lawyer-login or /lawyer-register.
    * - NEVER navigate to /citizen.
    */
   const lawyerDashboardTo = isLawyer
     ? isSuspended
       ? "/lawyer/profile"
       : "/lawyer"
-    : "/lawyer-login";
+    : "/citizen-lawyer-login";
   const lawyerRegisterTo = isLawyer
     ? isSuspended
       ? "/lawyer/profile"
@@ -65,7 +65,7 @@ export function useLandingAuth() {
     ? isSuspended
       ? "/lawyer/profile"
       : "/lawyer/cases"
-    : "/lawyer-login";
+    : "/citizen-lawyer-login";
 
   return {
     user,

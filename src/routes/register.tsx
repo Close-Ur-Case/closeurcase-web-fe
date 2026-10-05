@@ -27,7 +27,11 @@ function Register() {
       footer={
         <>
           Lawyer?{" "}
-          <Link to="/lawyer-login" className="font-semibold text-primary hover:underline">
+          <Link
+            to="/citizen-lawyer-login"
+            search={{ id: "lawyer", role: "lawyer" }}
+            className="font-semibold text-primary hover:underline"
+          >
             Lawyer sign in
           </Link>
           {" · "}

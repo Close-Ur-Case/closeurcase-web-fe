@@ -66,7 +66,7 @@ export function PracticeCategories() {
                     <p className="mt-2 text-[11px] italic text-slate-500">{cat.remedy}</p>
                   </div>
                   <Link
-                    to={isCitizen ? "/citizen/create-case" : "/citizen-login"}
+                    to={isCitizen ? "/citizen/create-case" : "/citizen-lawyer-login"}
                     search={isCitizen ? { area: cat.title } : undefined}
                     className="mt-auto inline-flex items-center gap-1.5 border-b border-transparent pt-5 text-xs font-semibold text-slate-900 transition-colors hover:border-[#d4af37]/50 hover:text-[#a9853f]"
                   >

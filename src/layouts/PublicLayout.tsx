@@ -227,7 +227,8 @@ export function PublicLayout({ children }: { children: ReactNode }) {
                 </Link>
               ) : (
                 <Link
-                  to="/lawyer-login"
+                  to="/citizen-lawyer-login"
+                  search={{ id: "lawyer", role: "lawyer" }}
                   className={cn(
                     FILLED_LINK_BUTTON_CITIZEN_CLASS,
                     "!h-auto whitespace-nowrap !px-3.5 !py-2 !text-xs",
@@ -374,7 +375,7 @@ export function PublicLayout({ children }: { children: ReactNode }) {
                                     {spec.legal_services.map((service) => (
                                       <li key={service}>
                                         <Link
-                                          to={isCitizen ? "/citizen/create-case" : "/citizen-login"}
+                                          to={isCitizen ? "/citizen/create-case" : "/citizen-lawyer-login"}
                                           search={{
                                             area: area.category,
                                             specialization: spec.case_type,
@@ -581,23 +582,36 @@ export function PublicLayout({ children }: { children: ReactNode }) {
               </h3>
               <ul className="mt-3 space-y-2 text-xs text-slate-600">
                 <li>
-                  <Link to={citizenFileCaseTo} className="transition-colors hover:text-[#a9853f]">
+                  <Link
+                    to={citizenFileCaseTo}
+                    search={isCitizen ? undefined : { id: "citizen" }}
+                    className="transition-colors hover:text-[#a9853f]"
+                  >
                     File a case
                   </Link>
                 </li>
                 <li>
-                  <Link to={citizenDashboardTo} className="transition-colors hover:text-[#a9853f]">
+                  <Link
+                    to={citizenDashboardTo}
+                    search={isCitizen ? undefined : { id: "citizen" }}
+                    className="transition-colors hover:text-[#a9853f]"
+                  >
                     Find a lawyer
                   </Link>
                 </li>
                 <li>
-                  <Link to={citizenMyCasesTo} className="transition-colors hover:text-[#a9853f]">
+                  <Link
+                    to={citizenMyCasesTo}
+                    search={isCitizen ? undefined : { id: "citizen" }}
+                    className="transition-colors hover:text-[#a9853f]"
+                  >
                     Track your case
                   </Link>
                 </li>
                 <li>
                   <Link
                     to={citizenSubscriptionsTo}
+                    search={isCitizen ? undefined : { id: "citizen" }}
                     className="transition-colors hover:text-[#a9853f]"
                   >
                     Auto-Assign &amp; subscriptions
@@ -618,7 +632,11 @@ export function PublicLayout({ children }: { children: ReactNode }) {
                   </Link>
                 </li>
                 <li>
-                  <Link to={lawyerDashboardTo} className="transition-colors hover:text-[#a9853f]">
+                  <Link
+                    to={lawyerDashboardTo}
+                    search={isLawyer ? undefined : { id: "lawyer" }}
+                    className="transition-colors hover:text-[#a9853f]"
+                  >
                     {isLawyer ? "Lawyer Dashboard" : "Lawyer sign in"}
                   </Link>
                 </li>
@@ -649,8 +667,8 @@ export function PublicLayout({ children }: { children: ReactNode }) {
                 {practiceAreas.slice(0, 6).map((area) => (
                   <li key={area.category}>
                     <Link
-                      to={isCitizen ? "/citizen/create-case" : "/citizen-login"}
-                      search={{ area: area.category }}
+                      to={isCitizen ? "/citizen/create-case" : "/citizen-lawyer-login"}
+                      search={isCitizen ? { area: area.category } : { id: "citizen", area: area.category }}
                       className="group inline-flex items-center gap-1 transition-colors hover:text-[#a9853f]"
                     >
                       {area.category}
@@ -667,6 +685,7 @@ export function PublicLayout({ children }: { children: ReactNode }) {
             <div className="flex flex-wrap items-center justify-center sm:justify-start gap-3 sm:gap-4 text-xs font-semibold">
               <Link
                 to={citizenDashboardTo}
+                search={isCitizen ? undefined : { id: "citizen" }}
                 className="hover:underline"
                 style={{ color: "var(--md-extended-color-citizen)" }}
               >
@@ -674,10 +693,11 @@ export function PublicLayout({ children }: { children: ReactNode }) {
               </Link>
               <span className="text-slate-300">•</span>
               <Link
-                to="/lawyer-login"
+                to={lawyerDashboardTo}
+                search={isLawyer ? undefined : { id: "lawyer" }}
                 className="text-slate-600 hover:text-[#a9853f] hover:underline"
               >
-                Lawyer sign in
+                {isLawyer ? "Lawyer Dashboard" : "Lawyer sign in"}
               </Link>
               <span className="text-slate-300">•</span>
               <Link

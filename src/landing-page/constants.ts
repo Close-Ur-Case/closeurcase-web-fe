@@ -41,7 +41,7 @@ export const PRACTICE_CATEGORIES = [
     court: "District and Sessions Court",
     act: "Code of Civil Procedure 1908",
     remedy: "Partition, Injunction and Title Suits",
-    link: "/citizen-login",
+    link: "/citizen-lawyer-login",
   },
   {
     id: "family",
@@ -53,7 +53,7 @@ export const PRACTICE_CATEGORIES = [
     court: "Family Court / District Court",
     act: "Hindu Marriage Act and Guardianship Acts",
     remedy: "Mutual Divorce and Child Custody",
-    link: "/citizen-login",
+    link: "/citizen-lawyer-login",
   },
   {
     id: "corporate",
@@ -65,7 +65,7 @@ export const PRACTICE_CATEGORIES = [
     court: "NCLT and DRT",
     act: "Insolvency and Bankruptcy Code / SARFAESI",
     remedy: "Debt Recovery and Restructuring",
-    link: "/citizen-login",
+    link: "/citizen-lawyer-login",
   },
   {
     id: "consumer",
@@ -77,7 +77,7 @@ export const PRACTICE_CATEGORIES = [
     court: "Consumer Commission and Lok Adalat",
     act: "Consumer Protection Act 2019",
     remedy: "Compensation and Speedy Settlement",
-    link: "/citizen-login",
+    link: "/citizen-lawyer-login",
   },
 ];
 

@@ -142,7 +142,7 @@ export function PublicNav() {
                       {spec.legal_services.map((service) => (
                         <li key={service}>
                           <Link
-                            to={isCitizen ? "/citizen/create-case" : "/citizen-login"}
+                            to={isCitizen ? "/citizen/create-case" : "/citizen-lawyer-login"}
                             search={{
                               area: activeArea.category,
                               specialization: spec.case_type,

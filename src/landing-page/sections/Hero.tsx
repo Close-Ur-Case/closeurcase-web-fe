@@ -126,7 +126,7 @@ export function Hero() {
           <div className="mt-9 flex flex-col items-stretch gap-4 sm:flex-row sm:items-center">
             {/* Button 1: ALWAYS File a Case (citizen route, autologins to /citizen if citizen is logged in) */}
             <Link
-              to={isCitizen ? "/citizen" : "/citizen-login"}
+              to={isCitizen ? "/citizen" : "/citizen-lawyer-login"}
               className={cn(
                 FILLED_LINK_BUTTON_CLASS,
                 "!rounded-full !bg-gradient-to-br !from-[#e8d5a3] !via-[#d4af37] !to-[#b8942a] !px-8 !py-3.5 !text-sm font-semibold !text-slate-950 shadow-lg shadow-[#d4af37]/25 transition-all hover:!from-[#f0e0b0] hover:!to-[#c9a84c] active:scale-[0.98] justify-center shrink-0",

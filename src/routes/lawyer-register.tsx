@@ -1091,7 +1091,7 @@ function LawyerRegister() {
           </div>
           <Button
             variant="outlined"
-            onClick={() => navigate({ to: "/lawyer-login" })}
+            onClick={() => navigate({ to: "/citizen-lawyer-login", search: { id: "lawyer", role: "lawyer" } })}
             className="w-full"
           >
             Back to Sign in
@@ -1111,7 +1111,11 @@ function LawyerRegister() {
       footer={
         <>
           Already registered?{" "}
-          <Link to="/lawyer-login" className="font-semibold text-primary hover:underline">
+          <Link
+            to="/citizen-lawyer-login"
+            search={{ id: "lawyer", role: "lawyer" }}
+            className="font-semibold text-primary hover:underline"
+          >
             Sign in
           </Link>
         </>

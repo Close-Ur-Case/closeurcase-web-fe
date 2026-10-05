@@ -34,6 +34,7 @@ import type { AuthUser, SendOtpResponse } from "@/types/api";
 import { cn } from "@/lib/utils";
 
 interface SearchParams {
+  id?: "citizen" | "lawyer";
   role?: "citizen" | "lawyer";
   tab?: "citizen" | "lawyer";
   area?: string;
@@ -70,6 +71,7 @@ export const Route = createFileRoute("/citizen-lawyer-login")({
   head: () => ({ meta: [{ title: "Sign In — CloseUrCase Legal Platform" }] }),
 
   validateSearch: (s: Record<string, unknown>): SearchParams => ({
+    id: s.id === "lawyer" ? "lawyer" : s.id === "citizen" ? "citizen" : undefined,
     role: s.role === "lawyer" ? "lawyer" : s.role === "citizen" ? "citizen" : undefined,
     tab: s.tab === "lawyer" ? "lawyer" : s.tab === "citizen" ? "citizen" : undefined,
     area: typeof s.area === "string" ? s.area : undefined,
@@ -84,16 +86,67 @@ export const Route = createFileRoute("/citizen-lawyer-login")({
 type CitizenStep = "contact" | "otp";
 type CitizenMethod = "phone" | "email";
 
+function detectRoleFromNavigation(search: SearchParams): "citizen" | "lawyer" {
+  // 1. Explicit id search query param ?id=... (Highest priority)
+  if (search.id === "lawyer") return "lawyer";
+  if (search.id === "citizen") return "citizen";
+
+  // 2. Explicit role/tab query param ?role=... or ?tab=...
+  if (search.role === "lawyer" || search.tab === "lawyer") return "lawyer";
+  if (search.role === "citizen" || search.tab === "citizen") return "citizen";
+
+  if (typeof window !== "undefined") {
+    // 3. Previous page recorded during router navigation
+    const prevPath = (sessionStorage.getItem("cuc_prev_pathname") || "").toLowerCase();
+    if (prevPath.startsWith("/lawyer") || prevPath.includes("lawyer")) return "lawyer";
+    if (prevPath.startsWith("/citizen") || prevPath.includes("citizen")) return "citizen";
+
+    // 4. Document referrer (external or direct entry)
+    const referrer = (document.referrer || "").toLowerCase();
+    if (referrer.includes("/lawyer")) return "lawyer";
+    if (referrer.includes("/citizen")) return "citizen";
+  }
+
+  // Default fallback
+  return "citizen";
+}
+
 export function CitizenLawyerLogin() {
   const navigate = useNavigate();
   const search = Route.useSearch();
-  const { area, specialization, service, role: initialRole, tab: initialTab, splash } = search;
+  const { area, specialization, service, splash } = search;
   const { translate } = useCitizenLanguage();
 
-  // Active Role Slider: Citizen vs Lawyer/Org
-  const [activeRole, setActiveRole] = useState<"citizen" | "lawyer">(
-    initialRole || initialTab || "citizen",
+  // Active Role Slider: Citizen vs Lawyer/Org, initialized based on id or previous page navigation
+  const [activeRole, setActiveRole] = useState<"citizen" | "lawyer">(() =>
+    detectRoleFromNavigation(search),
   );
+
+  // Sync state if search params change externally (e.g. Back/Forward browser navigation)
+  useEffect(() => {
+    if (search.id === "lawyer" || search.role === "lawyer" || search.tab === "lawyer") {
+      setActiveRole("lawyer");
+    } else if (search.id === "citizen" || search.role === "citizen" || search.tab === "citizen") {
+      setActiveRole("citizen");
+    }
+  }, [search.id, search.role, search.tab]);
+
+  const handleRoleChange = (newRole: "citizen" | "lawyer") => {
+    setActiveRole(newRole);
+    if (newRole === "citizen") {
+      setLawyerLoginError(null);
+    } else {
+      setCitizenOtpError("");
+    }
+    navigate({
+      search: (prev) => ({
+        ...prev,
+        id: newRole,
+        role: newRole,
+      }),
+      replace: true,
+    });
+  };
 
   // Splash Screen state for PWA launch
   const [showSplash, setShowSplash] = useState(() => {
@@ -504,11 +557,9 @@ export function CitizenLawyerLogin() {
           />
           <div className="relative z-10 grid grid-cols-2">
             <button
+              id="citizen"
               type="button"
-              onClick={() => {
-                setActiveRole("citizen");
-                setLawyerLoginError(null);
-              }}
+              onClick={() => handleRoleChange("citizen")}
               className={cn(
                 "flex items-center justify-center gap-2 py-2.5 text-xs sm:text-sm font-bold transition-colors duration-200 cursor-pointer select-none",
                 activeRole === "citizen"
@@ -520,11 +571,9 @@ export function CitizenLawyerLogin() {
               <span>Citizen</span>
             </button>
             <button
+              id="lawyer"
               type="button"
-              onClick={() => {
-                setActiveRole("lawyer");
-                setCitizenOtpError("");
-              }}
+              onClick={() => handleRoleChange("lawyer")}
               className={cn(
                 "flex items-center justify-center gap-2 py-2.5 text-xs sm:text-sm font-bold transition-colors duration-200 cursor-pointer select-none",
                 activeRole === "lawyer"
