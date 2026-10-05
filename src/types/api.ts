@@ -799,13 +799,59 @@ export interface CreateSubscriptionPayload {
 // Super Admin Dashboard & Live Analytics Payloads
 // ============================================================================
 
+export interface DailyRegistrationPoint {
+  date: string;
+  label: string;
+  citizens: number;
+  lawyers: number;
+}
+
+export interface EmergencyCaseSummary {
+  id: string;
+  title: string;
+  citizenName: string;
+  createdAt: string;
+}
+
+export interface PendingLawyerSummary {
+  id: string;
+  name: string;
+  category: string;
+  joinedAt: string;
+}
+
+export interface CategoryStatSummary {
+  category: string;
+  count: number;
+  lawyerCount: number;
+  percentage: number;
+  color: string;
+}
+
+export interface CaseStatusStatSummary {
+  status: string;
+  count: number;
+  percentage: number;
+  color: string;
+}
+
+export interface LawyerStatusBreakdown {
+  approved: number;
+  pending: number;
+  suspended: number;
+  rejected: number;
+}
+
 export interface AdminDashboardStats {
   citizens: {
     total: number;
   };
   lawyers: {
     total: number;
+    approved: number;
     pendingApproval: number;
+    suspended: number;
+    rejected: number;
   };
   cases: {
     total: number;
@@ -819,6 +865,12 @@ export interface AdminDashboardStats {
     pendingCount: number;
     pendingAmount: number;
   };
+  dailyRegistrations?: DailyRegistrationPoint[];
+  unassignedEmergencyCases?: EmergencyCaseSummary[];
+  pendingLawyers?: PendingLawyerSummary[];
+  categoryStats?: CategoryStatSummary[];
+  statusStats?: CaseStatusStatSummary[];
+  lawyerStatusBreakdown?: LawyerStatusBreakdown;
 }
 
 export interface AdminProfileRecord {

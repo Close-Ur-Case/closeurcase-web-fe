@@ -1,14 +1,7 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useState, useEffect, useMemo } from "react";
 import { PageHeader } from "@/components/app/PageHeader";
-import {
-  getCases,
-  getLawyers,
-  getCitizens,
-  subscribeToStore,
-  getActiveCaseCategories,
-} from "@/data/appStore";
-import type { Citizen, Lawyer } from "@/types";
+import type { DailyRegistrationPoint } from "@/types/api";
 import {
   Users,
   UserCheck,
@@ -128,34 +121,7 @@ const PALETTE = [
 ];
 
 /* ── Daily registrations (citizens + lawyers) line chart ────────────────── */
-interface DailyRegPoint {
-  date: string;
-  label: string;
-  citizens: number;
-  lawyers: number;
-}
-
-function buildDailyRegistrations(
-  lawyers: Lawyer[],
-  citizens: Citizen[],
-  from: string,
-  to: string,
-): DailyRegPoint[] {
-  const days: DailyRegPoint[] = [];
-  const start = new Date(`${from}T00:00:00`);
-  const end = new Date(`${to}T00:00:00`);
-  for (let d = new Date(start); d <= end; d.setDate(d.getDate() + 1)) {
-    const iso = d.toISOString().slice(0, 10);
-    const label = d.toLocaleDateString("en-US", { month: "short", day: "numeric" });
-    days.push({
-      date: iso,
-      label,
-      citizens: citizens.filter((c) => c.joinedAt === iso).length,
-      lawyers: lawyers.filter((l) => l.joinedAt === iso).length,
-    });
-  }
-  return days;
-}
+type DailyRegPoint = DailyRegistrationPoint;
 
 function getBezierPath(points: { x: number; y: number }[]): string {
   if (points.length === 0) return "";
@@ -512,87 +478,51 @@ function DailyRegistrationsChart({ data }: { data: DailyRegPoint[] }) {
 }
 
 function AdminDashboard() {
+  const [regFrom, setRegFrom] = useState(daysAgoIso(6));
+  const [regTo, setRegTo] = useState(todayIso());
+
   const {
     data: liveStats,
     isFetching: isStatsFetching,
     refetch: refetchStats,
-  } = useAdminDashboardStatsQuery();
+  } = useAdminDashboardStatsQuery({ from: regFrom, to: regTo });
 
-  const [casesList, setCasesList] = useState(getCases);
-  const [lawyersList, setLawyersList] = useState(getLawyers);
-  const [citizensList, setCitizensList] = useState(getCitizens);
-  const [managedCategories, setManagedCategories] = useState(() => getActiveCaseCategories());
-
-  useEffect(() => {
-    const sync = () => {
-      setCasesList(getCases());
-      setLawyersList(getLawyers());
-      setCitizensList(getCitizens());
-      setManagedCategories(getActiveCaseCategories());
-    };
-    return subscribeToStore(sync);
-  }, []);
-
-  const pendingLawyers = lawyersList.filter((l) => l.status === "Pending");
-  const approvedLawyers = lawyersList.filter((l) => l.status === "Approved");
-  const openCases = casesList.filter((c) => c.status !== "Resolved" && c.status !== "Closed");
-  const unassignedEmergencyCases = casesList.filter((c) => c.isEmergency && !c.lawyerId);
-
-  const [regFrom, setRegFrom] = useState(daysAgoIso(6));
-  const [regTo, setRegTo] = useState(todayIso());
+  const totalCitizens = liveStats?.citizens.total ?? 0;
+  const totalLawyers = liveStats?.lawyers.total ?? 0;
+  const approvedLawyers =
+    liveStats?.lawyers.approved ??
+    Math.max(0, (liveStats?.lawyers.total ?? 0) - (liveStats?.lawyers.pendingApproval ?? 0));
+  const pendingLawyersCount = liveStats?.lawyers.pendingApproval ?? 0;
+  const suspendedLawyersCount = liveStats?.lawyers.suspended ?? 0;
+  const rejectedLawyersCount = liveStats?.lawyers.rejected ?? 0;
+  const activeCases = liveStats?.cases.active ?? 0;
 
   const dailyRegData = useMemo(
-    () => buildDailyRegistrations(lawyersList, citizensList, regFrom, regTo),
-    [lawyersList, citizensList, regFrom, regTo],
+    () => liveStats?.dailyRegistrations ?? [],
+    [liveStats?.dailyRegistrations],
+  );
+  const unassignedEmergencyCases = useMemo(
+    () => liveStats?.unassignedEmergencyCases ?? [],
+    [liveStats?.unassignedEmergencyCases],
+  );
+  const pendingLawyers = useMemo(
+    () => liveStats?.pendingLawyers ?? [],
+    [liveStats?.pendingLawyers],
+  );
+  const categoryStats = useMemo(
+    () => liveStats?.categoryStats ?? [],
+    [liveStats?.categoryStats],
+  );
+  const statusData = useMemo(
+    () => liveStats?.statusStats ?? [],
+    [liveStats?.statusStats],
   );
 
-  const totalCases = casesList.length;
-  const totalLawyers = lawyersList.length;
-
-  const categoryStats = managedCategories
-    .map((cat, i) => {
-      const count = casesList.filter((x) => x.category === cat.name).length;
-      const lawyerCount = lawyersList.filter((x) => x.category === cat.name).length;
-      const percentage = totalCases > 0 ? Math.round((count / totalCases) * 100) : 0;
-      return {
-        category: cat.name,
-        count,
-        lawyerCount,
-        percentage,
-        color: PALETTE[i % PALETTE.length],
-      };
-    })
-    .sort((a, b) => b.count - a.count);
-
-  const statusData = [
-    { status: "Submitted", color: "#3b82f6" },
-    { status: "Assigned", color: "#6366f1" },
-    { status: "Under Review", color: "#8b5cf6" },
-    { status: "In Progress", color: "#f59e0b" },
-    { status: "Awaiting Documents", color: "#ef4444" },
-    { status: "Resolved", color: "#10b981" },
-  ].map((d) => ({
-    ...d,
-    count: casesList.filter((c) => c.status === d.status).length,
-    percentage:
-      totalCases > 0
-        ? Math.round((casesList.filter((c) => c.status === d.status).length / totalCases) * 100)
-        : 0,
-  }));
-
   const LawyerstatusSlices: PieSlice[] = [
-    { label: "Approved", value: approvedLawyers.length, color: "#10b981" },
-    { label: "Pending", value: pendingLawyers.length, color: "#f59e0b" },
-    {
-      label: "Suspended",
-      value: lawyersList.filter((l) => l.status === "Suspended").length,
-      color: "#6b7280",
-    },
-    {
-      label: "Rejected",
-      value: lawyersList.filter((l) => l.status === "Rejected").length,
-      color: "#ef4444",
-    },
+    { label: "Approved", value: approvedLawyers, color: "#10b981" },
+    { label: "Pending", value: pendingLawyersCount, color: "#f59e0b" },
+    { label: "Suspended", value: suspendedLawyersCount, color: "#6b7280" },
+    { label: "Rejected", value: rejectedLawyersCount, color: "#ef4444" },
   ];
 
   const categoryPieSlices: PieSlice[] = categoryStats
@@ -645,7 +575,7 @@ function AdminDashboard() {
               <Users className="h-4 w-4 text-primary" />
             </div>
             <div className="mt-2 text-2xl font-extrabold text-foreground">
-              {liveStats ? liveStats.citizens.total : citizensList.length}
+              {totalCitizens}
             </div>
           </Card>
         </Link>
@@ -662,9 +592,7 @@ function AdminDashboard() {
               <UserCheck className="h-4 w-4 text-emerald-600" />
             </div>
             <div className="mt-2 text-2xl font-extrabold text-foreground">
-              {liveStats
-                ? Math.max(0, liveStats.lawyers.total - liveStats.lawyers.pendingApproval)
-                : approvedLawyers.length}
+              {approvedLawyers}
             </div>
           </Card>
         </Link>
@@ -685,9 +613,9 @@ function AdminDashboard() {
             </div>
             <div className="mt-2 flex items-center justify-between">
               <span className="text-2xl font-extrabold text-foreground">
-                {liveStats ? liveStats.lawyers.pendingApproval : pendingLawyers.length}
+                {pendingLawyersCount}
               </span>
-              {(liveStats ? liveStats.lawyers.pendingApproval : pendingLawyers.length) > 0 && (
+              {pendingLawyersCount > 0 && (
                 <span
                   className="rounded-full px-2 py-0.5 text-[10px] font-bold animate-pulse"
                   style={{
@@ -715,7 +643,7 @@ function AdminDashboard() {
               <Briefcase className="h-4 w-4 text-indigo-600" />
             </div>
             <div className="mt-2 text-2xl font-extrabold text-foreground">
-              {liveStats ? liveStats.cases.active : openCases.length}
+              {activeCases}
             </div>
           </Card>
         </Link>

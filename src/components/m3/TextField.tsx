@@ -26,6 +26,7 @@ export function TextField({
   className,
   autoFocus,
   onKeyDown,
+  onBlur,
   style,
   ref,
 }: {
@@ -53,6 +54,7 @@ export function TextField({
   className?: string;
   autoFocus?: boolean;
   onKeyDown?: KeyboardEventHandler<HTMLElement>;
+  onBlur?: (e: any) => void;
   /** Escape hatch for one-off shape/color overrides, e.g.
    * `{ "--md-outlined-text-field-container-shape": "9999px" }`. */
   style?: CSSProperties;
@@ -83,6 +85,7 @@ export function TextField({
       style={style}
       onInput={(e) => onChange((e.target as HTMLInputElement).value)}
       onKeyDown={onKeyDown}
+      onBlur={onBlur}
     >
       {leadingIcon && <span slot="leading-icon">{leadingIcon}</span>}
       {trailingIcon && <span slot="trailing-icon">{trailingIcon}</span>}

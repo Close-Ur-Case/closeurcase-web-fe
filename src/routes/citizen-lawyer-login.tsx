@@ -139,11 +139,11 @@ export function CitizenLawyerLogin() {
       setCitizenOtpError("");
     }
     navigate({
-      search: (prev) => ({
+      search: ((prev: any) => ({
         ...prev,
         id: newRole,
         role: newRole,
-      }),
+      })) as any,
       replace: true,
     });
   };

@@ -192,6 +192,7 @@ function EmailVerifyField({
   otpError,
   onSend,
   onReset,
+  onBlur,
   isSending,
 }: {
   value: string;

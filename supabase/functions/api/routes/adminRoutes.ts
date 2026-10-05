@@ -14,11 +14,23 @@ const getDashboardStatsRoute = createRoute({
   method: "get",
   path: "/dashboard-stats",
   tags: ["Admin"],
-  summary: "Get superadmin platform overview metrics & financials",
-  description: "Returns aggregated metrics including total cases, active lawyers, citizen count, monthly revenue, pending verifications, and settlement balances.",
+  summary: "Get superadmin platform overview metrics, analytics, registrations & financials",
+  description: "Returns 100% live aggregated database metrics including total cases, active advocates, citizen count, monthly revenue, pending verifications, settlement balances, daily registration trends, unassigned emergency cases, category distribution, and pipeline statuses.",
+  request: {
+    query: z.object({
+      from: z.string().optional().openapi({
+        example: "2026-09-29",
+        description: "Start date (YYYY-MM-DD) for registration analytics trend",
+      }),
+      to: z.string().optional().openapi({
+        example: "2026-10-05",
+        description: "End date (YYYY-MM-DD) for registration analytics trend",
+      }),
+    }),
+  },
   responses: {
     200: {
-      description: "Overview analytics and financial metrics",
+      description: "Overview analytics, registration trends, emergency dockets, and financial metrics",
       content: { "application/json": { schema: SuccessResponseSchema } },
     },
   },
