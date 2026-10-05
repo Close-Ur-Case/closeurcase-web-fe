@@ -191,7 +191,8 @@ const autoLoginRoute = createRoute({
   method: "post",
   path: "/auto-login",
   tags: ["Auth - General"],
-  summary: "Auto-login active session when JWT expired",
+  summary: "Auto-login active session when JWT expired and verify suspend status",
+  description: "Restores user session during relogin for citizen or lawyer, checking and returning latest account status (including Suspended).",
   request: {
     body: {
       content: {
@@ -203,7 +204,7 @@ const autoLoginRoute = createRoute({
   },
   responses: {
     200: {
-      description: "Session restored via auto-login",
+      description: "Session restored via auto-login with verified user status",
       content: { "application/json": { schema: AuthResponseSchema } },
     },
     401: {

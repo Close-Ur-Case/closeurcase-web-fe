@@ -340,6 +340,7 @@ export class AuthService {
         role: "citizen",
         email: user.email || email || null,
         phone: user.phone || phone || null,
+        status: citizenRecord?.status || "Active",
       },
       citizen: citizenRecord,
       session: {
@@ -780,6 +781,7 @@ export class AuthService {
       lawyerRecord = law || null;
     }
 
+    const currentStatus = lawyerRecord?.status || citizenRecord?.status || "Active";
     return {
       user: user
         ? {
@@ -790,6 +792,7 @@ export class AuthService {
             name: citizenRecord?.name || lawyerRecord?.name || user.email?.split("@")[0] || "User",
             citizenId: citizenRecord?.id,
             lawyerId: lawyerRecord?.id,
+            status: currentStatus,
           }
         : null,
       session: {
@@ -812,7 +815,7 @@ export class AuthService {
     citizenId?: string;
     lawyerId?: string;
   }) {
-    const { role = "citizen", phone, email, userId, citizenId } = params;
+    const { role = "citizen", phone, email, userId, citizenId, lawyerId } = params;
 
     let userEmail = email;
     let userPhone = phone;
@@ -822,6 +825,14 @@ export class AuthService {
       if (cit) {
         userPhone = cit.phone || undefined;
         userEmail = cit.email || undefined;
+      }
+    }
+
+    if (lawyerId && (!userPhone && !userEmail)) {
+      const [law] = await db.select().from(lawyers).where(eq(lawyers.id, lawyerId));
+      if (law) {
+        userPhone = law.phone || undefined;
+        userEmail = law.email || undefined;
       }
     }
 
@@ -859,6 +870,7 @@ export class AuthService {
               phone: user.phone || userPhone || null,
               name: cit?.name || "Citizen User",
               citizenId: cit?.id,
+              status: cit?.status || "Active",
             },
             citizen: cit,
             session: {
@@ -898,6 +910,7 @@ export class AuthService {
                 phone: matched.phone || null,
                 name: cit?.name || "Citizen User",
                 citizenId: cit?.id,
+                status: cit?.status || "Active",
               },
               citizen: cit,
               session: {
@@ -909,6 +922,84 @@ export class AuthService {
             };
           }
         }
+      }
+
+      let targetCitizen = null;
+      if (citizenId) {
+        const [cit] = await db.select().from(citizens).where(eq(citizens.id, citizenId));
+        targetCitizen = cit;
+      }
+      if (!targetCitizen && userId) {
+        const [cit] = await db.select().from(citizens).where(eq(citizens.userId, userId));
+        targetCitizen = cit;
+      }
+      if (!targetCitizen && userEmail) {
+        const [cit] = await db
+          .select()
+          .from(citizens)
+          .where(ilike(citizens.email, userEmail.trim().toLowerCase()));
+        targetCitizen = cit;
+      }
+      if (!targetCitizen && userPhone) {
+        const [cit] = await db
+          .select()
+          .from(citizens)
+          .where(eq(citizens.phone, userPhone.trim()));
+        targetCitizen = cit;
+      }
+
+      if (targetCitizen) {
+        return {
+          user: {
+            id: targetCitizen.userId || userId || `usr_${targetCitizen.id}`,
+            role: "citizen",
+            email: targetCitizen.email || userEmail || null,
+            phone: targetCitizen.phone || userPhone || null,
+            name: targetCitizen.name || "Citizen User",
+            citizenId: targetCitizen.id,
+            status: targetCitizen.status || "Active",
+          },
+          citizen: targetCitizen,
+          message: "Citizen auto-login successful",
+        };
+      }
+    } else if (role === "lawyer") {
+      let targetLawyer = null;
+      if (lawyerId) {
+        const [law] = await db.select().from(lawyers).where(eq(lawyers.id, lawyerId));
+        targetLawyer = law;
+      }
+      if (!targetLawyer && userId) {
+        const [law] = await db.select().from(lawyers).where(eq(lawyers.userId, userId));
+        targetLawyer = law;
+      }
+      if (!targetLawyer && userEmail) {
+        const [law] = await db
+          .select()
+          .from(lawyers)
+          .where(ilike(lawyers.email, userEmail.trim().toLowerCase()));
+        targetLawyer = law;
+      }
+
+      if (targetLawyer) {
+        const [freshLawyer] = await db
+          .select()
+          .from(lawyers)
+          .where(eq(lawyers.id, targetLawyer.id));
+
+        return {
+          user: {
+            id: freshLawyer?.userId || targetLawyer.userId || userId || `usr_${targetLawyer.id}`,
+            role: "lawyer",
+            email: freshLawyer?.email || targetLawyer.email,
+            phone: freshLawyer?.phone || targetLawyer.phone,
+            name: freshLawyer?.name || targetLawyer.name || "Advocate",
+            lawyerId: freshLawyer?.id || targetLawyer.id,
+            status: freshLawyer?.status || "Pending",
+          },
+          lawyer: freshLawyer || targetLawyer,
+          message: "Lawyer auto-login successful",
+        };
       }
     }
 

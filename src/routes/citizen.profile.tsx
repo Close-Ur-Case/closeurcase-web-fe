@@ -1,5 +1,6 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useState, useEffect, useMemo } from "react";
+import { AlertCircle } from "lucide-react";
 import { PageHeader } from "@/components/app/PageHeader";
 import {
   ProfileForm,
@@ -193,6 +194,11 @@ function CitizenProfilePage() {
       });
   }
 
+  const isSuspended =
+    user?.status === "Suspended" ||
+    (remoteProfile as { status?: string })?.status === "Suspended" ||
+    citizen?.status === "Suspended";
+
   // Key the form by current user/profile to cleanly re-populate when server fetch finishes
   const formKey = remoteProfile?.id
     ? `server-${remoteProfile.id}`
@@ -205,6 +211,17 @@ function CitizenProfilePage() {
         description="Manage your personal information."
         actionsPosition="below"
       />
+      {isSuspended && (
+        <div className="mb-4 flex items-start gap-3 rounded-2xl border border-red-500/25 bg-red-500/10 p-4 text-red-700 dark:text-red-400">
+          <AlertCircle className="h-5 w-5 shrink-0 mt-0.5" />
+          <div className="space-y-1">
+            <h3 className="font-bold text-sm">Account Suspended</h3>
+            <p className="text-xs text-red-600 dark:text-red-300 leading-relaxed">
+              Your account has been suspended by administration. Access to platform features is restricted to your profile only. Please contact platform support for assistance.
+            </p>
+          </div>
+        </div>
+      )}
       <ProfileForm
         key={formKey}
         role="citizen"

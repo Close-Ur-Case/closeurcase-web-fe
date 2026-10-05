@@ -13,7 +13,7 @@ import type { AuthUser } from "@/types/api";
 import type { Subscription } from "@/types";
 
 export const Route = createFileRoute("/citizen")({
-  beforeLoad: () => {
+  beforeLoad: ({ location }) => {
     if (typeof window !== "undefined") {
       const session = getCitizenSession();
       const token = getStoredToken();
@@ -24,6 +24,9 @@ export const Route = createFileRoute("/citizen")({
       }
       if (user && user.role && user.role !== "citizen") {
         throw redirect({ to: user.role === "admin" ? "/admin" : "/lawyer" });
+      }
+      if (user?.status === "Suspended" && location.pathname !== "/citizen/profile") {
+        throw redirect({ to: "/citizen/profile" });
       }
     }
   },
@@ -37,12 +40,19 @@ function CitizenLayout() {
   const firstCitizen = getCitizens()[0];
   const userName = user?.name || session.fullName || firstCitizen?.name || "Sai Teja Reddy";
   const citizenId = user?.citizenId || user?.id || "u_001";
+  const isSuspended = user?.status === "Suspended";
 
   const pathname = useRouterState({ select: (s) => s.location.pathname });
   const isChatRoute = /^\/citizen\/chat\//.test(pathname);
   // The Find a Lawyer wizard manages its own fixed header/footer + internal
   // scroll region (no page-level scrolling), same reasoning as chat.
   const isCreateCaseRoute = pathname === "/citizen/create-case";
+
+  useEffect(() => {
+    if (isSuspended && pathname !== "/citizen/profile") {
+      navigate({ to: "/citizen/profile" });
+    }
+  }, [isSuspended, pathname, navigate]);
 
   const [subscriptions, setSubscriptions] = useState<Subscription[]>(() =>
     getSubscriptions(citizenId),
@@ -68,16 +78,17 @@ function CitizenLayout() {
     : null;
 
   useEffect(() => {
-    // Only auto-show in layout if not already on /citizen/subscriptions (which handles its own modal)
-    if (latestExpiredSub && !activeSub && pathname !== "/citizen/subscriptions") {
+    // Only auto-show in layout if not suspended and not already on /citizen/subscriptions (which handles its own modal)
+    if (!isSuspended && latestExpiredSub && !activeSub && pathname !== "/citizen/subscriptions") {
       const dismissedKey = `cuc_dismissed_expiry_modal_${latestExpiredSub.id}`;
       if (typeof window !== "undefined" && !sessionStorage.getItem(dismissedKey)) {
         setShowExpiryModal(true);
       }
     }
-  }, [latestExpiredSub, activeSub, pathname]);
+  }, [isSuspended, latestExpiredSub, activeSub, pathname]);
 
-  const nav = useCitizenNav();
+  const rawNav = useCitizenNav();
+  const nav = isSuspended ? rawNav.filter((item) => item.to === "/citizen/profile") : rawNav;
   const planTier = activeSub ? normalizeSubscriptionTier(activeSub.planId) : "bronze";
 
   return (
@@ -92,7 +103,7 @@ function CitizenLayout() {
       hideFloatingWidgets={isCreateCaseRoute}
     >
       <Outlet />
-      {pathname !== "/citizen/subscriptions" && (
+      {!isSuspended && pathname !== "/citizen/subscriptions" && (
         <SubscriptionExpiryModal
           open={showExpiryModal}
           onOpenChange={(open) => {

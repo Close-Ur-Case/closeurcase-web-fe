@@ -34,7 +34,7 @@ export interface Citizen {
   avatarUrl?: string;
   joinedAt: string;
   lastLoginAt: string;
-  status: "Active" | "Inactive";
+  status: "Active" | "Inactive" | "Suspended";
   planTier?: "bronze" | "silver" | "gold" | "micropass";
 }
 

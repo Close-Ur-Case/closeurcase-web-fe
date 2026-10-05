@@ -253,7 +253,8 @@ export function DashboardLayout({
   const router = useRouter();
   const pathname = useRouterState({ select: (s) => s.location.pathname });
   const mainRef = useRef<HTMLElement>(null);
-  const { logout } = useAuth();
+  const { logout, user } = useAuth();
+  const isSuspended = user?.status === "Suspended";
   // Reactive boot sync for authenticated dashboard users
   useAppSync();
   // No-ops without Firebase config or browser support — see the hook's own
@@ -367,7 +368,16 @@ export function DashboardLayout({
     return () => clearTimeout(timer);
   }, [role]);
 
-  const bottomNav = bottomNavForRole(role);
+  const bottomNav = isSuspended
+    ? [
+        {
+          to: `/${role}/profile`,
+          label: role === "lawyer" ? "Profile" : "My Profile",
+          icon: User,
+          match: (p: string) => p.startsWith(`/${role}/profile`),
+        },
+      ]
+    : bottomNavForRole(role);
 
   return (
     <VideoCallProvider>
@@ -384,7 +394,7 @@ export function DashboardLayout({
             <div className="relative w-64 max-w-[80%] flex-col bg-[var(--md-sys-color-surface-container-low)] shadow-[var(--md-sys-elevation-level1)] flex animate-in slide-in-from-left-full duration-200">
               <div className="flex h-16 shrink-0 items-center justify-between border-b border-[var(--md-sys-color-outline-variant)] px-5">
                 <Link
-                  to="/"
+                  to={isSuspended ? `/${role}/profile` : "/"}
                   className="flex items-center gap-2.5 tracking-tight"
                   onClick={() => setMobileMenuOpen(false)}
                 >
@@ -411,7 +421,7 @@ export function DashboardLayout({
               />
 
               <div className="shrink-0 border-t border-[var(--md-sys-color-outline-variant)] p-2 space-y-1">
-                {(role === "lawyer" || role === "citizen") && (
+                {!isSuspended && (role === "lawyer" || role === "citizen") && (
                   <button
                     onClick={() => {
                       setMobileMenuOpen(false);
@@ -440,7 +450,7 @@ export function DashboardLayout({
           {/* Logo */}
           <div className="flex h-16 shrink-0 items-center border-b border-[var(--md-sys-color-outline-variant)] px-5">
             <Link
-              to="/"
+              to={isSuspended ? `/${role}/profile` : "/"}
               className="flex items-center gap-2.5 tracking-tight hover:opacity-90 transition-opacity"
             >
               <img src="/logo.svg" alt="CloseUrCase Logo" className="h-9 w-9 object-contain" />
@@ -457,7 +467,7 @@ export function DashboardLayout({
 
           <NavList nav={nav} pathname={pathname} role={role} />
 
-          {(role === "lawyer" || role === "citizen") && (
+          {!isSuspended && (role === "lawyer" || role === "citizen") && (
             <div className="shrink-0 border-t border-[var(--md-sys-color-outline-variant)] p-2">
               <button
                 onClick={() => setBotMenuOpen(true)}
@@ -489,18 +499,20 @@ export function DashboardLayout({
             <div className="flex items-center gap-1 sm:gap-2">
               {role === "citizen" && <CitizenLanguageButtons size="sm" showLabel={false} />}
 
-              {(role === "citizen" || role === "lawyer") && <VideoCallsMenu role={role} />}
+              {!isSuspended && (role === "citizen" || role === "lawyer") && <VideoCallsMenu role={role} />}
 
               {/* Notification bell */}
-              <div className="relative">
-                <IconButton
-                  ariaLabel="Notifications"
-                  onClick={() => navigate({ to: `/${role}/notifications` as never })}
-                >
-                  <Bell className="h-5 w-5" />
-                </IconButton>
-                {unreadCount > 0 && <Badge count={unreadCount} />}
-              </div>
+              {!isSuspended && (
+                <div className="relative">
+                  <IconButton
+                    ariaLabel="Notifications"
+                    onClick={() => navigate({ to: `/${role}/notifications` as never })}
+                  >
+                    <Bell className="h-5 w-5" />
+                  </IconButton>
+                  {unreadCount > 0 && <Badge count={unreadCount} />}
+                </div>
+              )}
 
               {/* Profile menu — a custom M3-token-styled popover rather than md-menu, since
                 md-menu is built strictly for lists of md-menu-item and doesn't handle
@@ -671,13 +683,13 @@ export function DashboardLayout({
           get WhatsApp in the floating slot and Legal Bot moves into the sidebar/
           hamburger menu instead; admin keeps the floating bot trigger, raised to
           clear its bottom tab bar. */}
-        {!hideBottomNav && !hideFloatingWidgets && (role === "lawyer" || role === "citizen") && (
+        {!hideBottomNav && !hideFloatingWidgets && !isSuspended && (role === "lawyer" || role === "citizen") && (
           <>
             <WhatsAppFloatingButton position="right" raised />
             <LexBot open={botMenuOpen} onOpenChange={setBotMenuOpen} hideTrigger />
           </>
         )}
-        {!hideBottomNav && !hideFloatingWidgets && role === "admin" && <LexBot raised />}
+        {!hideBottomNav && !hideFloatingWidgets && !isSuspended && role === "admin" && <LexBot raised />}
       </div>
     </VideoCallProvider>
   );

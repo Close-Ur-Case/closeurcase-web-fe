@@ -57,6 +57,14 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         if (result.user) {
           setStoredUser(result.user);
           setUserState(result.user);
+
+          if (result.user.status === "Suspended" && typeof window !== "undefined") {
+            const targetRole = result.user.role;
+            const profileRoute = targetRole === "lawyer" ? "/lawyer/profile" : "/citizen/profile";
+            if (!window.location.pathname.startsWith(profileRoute)) {
+              window.location.href = profileRoute;
+            }
+          }
         }
         setIsSessionExpired(false);
         setSessionExpiredMessage(null);

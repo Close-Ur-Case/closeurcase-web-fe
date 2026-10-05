@@ -113,6 +113,7 @@ export const authService = {
       city: res?.citizen?.city || res?.user?.city || payload.city,
       // Must be the citizen record id, not the auth UUID — case scoping filters on it.
       citizenId: res?.citizen?.id || res?.user?.citizenId,
+      status: (res?.citizen as { status?: string })?.status || (res?.user as { status?: string })?.status || "Active",
       signupMethod,
     };
 
@@ -335,6 +336,7 @@ export const authService = {
             name: res.user.name || existing?.name || "User",
             citizenId: res.user.citizenId || existing?.citizenId,
             lawyerId: (res.user as { lawyerId?: string })?.lawyerId || existing?.lawyerId,
+            status: (res.user as { status?: string })?.status || existing?.status,
           }
         : existing || undefined;
 
@@ -402,6 +404,7 @@ export const authService = {
         lawyerId:
           res?.lawyer?.id || (res?.user as { lawyerId?: string })?.lawyerId || existing?.lawyerId,
         status:
+          (res?.citizen as { status?: string })?.status ||
           (res?.lawyer as { status?: string })?.status ||
           (res?.user as { status?: string })?.status ||
           existing?.status,

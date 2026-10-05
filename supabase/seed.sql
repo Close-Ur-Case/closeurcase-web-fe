@@ -336,12 +336,13 @@ INSERT INTO public.citizens (id, user_id, name, email, phone, city, state, state
 ('u_001', 'usr_u_001', 'Sai Teja Reddy', 'saiteja.reddy@gmail.com', '+91 98110 22111', 'Hyderabad', 'Telangana', 'telangana', 'hyderabad', 'Active', '2025-02-14', '2026-09-06T09:15:00'),
 ('u_002', 'usr_u_002', 'Lakshmi Prasanna', 'lakshmi.prasanna92@gmail.com', '+91 98320 45123', 'Visakhapatnam', 'Andhra Pradesh', 'andhra_pradesh', 'visakhapatnam', 'Active', '2025-04-01', '2026-09-04T18:42:00'),
 ('u_003', 'usr_u_003', 'Divya Sri Chowdary', 'divya.chowdary@gmail.com', '+91 98450 88321', 'Hyderabad', 'Telangana', 'telangana', 'hyderabad', 'Active', '2025-06-11', '2026-09-05T11:20:00'),
-('u_004', 'usr_u_004', 'Venkata Ramana Naidu', 'ramana.naidu.vzg@gmail.com', '+91 98333 11902', 'Visakhapatnam', 'Andhra Pradesh', 'andhra_pradesh', 'visakhapatnam', 'Inactive', '2025-11-08', '2026-05-20T08:05:00')
+('u_004', 'usr_u_004', 'Venkata Ramana Naidu', 'ramana.naidu.vzg@gmail.com', '+91 98333 11902', 'Visakhapatnam', 'Andhra Pradesh', 'andhra_pradesh', 'visakhapatnam', 'Suspended', '2025-11-08', '2026-05-20T08:05:00')
 ON CONFLICT (id) DO UPDATE SET
     city = EXCLUDED.city,
     state = EXCLUDED.state,
     state_id = EXCLUDED.state_id,
-    district_id = EXCLUDED.district_id;
+    district_id = EXCLUDED.district_id,
+    status = EXCLUDED.status;
 
 -- 4. Lawyers (with state_id & district_id)
 INSERT INTO public.users (id, role, email, phone) VALUES
@@ -359,14 +360,15 @@ INSERT INTO public.lawyers (id, user_id, name, email, phone, category, role_titl
 ('l_003', 'usr_l_003', 'Adv. Sailaja Naidu', 'sailaja.naidu@familylaw.org', '+91 98220 33445', 'Family Law', 'Family & Matrimonial Advocate', 'Visakhapatnam', 'andhra_pradesh', 'visakhapatnam', 'MVP Colony', 'AP/9102/2016', 9, '4.9', 'Approved', 6, 'Sector 3, MVP Colony, Visakhapatnam', 'Expert counsel in divorce mediation, child custody, and domestic disputes.', '["lang_en", "lang_te"]'::jsonb, '["cat_3"]'::jsonb, '["spec_3_6", "spec_3_2", "spec_3_7"]'::jsonb, '["srv_3_6_5", "srv_3_2_1", "srv_3_7_1"]'::jsonb, 29, 1200, 'Online', 'ICICI Bank', '192801948201', 'ICIC0000281', 'lawyer', true, '2024-08-22'),
 ('l_004', 'usr_l_004', 'Adv. Ananya Rao', 'ananya.rao@corplaw.in', '+91 98111 22334', 'Corporate Law', 'Corporate & M&A Specialist', 'Bengaluru', 'karnataka', NULL, 'Indiranagar', 'KAR/3421/2015', 11, '4.9', 'Approved', 9, '100 Feet Road, Indiranagar, Bengaluru', 'Corporate restructuring, venture funding agreements, commercial arbitration.', '["lang_en", "lang_kn", "lang_hi"]'::jsonb, '["cat_2", "cat_4"]'::jsonb, '["spec_2_1", "spec_2_4", "spec_2_5"]'::jsonb, '["srv_2_1_1", "srv_2_4_1", "srv_2_5_1"]'::jsonb, 51, 2500, 'Online', 'Axis Bank', '9180200482910', 'UTIB0000421', 'lawyer', true, '2024-02-15'),
 ('l_005', 'usr_l_005', 'Adv. Rajeshwar Rao', 'rajeshwar.rao@propertylaw.in', '+91 98444 55667', 'Property Law', 'Property & Revenue Law Specialist', 'Hyderabad', 'telangana', 'hyderabad', 'Jubilee Hills', 'TS/7891/2010', 16, '4.8', 'Approved', 14, 'Road No. 36, Jubilee Hills, Hyderabad', 'Specialized in land acquisition, partition suits, title search, and High Court writs.', '["lang_en", "lang_te"]'::jsonb, '["cat_9"]'::jsonb, '["spec_9_1", "spec_9_2", "spec_9_3"]'::jsonb, '["srv_9_1_1", "srv_9_2_1", "srv_9_3_1"]'::jsonb, 67, 1800, 'Online', 'State Bank of India', '20194829104', 'SBIN0001048', 'lawyer', true, '2023-11-20'),
-('l_006', 'usr_l_006', 'Adv. Meera Nambiar', 'meera.nambiar@cyberlaw.in', '+91 98777 88990', 'Cyber', 'Cyber Crime & Data Privacy Counsel', 'Chennai', 'tamil_nadu', NULL, 'T. Nagar', 'TN/2049/2018', 8, '4.7', 'Approved', 5, 'G.N. Chetty Road, T. Nagar, Chennai', 'Handling cyber fraud, online defamation, digital evidence authentication under Section 65B.', '["lang_en", "lang_ta", "lang_ml"]'::jsonb, '["cat_10"]'::jsonb, '["spec_10_1", "spec_10_2"]'::jsonb, '["srv_10_1_1", "srv_10_1_2", "srv_10_2_1"]'::jsonb, 24, 1500, 'Online', 'HDFC Bank', '50100482910492', 'HDFC0000192', 'lawyer', true, '2024-06-10')
+('l_006', 'usr_l_006', 'Adv. Meera Nambiar', 'meera.nambiar@cyberlaw.in', '+91 98777 88990', 'Cyber', 'Cyber Crime & Data Privacy Counsel', 'Chennai', 'tamil_nadu', NULL, 'T. Nagar', 'TN/2049/2018', 8, '4.7', 'Suspended', 5, 'G.N. Chetty Road, T. Nagar, Chennai', 'Handling cyber fraud, online defamation, digital evidence authentication under Section 65B.', '["lang_en", "lang_ta", "lang_ml"]'::jsonb, '["cat_10"]'::jsonb, '["spec_10_1", "spec_10_2"]'::jsonb, '["srv_10_1_1", "srv_10_1_2", "srv_10_2_1"]'::jsonb, 24, 1500, 'Online', 'HDFC Bank', '50100482910492', 'HDFC0000192', 'lawyer', true, '2024-06-10')
 ON CONFLICT (id) DO UPDATE
 SET languages = EXCLUDED.languages,
     practice_areas = EXCLUDED.practice_areas,
     specializations = EXCLUDED.specializations,
     legal_services = EXCLUDED.legal_services,
     registration_type = EXCLUDED.registration_type,
-    declaration_accepted = EXCLUDED.declaration_accepted;
+    declaration_accepted = EXCLUDED.declaration_accepted,
+    status = EXCLUDED.status;
 
 -- 5. Centralized Project Lookups (Case Types & Lawyer Case Stages)
 INSERT INTO public.lookups (id, category, label, description, sort_order) VALUES

@@ -12,28 +12,60 @@ export function useLandingAuth() {
   const isAdmin = role === "admin";
   const isLoggedIn = Boolean(isAuthenticated || citizenSession.authenticated || token || user);
 
+  const isSuspended = user?.status === "Suspended";
+
   /**
    * CITIZEN ROUTES:
    * Citizen features MUST ALWAYS navigate to citizen routes!
    * - If citizen is already logged in (not signed out): auto-login directly into citizen workspace.
+   * - If citizen is suspended: route only to /citizen/profile.
    * - If citizen is not logged in: navigate to /citizen-login.
    * - NEVER navigate to /lawyer.
    */
-  const citizenFileCaseTo = isCitizen ? "/citizen/create-case" : "/citizen-login";
-  const citizenDashboardTo = isCitizen ? "/citizen" : "/citizen-login";
-  const citizenMyCasesTo = isCitizen ? "/citizen/my-cases" : "/citizen-login";
-  const citizenSubscriptionsTo = isCitizen ? "/citizen/subscriptions" : "/citizen-login";
+  const citizenFileCaseTo = isCitizen
+    ? isSuspended
+      ? "/citizen/profile"
+      : "/citizen/create-case"
+    : "/citizen-login";
+  const citizenDashboardTo = isCitizen
+    ? isSuspended
+      ? "/citizen/profile"
+      : "/citizen"
+    : "/citizen-login";
+  const citizenMyCasesTo = isCitizen
+    ? isSuspended
+      ? "/citizen/profile"
+      : "/citizen/my-cases"
+    : "/citizen-login";
+  const citizenSubscriptionsTo = isCitizen
+    ? isSuspended
+      ? "/citizen/profile"
+      : "/citizen/subscriptions"
+    : "/citizen-login";
 
   /**
    * LAWYER ROUTES:
    * Lawyer features MUST ALWAYS navigate to lawyer routes!
    * - If lawyer is already logged in (not signed out): auto-login directly into lawyer workspace.
+   * - If lawyer is suspended: route only to /lawyer/profile.
    * - If lawyer is not logged in: navigate to /lawyer-login or /lawyer-register.
    * - NEVER navigate to /citizen.
    */
-  const lawyerDashboardTo = isLawyer ? "/lawyer" : "/lawyer-login";
-  const lawyerRegisterTo = isLawyer ? "/lawyer" : "/lawyer-register";
-  const lawyerCasesTo = isLawyer ? "/lawyer/cases" : "/lawyer-login";
+  const lawyerDashboardTo = isLawyer
+    ? isSuspended
+      ? "/lawyer/profile"
+      : "/lawyer"
+    : "/lawyer-login";
+  const lawyerRegisterTo = isLawyer
+    ? isSuspended
+      ? "/lawyer/profile"
+      : "/lawyer"
+    : "/lawyer-register";
+  const lawyerCasesTo = isLawyer
+    ? isSuspended
+      ? "/lawyer/profile"
+      : "/lawyer/cases"
+    : "/lawyer-login";
 
   return {
     user,
