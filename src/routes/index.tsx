@@ -17,11 +17,24 @@ import { FinalCta } from "@/landing-page/sections/FinalCta";
 import { ContactBanner } from "@/landing-page/sections/ContactBanner";
 import { ScrollToTopButton } from "@/components/app/ScrollToTopButton";
 
+import { getStoredToken, getStoredUser } from "@/services/apiClient";
+import type { AuthUser } from "@/types/api";
+
 export const Route = createFileRoute("/")({
   beforeLoad: () => {
     if (typeof window !== "undefined" && isMobileStandalonePwa()) {
       const session = getCitizenSession();
-      throw redirect({ to: session.authenticated ? "/citizen" : "/citizen-login" });
+      const token = getStoredToken();
+      const user = getStoredUser<AuthUser>();
+      if (token || user) {
+        if (user?.role === "admin") throw redirect({ to: "/admin" });
+        if (user?.role === "lawyer") throw redirect({ to: "/lawyer" });
+        if (user?.role === "citizen") throw redirect({ to: "/citizen" });
+      }
+      if (session.authenticated) {
+        throw redirect({ to: "/citizen" });
+      }
+      throw redirect({ to: "/citizen-lawyer-login" });
     }
   },
   head: () => ({ meta: [{ title: "CloseUrCase — Legal Platform" }] }),

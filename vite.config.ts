@@ -48,7 +48,7 @@ export default defineConfig({
         theme_color: "#fefbff",
         background_color: "#fafafa",
         display: "standalone",
-        start_url: "/",
+        start_url: "/citizen-lawyer-login",
         icons: [
           { src: "/logo.svg", sizes: "any", type: "image/svg+xml", purpose: "any" },
           { src: "/logo.svg", sizes: "any", type: "image/svg+xml", purpose: "maskable" },
