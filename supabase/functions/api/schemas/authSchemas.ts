@@ -127,3 +127,21 @@ export const AutoLoginSchema = z
   })
   .openapi("AutoLoginRequest");
 
+export const CheckCredentialAvailabilitySchema = z
+  .object({
+    email: z.string().email().optional().openapi({ example: "advocate@example.com" }),
+    phone: z.string().optional().openapi({ example: "+919876543210" }),
+    role: z.enum(["citizen", "lawyer"]).optional().openapi({ example: "lawyer" }),
+  })
+  .openapi("CheckCredentialAvailabilityRequest");
+
+export const CheckCredentialAvailabilityResponseSchema = z
+  .object({
+    conflict: z.boolean().openapi({ example: false }),
+    field: z.enum(["email", "phone"]).optional().openapi({ example: "email" }),
+    message: z.string().optional().openapi({ example: "Credentials available" }),
+    isCitizen: z.boolean().openapi({ example: false }),
+    isLawyer: z.boolean().openapi({ example: false }),
+  })
+  .openapi("CheckCredentialAvailabilityResponse");
+

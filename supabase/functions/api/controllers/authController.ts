@@ -24,6 +24,12 @@ export async function registerLawyer(c: Context) {
   return ApiResponse.created(c, result, "Lawyer registered successfully. Pending verification.");
 }
 
+export async function checkCredentialAvailability(c: Context) {
+  const body = await c.req.json();
+  const result = await AuthService.checkCredentialAvailability(body);
+  return ApiResponse.success(c, result, result.message || "Credential availability checked");
+}
+
 export async function loginLawyer(c: Context) {
   const { email, password } = await c.req.json();
   const result = await AuthService.loginLawyer(email, password);

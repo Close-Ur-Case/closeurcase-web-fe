@@ -99,6 +99,20 @@ export interface AutoLoginPayload {
   lawyerId?: string;
 }
 
+export interface CheckCredentialPayload {
+  email?: string;
+  phone?: string;
+  role?: "citizen" | "lawyer";
+}
+
+export interface CheckCredentialResponse {
+  conflict: boolean;
+  field?: "email" | "phone";
+  message?: string;
+  isCitizen: boolean;
+  isLawyer: boolean;
+}
+
 
 export interface AuthUser {
   id: string;

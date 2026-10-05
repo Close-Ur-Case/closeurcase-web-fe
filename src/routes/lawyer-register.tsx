@@ -46,6 +46,8 @@ import { INDIAN_COURTS, INDIAN_CITIES, INDIAN_LANGUAGES } from "@/data/courts";
 import {
   addLawyer,
   subscribeToStore,
+  getCitizens,
+  getLawyers,
   getActiveCities,
   getActiveLanguages,
   getActiveCourts,
@@ -204,6 +206,7 @@ function EmailVerifyField({
   otpError: string;
   onSend: () => void;
   onReset: () => void;
+  onBlur?: () => void;
   isSending?: boolean;
 }) {
   return (
@@ -240,9 +243,10 @@ function EmailVerifyField({
                 required
                 value={value}
                 onChange={onChange}
+                onBlur={onBlur}
                 placeholder="advocate@example.com"
                 leadingIcon={<Mail className="h-4 w-4" />}
-                error={showValidationError && !isValid}
+                error={showValidationError && (!isValid || !!validationError)}
                 className="w-full"
               />
             </div>
@@ -386,9 +390,48 @@ function LawyerRegister() {
   const [emailOtpSent, setEmailOtpSent] = useState(false);
   const [emailOtp, setEmailOtp] = useState("");
   const [emailOtpError, setEmailOtpError] = useState("");
+  const [emailConflictError, setEmailConflictError] = useState("");
 
   const [phone, setPhone] = useState("");
   const [phoneTouched, setPhoneTouched] = useState(false);
+  const [phoneConflictError, setPhoneConflictError] = useState("");
+
+  const checkEmailConflictLocally = (val: string): string => {
+    const clean = val.trim().toLowerCase();
+    if (!clean) return "";
+    const citizens = getCitizens();
+    if (citizens.some((c) => c.email && c.email.toLowerCase() === clean)) {
+      return "Existing citizen email cannot be used for lawyer signup.";
+    }
+    const lawyers = getLawyers();
+    if (lawyers.some((l) => l.email && l.email.toLowerCase() === clean)) {
+      return "An advocate with this email already exists. Please sign in instead.";
+    }
+    return "";
+  };
+
+  const checkPhoneConflictLocally = (val: string): string => {
+    const clean = val.replace(/\D/g, "");
+    const last10 = clean.slice(-10);
+    if (last10.length < 10) return "";
+    const citizens = getCitizens();
+    if (
+      citizens.some(
+        (c) => c.phone && c.phone.replace(/\D/g, "").slice(-10) === last10
+      )
+    ) {
+      return "Existing citizen phone cannot be used for lawyer signup.";
+    }
+    const lawyers = getLawyers();
+    if (
+      lawyers.some(
+        (l) => l.phone && l.phone.replace(/\D/g, "").slice(-10) === last10
+      )
+    ) {
+      return "An advocate with this phone number already exists. Please sign in instead.";
+    }
+    return "";
+  };
 
   const emailRes = validateEmail(email);
   const phoneRes = validatePhone(phone);
@@ -662,16 +705,50 @@ function LawyerRegister() {
       setEmailOtpError(emailRes.error || "Please enter a valid email address.");
       return;
     }
+
+    const localErr = checkEmailConflictLocally(email);
+    if (localErr) {
+      setEmailConflictError(localErr);
+      setEmailOtpError(localErr);
+      setStepError(localErr);
+      return;
+    }
+
     setIsSendingEmailOtp(true);
     setEmailOtpError("");
+    setEmailConflictError("");
     try {
+      const checkRes = await authService.checkCredentialAvailability({
+        email: email.trim().toLowerCase(),
+        role: "lawyer",
+      });
+      if (checkRes.conflict) {
+        const msg = checkRes.message || "Existing citizen email cannot be used for lawyer signup.";
+        setEmailConflictError(msg);
+        setEmailOtpError(msg);
+        setStepError(msg);
+        setIsSendingEmailOtp(false);
+        return;
+      }
       await authService.sendCitizenOtp({ email: email.trim().toLowerCase() });
       setEmailOtpSent(true);
       setEmailOtp("");
     } catch (err: unknown) {
-      console.warn("[LawyerRegister] Error sending email OTP via API:", err);
-      setEmailOtpSent(true);
-      setEmailOtp("");
+      const msg = err instanceof Error ? err.message : "Error sending email OTP";
+      if (
+        msg.toLowerCase().includes("citizen") ||
+        msg.toLowerCase().includes("advocate") ||
+        msg.toLowerCase().includes("exists") ||
+        msg.toLowerCase().includes("conflict")
+      ) {
+        setEmailConflictError(msg);
+        setEmailOtpError(msg);
+        setStepError(msg);
+      } else {
+        console.warn("[LawyerRegister] Error sending email OTP via API:", err);
+        setEmailOtpSent(true);
+        setEmailOtp("");
+      }
     } finally {
       setIsSendingEmailOtp(false);
     }
@@ -706,9 +783,15 @@ function LawyerRegister() {
     if (s === 6) {
       if (!email.trim()) return "Please enter your email address.";
       if (!emailRes.isValid) return emailRes.error || "Please enter a valid email address.";
+      const emailConflict = emailConflictError || checkEmailConflictLocally(email);
+      if (emailConflict) return emailConflict;
+
       if (!phone.trim()) return "Please enter your 10-digit mobile number.";
       if (!phoneRes.isValid)
         return phoneRes.error || "Please enter a valid 10-digit mobile number.";
+      const phoneConflict = phoneConflictError || checkPhoneConflictLocally(phone);
+      if (phoneConflict) return phoneConflict;
+
       if (!password) return "Please enter a password.";
       if (!passwordRes.isValid)
         return passwordRes.error || "Password must be at least 6 characters.";
@@ -762,9 +845,24 @@ function LawyerRegister() {
       setStepError(emailRes.error || "Please enter a valid email address.");
       return;
     }
+    const emailConflict = emailConflictError || checkEmailConflictLocally(email);
+    if (emailConflict) {
+      setEmailConflictError(emailConflict);
+      setStep(6);
+      setStepError(emailConflict);
+      return;
+    }
+
     if (!phone.trim() || !phoneRes.isValid) {
       setStep(6);
       setStepError(phoneRes.error || "Please enter a valid 10-digit mobile number.");
+      return;
+    }
+    const phoneConflict = phoneConflictError || checkPhoneConflictLocally(phone);
+    if (phoneConflict) {
+      setPhoneConflictError(phoneConflict);
+      setStep(6);
+      setStepError(phoneConflict);
       return;
     }
     if (!password || !passwordRes.isValid || password !== confirmPassword) {
@@ -949,6 +1047,13 @@ function LawyerRegister() {
         err instanceof Error
           ? err.message
           : "Failed to submit lawyer registration. Please verify details.";
+      if (msg.toLowerCase().includes("email")) {
+        setEmailConflictError(msg);
+      }
+      if (msg.toLowerCase().includes("phone")) {
+        setPhoneConflictError(msg);
+      }
+      setStep(6);
       setStepError(msg);
     } finally {
       setIsSubmitting(false);
@@ -1609,15 +1714,39 @@ function LawyerRegister() {
                     onChange={(v) => {
                       setPhone(sanitizePhone(v));
                       setPhoneTouched(true);
+                      setPhoneConflictError("");
+                    }}
+                    onBlur={async () => {
+                      const localErr = checkPhoneConflictLocally(phone);
+                      if (localErr) {
+                        setPhoneConflictError(localErr);
+                        return;
+                      }
+                      if (phoneRes.isValid) {
+                        try {
+                          const res = await authService.checkCredentialAvailability({
+                            phone: phone.replace(/\D/g, ""),
+                            role: "lawyer",
+                          });
+                          if (res.conflict && res.field === "phone") {
+                            setPhoneConflictError(res.message || "Existing citizen phone cannot be used for lawyer signup.");
+                          }
+                        } catch {
+                          // ignore background check errors
+                        }
+                      }
                     }}
                     placeholder="98100 12345"
                     prefixText="+91"
                     leadingIcon={<Phone className="h-4 w-4" />}
-                    error={phoneTouched && !phoneRes.isValid}
+                    error={(phoneTouched && !phoneRes.isValid) || !!phoneConflictError}
                     className="w-full"
                   />
                   {phoneTouched && !phoneRes.isValid && phoneRes.error && (
                     <p className="text-[11px] font-medium text-destructive">{phoneRes.error}</p>
+                  )}
+                  {phoneConflictError && (
+                    <p className="text-[11px] font-medium text-destructive">{phoneConflictError}</p>
                   )}
                 </div>
 
@@ -1626,13 +1755,34 @@ function LawyerRegister() {
                   onChange={(v) => {
                     setEmail(v);
                     setEmailTouched(true);
+                    setEmailConflictError("");
                     setEmailOtpSent(false);
                     setEmailOtpError("");
                     setEmailVerified(false);
                   }}
-                  isValid={emailRes.isValid}
-                  validationError={emailRes.error}
-                  showValidationError={emailTouched}
+                  onBlur={async () => {
+                    const localErr = checkEmailConflictLocally(email);
+                    if (localErr) {
+                      setEmailConflictError(localErr);
+                      return;
+                    }
+                    if (emailRes.isValid) {
+                      try {
+                        const res = await authService.checkCredentialAvailability({
+                          email: email.trim().toLowerCase(),
+                          role: "lawyer",
+                        });
+                        if (res.conflict && res.field === "email") {
+                          setEmailConflictError(res.message || "Existing citizen email cannot be used for lawyer signup.");
+                        }
+                      } catch {
+                        // ignore background check errors
+                      }
+                    }
+                  }}
+                  isValid={emailRes.isValid && !emailConflictError}
+                  validationError={emailConflictError || emailRes.error}
+                  showValidationError={emailTouched || !!emailConflictError}
                   verified={emailVerified}
                   otpSent={emailOtpSent}
                   otp={emailOtp}
@@ -1647,6 +1797,7 @@ function LawyerRegister() {
                     setEmailVerified(false);
                     setEmailOtpSent(false);
                     setEmailOtp("");
+                    setEmailConflictError("");
                   }}
                 />
               </div>

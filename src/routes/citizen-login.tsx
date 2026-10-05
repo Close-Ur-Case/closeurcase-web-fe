@@ -10,7 +10,7 @@ import { usePermissionsGate } from "@/features/permissions/usePermissionsGate";
 import { getCitizenSession, setCitizenSession } from "@/features/citizen/session";
 import { CitizenLanguageButtons } from "@/features/citizen/CitizenLanguageButtons";
 import { useCitizenLanguage } from "@/features/citizen/i18n/CitizenLanguageContext";
-import { getCitizens, updateCitizenProfile } from "@/data/appStore";
+import { getCitizens, getLawyers, updateCitizenProfile } from "@/data/appStore";
 import {
   sanitizeName,
   sanitizePhone,
@@ -148,6 +148,32 @@ export function CitizenLogin() {
     setIsSubmitting(true);
     setOtpError("");
 
+    // Pre-check if contact belongs to a lawyer account
+    const lawyers = getLawyers();
+    if (loginMethod === "phone") {
+      const isLawyer = lawyers.some(
+        (l) => l.phone && l.phone.replace(/\D/g, "").slice(-10) === phoneDigits.slice(-10)
+      );
+      if (isLawyer) {
+        setIsSubmitting(false);
+        setOtpError(
+          "This phone number is registered to an advocate account. Existing advocate credentials cannot be used for citizen signup."
+        );
+        return;
+      }
+    } else {
+      const isLawyer = lawyers.some(
+        (l) => l.email && l.email.toLowerCase() === email.trim().toLowerCase()
+      );
+      if (isLawyer) {
+        setIsSubmitting(false);
+        setOtpError(
+          "This email is registered to an advocate account. Existing advocate credentials cannot be used for citizen signup."
+        );
+        return;
+      }
+    }
+
     const payload =
       loginMethod === "phone" ? { phone: phoneDigits } : { email: email.trim().toLowerCase() };
 
@@ -196,6 +222,32 @@ export function CitizenLogin() {
     if (resendCountdown > 0 || isSubmitting) return;
     setIsSubmitting(true);
     setOtpError("");
+
+    // Pre-check if contact belongs to a lawyer account
+    const lawyers = getLawyers();
+    if (loginMethod === "phone") {
+      const isLawyer = lawyers.some(
+        (l) => l.phone && l.phone.replace(/\D/g, "").slice(-10) === phoneDigits.slice(-10)
+      );
+      if (isLawyer) {
+        setIsSubmitting(false);
+        setOtpError(
+          "This phone number is registered to an advocate account. Existing advocate credentials cannot be used for citizen signup."
+        );
+        return;
+      }
+    } else {
+      const isLawyer = lawyers.some(
+        (l) => l.email && l.email.toLowerCase() === email.trim().toLowerCase()
+      );
+      if (isLawyer) {
+        setIsSubmitting(false);
+        setOtpError(
+          "This email is registered to an advocate account. Existing advocate credentials cannot be used for citizen signup."
+        );
+        return;
+      }
+    }
 
     const payload =
       loginMethod === "phone" ? { phone: phoneDigits } : { email: email.trim().toLowerCase() };

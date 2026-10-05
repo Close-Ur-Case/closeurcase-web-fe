@@ -1,12 +1,194 @@
 import { supabase, supabaseAdmin } from "../config/supabase.ts";
 import { db } from "../config/db.ts";
 import { users, citizens, lawyers, adminProfiles } from "../models/users.ts";
-import { eq, ilike, or } from "drizzle-orm";
+import { eq, ilike, or, and } from "drizzle-orm";
 import { ApiError } from "../utils/apiError.ts";
 import { LawyerLanguageService } from "./lawyerLanguageService.ts";
 import { LawyerCategoryService } from "./lawyerCategoryService.ts";
 
 export class AuthService {
+  static async checkCredentialConflicts(params: {
+    email?: string;
+    phone?: string;
+    targetRole: "citizen" | "lawyer";
+  }): Promise<{
+    conflict: boolean;
+    field?: "email" | "phone";
+    message?: string;
+    isCitizen: boolean;
+    isLawyer: boolean;
+  }> {
+    const cleanEmail = params.email?.trim().toLowerCase();
+    const cleanPhoneDigits = params.phone ? params.phone.replace(/\D/g, "") : "";
+    const last10 = cleanPhoneDigits ? cleanPhoneDigits.slice(-10) : "";
+
+    if (params.targetRole === "lawyer") {
+      // 1. Lawyer signup CANNOT use an existing citizen's email
+      if (cleanEmail) {
+        const [foundCitEmail] = await db
+          .select({ id: citizens.id, name: citizens.name })
+          .from(citizens)
+          .where(ilike(citizens.email, cleanEmail));
+        if (foundCitEmail) {
+          return {
+            conflict: true,
+            field: "email",
+            message: "Existing citizen email cannot be used for lawyer signup.",
+            isCitizen: true,
+            isLawyer: false,
+          };
+        }
+        const [foundCitUserEmail] = await db
+          .select({ id: users.id })
+          .from(users)
+          .where(and(eq(users.role, "citizen"), ilike(users.email, cleanEmail)));
+        if (foundCitUserEmail) {
+          return {
+            conflict: true,
+            field: "email",
+            message: "Existing citizen email cannot be used for lawyer signup.",
+            isCitizen: true,
+            isLawyer: false,
+          };
+        }
+      }
+
+      // 2. Lawyer signup CANNOT use an existing citizen's phone
+      if (last10) {
+        const allCitizens = await db
+          .select({ id: citizens.id, phone: citizens.phone })
+          .from(citizens);
+        const matchedCitPhone = allCitizens.find(
+          (c) => c.phone && c.phone.replace(/\D/g, "").slice(-10) === last10
+        );
+        if (matchedCitPhone) {
+          return {
+            conflict: true,
+            field: "phone",
+            message: "Existing citizen phone cannot be used for lawyer signup.",
+            isCitizen: true,
+            isLawyer: false,
+          };
+        }
+        const allUsers = await db
+          .select({ id: users.id, role: users.role, phone: users.phone })
+          .from(users);
+        const matchedCitUser = allUsers.find(
+          (u) =>
+            u.role === "citizen" &&
+            u.phone &&
+            u.phone.replace(/\D/g, "").slice(-10) === last10
+        );
+        if (matchedCitUser) {
+          return {
+            conflict: true,
+            field: "phone",
+            message: "Existing citizen phone cannot be used for lawyer signup.",
+            isCitizen: true,
+            isLawyer: false,
+          };
+        }
+      }
+
+      // 3. Lawyer signup cannot duplicate an existing lawyer's email
+      if (cleanEmail) {
+        const [foundLawyerEmail] = await db
+          .select({ id: lawyers.id })
+          .from(lawyers)
+          .where(ilike(lawyers.email, cleanEmail));
+        if (foundLawyerEmail) {
+          return {
+            conflict: true,
+            field: "email",
+            message: "An advocate with this email already exists. Please sign in instead.",
+            isCitizen: false,
+            isLawyer: true,
+          };
+        }
+      }
+
+      // 4. Lawyer signup cannot duplicate an existing lawyer's phone
+      if (last10) {
+        const allLawyers = await db
+          .select({ id: lawyers.id, phone: lawyers.phone })
+          .from(lawyers);
+        const matchedLawyerPhone = allLawyers.find(
+          (l) => l.phone && l.phone.replace(/\D/g, "").slice(-10) === last10
+        );
+        if (matchedLawyerPhone) {
+          return {
+            conflict: true,
+            field: "phone",
+            message: "An advocate with this phone number already exists. Please sign in instead.",
+            isCitizen: false,
+            isLawyer: true,
+          };
+        }
+      }
+    } else if (params.targetRole === "citizen") {
+      // 1. Citizen signup cannot use an existing lawyer's email
+      if (cleanEmail) {
+        const [foundLawyerEmail] = await db
+          .select({ id: lawyers.id })
+          .from(lawyers)
+          .where(ilike(lawyers.email, cleanEmail));
+        if (foundLawyerEmail) {
+          return {
+            conflict: true,
+            field: "email",
+            message:
+              "This email is registered to an advocate account. Existing advocate email cannot be used for citizen signup.",
+            isCitizen: false,
+            isLawyer: true,
+          };
+        }
+      }
+
+      // 2. Citizen signup cannot use an existing lawyer's phone
+      if (last10) {
+        const allLawyers = await db
+          .select({ id: lawyers.id, phone: lawyers.phone })
+          .from(lawyers);
+        const matchedLawyerPhone = allLawyers.find(
+          (l) => l.phone && l.phone.replace(/\D/g, "").slice(-10) === last10
+        );
+        if (matchedLawyerPhone) {
+          return {
+            conflict: true,
+            field: "phone",
+            message:
+              "This phone number is registered to an advocate account. Existing advocate phone cannot be used for citizen signup.",
+            isCitizen: false,
+            isLawyer: true,
+          };
+        }
+      }
+    }
+
+    return {
+      conflict: false,
+      isCitizen: false,
+      isLawyer: false,
+    };
+  }
+
+  static async checkCredentialAvailability(params: {
+    email?: string;
+    phone?: string;
+    role?: "citizen" | "lawyer";
+  }) {
+    const targetRole = params.role || "lawyer";
+    const res = await AuthService.checkCredentialConflicts({
+      email: params.email,
+      phone: params.phone,
+      targetRole,
+    });
+    return {
+      ...res,
+      message: res.message || "Credentials available",
+    };
+  }
+
   static async sendCitizenOtp(
     param: string | { phone?: string; email?: string; identifier?: string },
   ) {
@@ -21,6 +203,16 @@ export class AuthService {
       } else {
         phone = identifier.trim();
       }
+    }
+
+    // Check if phone or email is registered to a lawyer
+    const conflictCheck = await AuthService.checkCredentialConflicts({
+      email,
+      phone,
+      targetRole: "citizen",
+    });
+    if (conflictCheck.conflict) {
+      throw ApiError.conflict(conflictCheck.message || "Credential conflict with an existing advocate account.");
     }
 
     let userExists = false;
@@ -167,6 +359,15 @@ export class AuthService {
       } else {
         phone = identifier.trim();
       }
+    }
+
+    const conflictCheck = await AuthService.checkCredentialConflicts({
+      email,
+      phone,
+      targetRole: "citizen",
+    });
+    if (conflictCheck.conflict) {
+      throw ApiError.conflict(conflictCheck.message || "Credential conflict with an existing advocate account.");
     }
 
     let authResponse;
@@ -374,6 +575,23 @@ export class AuthService {
     }
     if (password.length < 6) {
       throw ApiError.badRequest("Password must be at least 6 characters long");
+    }
+
+    const conflictCheck = await AuthService.checkCredentialConflicts({
+      email,
+      phone,
+      targetRole: "lawyer",
+    });
+    if (conflictCheck.conflict) {
+      throw ApiError.conflict(conflictCheck.message || "Credential conflict with an existing account.");
+    }
+
+    const [existingBar] = await db
+      .select({ id: lawyers.id })
+      .from(lawyers)
+      .where(ilike(lawyers.barId, barId.trim()));
+    if (existingBar) {
+      throw ApiError.conflict(`An advocate with Bar Registration ID '${barId.trim()}' already exists.`);
     }
 
     let userId = lawyerData.userId;

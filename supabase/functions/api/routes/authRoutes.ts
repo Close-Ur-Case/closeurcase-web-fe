@@ -3,6 +3,7 @@ import {
   sendCitizenOtp,
   verifyCitizenOtp,
   registerLawyer,
+  checkCredentialAvailability,
   loginLawyer,
   loginAdmin,
   getCurrentUser,
@@ -14,6 +15,8 @@ import {
   SendCitizenOtpSchema,
   VerifyCitizenOtpSchema,
   LawyerRegisterSchema,
+  CheckCredentialAvailabilitySchema,
+  CheckCredentialAvailabilityResponseSchema,
   LawyerLoginSchema,
   AdminLoginSchema,
   RefreshTokenSchema,
@@ -30,7 +33,7 @@ const sendCitizenOtpRoute = createRoute({
   path: "/citizen/send-otp",
   tags: ["Auth - Citizen"],
   summary: "Send 6-digit OTP to citizen via mobile number or email",
-  description: "Dispatches a 6-digit one-time password to the specified mobile phone number or email address for passwordless sign in. No magic links.",
+  description: "Dispatches a 6-digit one-time password to the specified mobile phone number or email address for passwordless sign in. Ensures phone/email is not registered to an advocate account.",
   request: {
     body: {
       content: {
@@ -49,6 +52,10 @@ const sendCitizenOtpRoute = createRoute({
       description: "Missing or invalid mobile number / email address",
       content: { "application/json": { schema: ErrorResponseSchema } },
     },
+    409: {
+      description: "Conflict: Mobile number or email is already registered to a lawyer account",
+      content: { "application/json": { schema: ErrorResponseSchema } },
+    },
   },
 });
 
@@ -57,7 +64,7 @@ const verifyCitizenOtpRoute = createRoute({
   path: "/citizen/verify-otp",
   tags: ["Auth - Citizen"],
   summary: "Verify citizen 6-digit OTP code & start authenticated session",
-  description: "Validates the 6-digit OTP entered by the citizen. Creates citizen record if first-time sign-in.",
+  description: "Validates the 6-digit OTP entered by the citizen. Creates citizen record if first-time sign-in. Verifies that credentials do not conflict with a lawyer account.",
   request: {
     body: {
       content: {
@@ -76,6 +83,10 @@ const verifyCitizenOtpRoute = createRoute({
       description: "Invalid or expired OTP token",
       content: { "application/json": { schema: ErrorResponseSchema } },
     },
+    409: {
+      description: "Conflict: Mobile number or email is already registered to a lawyer account",
+      content: { "application/json": { schema: ErrorResponseSchema } },
+    },
   },
 });
 
@@ -84,7 +95,7 @@ const registerLawyerRoute = createRoute({
   path: "/lawyer/register",
   tags: ["Auth - Lawyer"],
   summary: "Register a new advocate / lawyer account",
-  description: "Creates an advocate profile with bar council number, practice areas, experience years, and sets status to Pending moderation.",
+  description: "Creates an advocate profile with bar council number, practice areas, experience years, and sets status to Pending moderation. Rejects if phone or email is already used by an existing citizen or lawyer.",
   request: {
     body: {
       content: {
@@ -98,6 +109,37 @@ const registerLawyerRoute = createRoute({
     201: {
       description: "Lawyer account registered and pending verification",
       content: { "application/json": { schema: AuthResponseSchema } },
+    },
+    400: {
+      description: "Missing or invalid required registration fields",
+      content: { "application/json": { schema: ErrorResponseSchema } },
+    },
+    409: {
+      description: "Conflict: Mobile number or email is already registered to an existing citizen or lawyer, or Bar ID already exists",
+      content: { "application/json": { schema: ErrorResponseSchema } },
+    },
+  },
+});
+
+const checkCredentialAvailabilityRoute = createRoute({
+  method: "post",
+  path: "/check-exists",
+  tags: ["Auth - General"],
+  summary: "Check if email or phone is already registered across citizens and lawyers",
+  description: "Validates availability of email and phone before signup. Ensures existing citizen phone/email is not used for lawyer signup, and advocate phone/email is not used for citizen signup.",
+  request: {
+    body: {
+      content: {
+        "application/json": {
+          schema: CheckCredentialAvailabilitySchema,
+        },
+      },
+    },
+  },
+  responses: {
+    200: {
+      description: "Credential availability check result",
+      content: { "application/json": { schema: SuccessResponseSchema } },
     },
   },
 });
@@ -217,6 +259,7 @@ const autoLoginRoute = createRoute({
 auth.openapi(sendCitizenOtpRoute, sendCitizenOtp as any);
 auth.openapi(verifyCitizenOtpRoute, verifyCitizenOtp as any);
 auth.openapi(registerLawyerRoute, registerLawyer as any);
+auth.openapi(checkCredentialAvailabilityRoute, checkCredentialAvailability as any);
 auth.openapi(loginLawyerRoute, loginLawyer as any);
 auth.openapi(loginAdminRoute, loginAdmin as any);
 auth.openapi(getMeRoute, getCurrentUser as any);
@@ -224,3 +267,4 @@ auth.openapi(refreshSessionRoute, refreshSession as any);
 auth.openapi(autoLoginRoute, autoLogin as any);
 
 export default auth;
+

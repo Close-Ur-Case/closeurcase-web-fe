@@ -26,6 +26,8 @@ import type {
   AdminLoginPayload,
   AuthResponseData,
   AuthUser,
+  CheckCredentialPayload,
+  CheckCredentialResponse,
 } from "@/types/api";
 
 interface RawAuthResponse {
@@ -65,6 +67,18 @@ interface RawAuthResponse {
 }
 
 export const authService = {
+  /**
+   * Check if email or phone is already registered across citizens and lawyers
+   */
+  async checkCredentialAvailability(
+    payload: CheckCredentialPayload,
+  ): Promise<CheckCredentialResponse> {
+    const res = await apiClient.post<CheckCredentialResponse>("/auth/check-exists", payload, {
+      skipAuth: true,
+    });
+    return res;
+  },
+
   /**
    * Send 6-digit OTP to citizen mobile or email
    */
