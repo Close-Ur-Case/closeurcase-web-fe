@@ -514,7 +514,7 @@ export function FindLawyerWizard() {
 
   const { coords: userCoords, cityLabel: userCityLabel, loading: locating } = useUserLocation();
   const [step, setStep] = useState<Step>("details");
-  const [path, setPath] = useState<CasePath | null>(hasParams ? "new" : null);
+  const [path, setPath] = useState<CasePath>(hasParams ? "new" : "existing");
 
   // Petitioner & Respondent Names — required for every submission
   const [clientName, setClientName] = useState("");
@@ -864,6 +864,71 @@ export function FindLawyerWizard() {
     setPredictedCategory(null);
     setAiSubCategory(null);
   }
+
+  const handleTabChange = useCallback(
+    (nextPath: CasePath) => {
+      if (nextPath === path) return;
+      setPath(nextPath);
+      setClientNameTouched(true);
+
+      if (nextPath === "existing") {
+        // Reset Existing Case tab fields to initial state
+        setCnr("");
+        setExistingCaseStatus("Pending");
+        // Also cleanly reset New Case state
+        setDescription("");
+        baseDescriptionRef.current = "";
+        if (isRecording) {
+          stopVoiceRecognition();
+        }
+        setKnowsCaseType(hasParams ? true : null);
+        setSelectedPracticeArea(hasParams ? defaultArea : "");
+        setSelectedSpecialization(hasParams ? defaultSpec : "");
+        setSelectedLegalServices(hasParams ? defaultServices : []);
+        setIsAiAnalyzed(false);
+        setIsInlineAnalyzing(false);
+        setIsAnalyzing(false);
+        setPredictedCategory(null);
+        setAiSubCategory(null);
+        setImages([]);
+        setDocuments([]);
+        setDocError(null);
+        setImageError(null);
+      } else {
+        // Reset New Case tab fields to initial state
+        setDescription("");
+        baseDescriptionRef.current = "";
+        if (isRecording) {
+          stopVoiceRecognition();
+        }
+        setKnowsCaseType(hasParams ? true : null);
+        setSelectedPracticeArea(hasParams ? defaultArea : "");
+        setSelectedSpecialization(hasParams ? defaultSpec : "");
+        setSelectedLegalServices(hasParams ? defaultServices : []);
+        setIsAiAnalyzed(false);
+        setIsInlineAnalyzing(false);
+        setIsAnalyzing(false);
+        setPredictedCategory(null);
+        setAiSubCategory(null);
+        setImages([]);
+        setDocuments([]);
+        setDocError(null);
+        setImageError(null);
+        // Also cleanly reset Existing Case state
+        setCnr("");
+        setExistingCaseStatus("Pending");
+      }
+    },
+    [
+      path,
+      isRecording,
+      stopVoiceRecognition,
+      hasParams,
+      defaultArea,
+      defaultSpec,
+      defaultServices,
+    ],
+  );
 
   const applyFallbackDetection = useCallback(
     (currentDesc?: string) => {
@@ -1578,76 +1643,80 @@ export function FindLawyerWizard() {
               </div>
             </div>
 
-            <div className={`grid gap-2.5 ${path === null ? "sm:grid-cols-2" : "grid-cols-1"}`}>
-              {path !== "new" && (
-                <Card
-                  variant="outlined"
-                  onClick={() => {
-                    setPath("existing");
-                    setClientNameTouched(true);
-                  }}
-                  className={`p-3 sm:p-4 ${path === "existing" ? "border-primary ring-1 ring-primary bg-primary/5" : ""
-                    }`}
+            {/* 2 Tabs: Existing Case & New Case */}
+            <div className="rounded-xl border border-border bg-card shadow-xs overflow-hidden">
+              {/* Tab Navigation Header */}
+              <div className="grid grid-cols-2 border-b border-border bg-muted/40 p-1 gap-1">
+                <button
+                  type="button"
+                  id="tab-existing-case"
+                  role="tab"
+                  aria-selected={path === "existing"}
+                  onClick={() => handleTabChange("existing")}
+                  className={`flex items-center justify-center gap-2 rounded-lg py-2.5 px-3 text-xs sm:text-sm font-semibold transition-all cursor-pointer ${
+                    path === "existing"
+                      ? "bg-background text-primary shadow-xs ring-1 ring-border/50"
+                      : "text-muted-foreground hover:text-foreground hover:bg-background/40"
+                  }`}
                 >
-                  <div className="flex items-start gap-2.5">
-                    <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-primary/10 text-primary">
-                      <FileSearch className="h-4 w-4" />
-                    </div>
-                    <div className="min-w-0 flex-1">
-                      <div className="text-sm font-bold text-foreground flex flex-wrap justify-between items-center gap-2">
-                        <span>Existing Case</span>
-                        {path === "existing" && (
-                          <div onClick={(e) => e.stopPropagation()}>
-                            <div className="inline-flex gap-1 rounded-lg border border-border bg-muted p-0.5">
-                              <button
-                                type="button"
-                                onClick={() => setExistingCaseStatus("Pending")}
-                                className={`rounded-md px-2 py-1 text-[11px] font-semibold transition-all ${existingCaseStatus === "Pending"
-                                  ? "bg-primary text-primary-foreground shadow-sm"
-                                  : "text-muted-foreground hover:text-foreground"
-                                  }`}
-                              >
-                                Pending
-                              </button>
-                              <button
-                                type="button"
-                                onClick={() => setExistingCaseStatus("Closed")}
-                                className={`rounded-md px-2 py-1 text-[11px] font-semibold transition-all ${existingCaseStatus === "Closed"
-                                  ? "bg-primary text-primary-foreground shadow-sm"
-                                  : "text-muted-foreground hover:text-foreground"
-                                  }`}
-                              >
-                                Closed
-                              </button>
-                            </div>
-                          </div>
-                        )}
-                      </div>
-                      <p className="mt-0.5 text-[11px] text-muted-foreground">
-                        Already filed in court? Link it with your CNR number.
-                      </p>
-                    </div>
-                    {path === "existing" && (
-                      <button
-                        type="button"
-                        title="Change case type"
-                        aria-label="Change case type"
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          setPath(null);
-                        }}
-                        className="flex h-6 w-6 shrink-0 cursor-pointer items-center justify-center rounded-full text-primary transition-colors hover:bg-primary/15"
-                      >
-                        <X className="h-3.5 w-3.5" />
-                      </button>
-                    )}
-                  </div>
+                  <FileSearch className="h-4 w-4 shrink-0 text-primary" />
+                  <span>Existing Case</span>
+                </button>
+                <button
+                  type="button"
+                  id="tab-new-case"
+                  role="tab"
+                  aria-selected={path === "new"}
+                  onClick={() => handleTabChange("new")}
+                  className={`flex items-center justify-center gap-2 rounded-lg py-2.5 px-3 text-xs sm:text-sm font-semibold transition-all cursor-pointer ${
+                    path === "new"
+                      ? "bg-background text-primary shadow-xs ring-1 ring-border/50"
+                      : "text-muted-foreground hover:text-foreground hover:bg-background/40"
+                  }`}
+                >
+                  <FilePlus2 className="h-4 w-4 shrink-0 text-primary" />
+                  <span>New Case</span>
+                </button>
+              </div>
 
-                  {path === "existing" && (
-                    <div
-                      onClick={(e) => e.stopPropagation()}
-                      className="mt-3 space-y-1.5 border-t border-border/60 pt-3"
-                    >
+              {/* Tab Content Panel */}
+              <div className="p-3.5 sm:p-5">
+                {path === "existing" && (
+                  <div className="space-y-4">
+                    <div className="flex flex-wrap items-center justify-between gap-2.5">
+                      <div>
+                        <div className="text-sm font-bold text-foreground">Existing Case</div>
+                        <p className="mt-0.5 text-[11px] text-muted-foreground">
+                          Already filed in court? Link it with your CNR number.
+                        </p>
+                      </div>
+                      <div className="inline-flex gap-1 rounded-lg border border-border bg-muted p-0.5">
+                        <button
+                          type="button"
+                          onClick={() => setExistingCaseStatus("Pending")}
+                          className={`rounded-md px-2.5 py-1 text-[11px] font-semibold transition-all ${
+                            existingCaseStatus === "Pending"
+                              ? "bg-primary text-primary-foreground shadow-sm"
+                              : "text-muted-foreground hover:text-foreground"
+                          }`}
+                        >
+                          Pending
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => setExistingCaseStatus("Closed")}
+                          className={`rounded-md px-2.5 py-1 text-[11px] font-semibold transition-all ${
+                            existingCaseStatus === "Closed"
+                              ? "bg-primary text-primary-foreground shadow-sm"
+                              : "text-muted-foreground hover:text-foreground"
+                          }`}
+                        >
+                          Closed
+                        </button>
+                      </div>
+                    </div>
+
+                    <div className="space-y-1.5 border-t border-border/60 pt-3">
                       <TextField
                         label="CNR Number (16 Alphanumeric Characters)"
                         value={cnr}
@@ -1665,51 +1734,19 @@ export function FindLawyerWizard() {
                         We'll pull up your case and connect it with an available Lawyer.
                       </p>
                     </div>
-                  )}
-                </Card>
-              )}
+                  </div>
+                )}
 
-              {path !== "existing" && (
-                <Card
-                  variant="outlined"
-                  onClick={() => {
-                    setPath("new");
-                    setClientNameTouched(true);
-                  }}
-                  className={`p-3 sm:p-4 ${path === "new" ? "border-primary ring-1 ring-primary bg-primary/5" : ""
-                    }`}
-                >
-                  <div className="flex items-start gap-2.5">
-                    <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-primary/10 text-primary">
-                      <FilePlus2 className="h-4 w-4" />
-                    </div>
-                    <div className="min-w-0 flex-1">
+                {path === "new" && (
+                  <div className="space-y-4">
+                    <div>
                       <div className="text-sm font-bold text-foreground">New Case</div>
                       <p className="mt-0.5 text-[11px] text-muted-foreground">
                         Describe your issue or dictate with a voice note.
                       </p>
                     </div>
-                    {path === "new" && (
-                      <button
-                        type="button"
-                        title="Change case type"
-                        aria-label="Change case type"
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          setPath(null);
-                        }}
-                        className="flex h-6 w-6 shrink-0 cursor-pointer items-center justify-center rounded-full text-primary transition-colors hover:bg-primary/15"
-                      >
-                        <X className="h-3.5 w-3.5" />
-                      </button>
-                    )}
-                  </div>
 
-                  {path === "new" && (
-                    <div
-                      onClick={(e) => e.stopPropagation()}
-                      className="mt-3 space-y-2.5 border-t border-border/60 pt-3"
-                    >
+                    <div className="space-y-2.5 border-t border-border/60 pt-3">
                       <TextField
                         label="Describe your issue"
                         type="textarea"
@@ -1753,20 +1790,22 @@ export function FindLawyerWizard() {
                             <button
                               type="button"
                               onClick={() => handleToggleKnowsCaseType(true)}
-                              className={`rounded-md px-2.5 py-1 text-[11px] font-semibold transition-all ${knowsCaseType === true
-                                ? "bg-primary text-primary-foreground shadow-sm"
-                                : "text-muted-foreground hover:text-foreground"
-                                }`}
+                              className={`rounded-md px-2.5 py-1 text-[11px] font-semibold transition-all ${
+                                knowsCaseType === true
+                                  ? "bg-primary text-primary-foreground shadow-sm"
+                                  : "text-muted-foreground hover:text-foreground"
+                              }`}
                             >
                               Yes
                             </button>
                             <button
                               type="button"
                               onClick={() => handleToggleKnowsCaseType(false)}
-                              className={`rounded-md px-2.5 py-1 text-[11px] font-semibold transition-all ${knowsCaseType === false
-                                ? "bg-primary text-primary-foreground shadow-sm"
-                                : "text-muted-foreground hover:text-foreground"
-                                }`}
+                              className={`rounded-md px-2.5 py-1 text-[11px] font-semibold transition-all ${
+                                knowsCaseType === false
+                                  ? "bg-primary text-primary-foreground shadow-sm"
+                                  : "text-muted-foreground hover:text-foreground"
+                              }`}
                             >
                               No
                             </button>
@@ -1867,11 +1906,11 @@ export function FindLawyerWizard() {
                                   variant="elevated"
                                   className="p-3.5 border-primary/30 bg-primary/5"
                                 >
-                                <div className="flex items-start gap-3">
-                                  <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-primary/10 text-primary">
-                                    <Sparkles className="h-4.5 w-4.5" />
-                                  </div>
-                                  <div className="min-w-0 flex-1 space-y-1">
+                                  <div className="flex items-start gap-3">
+                                    <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-primary/10 text-primary">
+                                      <Sparkles className="h-4.5 w-4.5" />
+                                    </div>
+                                    <div className="min-w-0 flex-1 space-y-1">
                                       <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
                                         <div className="flex items-center gap-2">
                                           <span className="text-[10px] font-bold uppercase tracking-wide text-primary">
@@ -1901,91 +1940,91 @@ export function FindLawyerWizard() {
                                           {isInlineAnalyzing ? "Re-Analyzing…" : "Re-Analyze Case"}
                                         </Button>
                                       </div>
-                                    <div className="text-sm font-bold text-foreground">
-                                      Looks like a{" "}
-                                      {predictedCategory || predictCategory(description)} Law matter
-                                      {aiSubCategory ? ` (${aiSubCategory})` : ""}
+                                      <div className="text-sm font-bold text-foreground">
+                                        Looks like a{" "}
+                                        {predictedCategory || predictCategory(description)} Law matter
+                                        {aiSubCategory ? ` (${aiSubCategory})` : ""}
+                                      </div>
+                                      <p className="text-[11px] text-muted-foreground leading-relaxed">
+                                        Based on your problem description, our AI analyzed your issue
+                                        and identified it as{" "}
+                                        <strong>
+                                          {predictedCategory || predictCategory(description)} Law
+                                          {aiSubCategory ? ` — ${aiSubCategory}` : ""}
+                                        </strong>
+                                        . We will prioritize{" "}
+                                        <strong>
+                                          {predictedCategory || predictCategory(description)} Law
+                                        </strong>{" "}
+                                        lawyers for your case.
+                                      </p>
                                     </div>
-                                    <p className="text-[11px] text-muted-foreground leading-relaxed">
-                                      Based on your problem description, our AI analyzed your issue
-                                      and identified it as{" "}
-                                      <strong>
-                                        {predictedCategory || predictCategory(description)} Law
-                                        {aiSubCategory ? ` — ${aiSubCategory}` : ""}
-                                      </strong>
-                                      . We will prioritize{" "}
-                                      <strong>
-                                        {predictedCategory || predictCategory(description)} Law
-                                      </strong>{" "}
-                                      lawyers for your case.
-                                    </p>
+                                  </div>
+                                </Card>
+
+                                {/* 3 Dropdowns auto-filled according to API output */}
+                                <div
+                                  className={`space-y-1.5 pt-1 animate-in fade-in slide-in-from-top-2 duration-200 transition-opacity ${
+                                    isInlineAnalyzing ? "opacity-60 pointer-events-none" : "opacity-100"
+                                  }`}
+                                >
+                                  <div className="flex items-center justify-between">
+                                    <span className="text-xs font-bold text-foreground flex items-center gap-1.5">
+                                      <Sparkles className="h-3.5 w-3.5 text-primary" />
+                                      <span>Categorization & Services</span>
+                                    </span>
+                                    <span className="text-[10px] text-muted-foreground">
+                                      {isInlineAnalyzing
+                                        ? "Analyzing & updating categories…"
+                                        : "Auto-filled by AI — modify if needed"}
+                                    </span>
+                                  </div>
+                                  <div className="grid grid-cols-1 gap-2.5 sm:grid-cols-3">
+                                    <Select
+                                      label="Practice Area"
+                                      required
+                                      value={selectedPracticeArea}
+                                      onChange={handlePracticeAreaChange}
+                                      options={practiceAreaOptions}
+                                      disabled={isInlineAnalyzing}
+                                    />
+                                    <Select
+                                      label="Specialization"
+                                      required
+                                      value={selectedSpecialization}
+                                      onChange={handleSpecializationChange}
+                                      disabled={
+                                        isInlineAnalyzing ||
+                                        !selectedPracticeArea ||
+                                        specializationOptions.length <= 1
+                                      }
+                                      options={specializationOptions}
+                                    />
+                                    <Select
+                                      label="Legal Service"
+                                      required
+                                      value={
+                                        selectedLegalServices[0] || (legalServiceOptions[1]?.value ?? "")
+                                      }
+                                      onChange={(val) => setSelectedLegalServices(val ? [val] : [])}
+                                      disabled={
+                                        isInlineAnalyzing ||
+                                        !selectedSpecialization ||
+                                        legalServiceOptions.length <= 1
+                                      }
+                                      options={legalServiceOptions}
+                                    />
                                   </div>
                                 </div>
-                              </Card>
-
-                              {/* 3 Dropdowns auto-filled according to API output */}
-                              <div
-                                className={`space-y-1.5 pt-1 animate-in fade-in slide-in-from-top-2 duration-200 transition-opacity ${
-                                  isInlineAnalyzing ? "opacity-60 pointer-events-none" : "opacity-100"
-                                }`}
-                              >
-                                <div className="flex items-center justify-between">
-                                  <span className="text-xs font-bold text-foreground flex items-center gap-1.5">
-                                    <Sparkles className="h-3.5 w-3.5 text-primary" />
-                                    <span>Categorization & Services</span>
-                                  </span>
-                                  <span className="text-[10px] text-muted-foreground">
-                                    {isInlineAnalyzing
-                                      ? "Analyzing & updating categories…"
-                                      : "Auto-filled by AI — modify if needed"}
-                                  </span>
-                                </div>
-                                <div className="grid grid-cols-1 gap-2.5 sm:grid-cols-3">
-                                  <Select
-                                    label="Practice Area"
-                                    required
-                                    value={selectedPracticeArea}
-                                    onChange={handlePracticeAreaChange}
-                                    options={practiceAreaOptions}
-                                    disabled={isInlineAnalyzing}
-                                  />
-                                  <Select
-                                    label="Specialization"
-                                    required
-                                    value={selectedSpecialization}
-                                    onChange={handleSpecializationChange}
-                                    disabled={
-                                      isInlineAnalyzing ||
-                                      !selectedPracticeArea ||
-                                      specializationOptions.length <= 1
-                                    }
-                                    options={specializationOptions}
-                                  />
-                                  <Select
-                                    label="Legal Service"
-                                    required
-                                    value={
-                                      selectedLegalServices[0] || (legalServiceOptions[1]?.value ?? "")
-                                    }
-                                    onChange={(val) => setSelectedLegalServices(val ? [val] : [])}
-                                    disabled={
-                                      isInlineAnalyzing ||
-                                      !selectedSpecialization ||
-                                      legalServiceOptions.length <= 1
-                                    }
-                                    options={legalServiceOptions}
-                                  />
-                                </div>
-                              </div>
-                            </>
+                              </>
                             )}
                           </div>
                         )}
                       </div>
                     </div>
-                  )}
-                </Card>
-              )}
+                  </div>
+                )}
+              </div>
             </div>
 
             {/* Upload Proof/Supporting files Card */}
