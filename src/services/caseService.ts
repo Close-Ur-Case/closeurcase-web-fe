@@ -511,6 +511,8 @@ export function mapBackendCaseToLegalCase(
     id: backend.id,
     title: computedTitle,
     description: backend.description,
+    petitioner: backend.petitioner,
+    respondent: backend.respondent,
     category,
     citizenId: backend.citizenId,
     citizenName: citizen?.name || backend.petitioner || "Citizen User",

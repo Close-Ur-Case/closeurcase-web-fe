@@ -680,20 +680,9 @@ export class CaseService {
       updateFields.cnr = null;
     }
 
-    const effectiveCnr = generatedCnr || existing.cnr;
-    if (targetStage === "cnrgenerated" && effectiveCnr) {
-      const [imp] = await db
-        .select()
-        .from(casesImported)
-        .where(or(eq(casesImported.cnr, effectiveCnr), ilike(casesImported.cnr, effectiveCnr)));
-      if (imp) {
-        const cd = (imp.rawData as any)?.data?.courtCaseData || imp.caseDetails || {};
-        const p = Array.isArray(cd.petitioners) && cd.petitioners[0] ? cd.petitioners[0] : null;
-        const r = Array.isArray(cd.respondents) && cd.respondents[0] ? cd.respondents[0] : null;
-        if (p) updateFields.petitioner = p;
-        if (r) updateFields.respondent = r;
-      }
-    }
+    // Note: Do NOT update petitioner and respondent in cases_user table when linking CNR.
+    // cases_user stores user/citizen party names; cases_imported stores official court party names.
+
 
     const [updated] = await db
       .update(casesUser)
@@ -758,13 +747,16 @@ export class CaseService {
       updatedAt: new Date(),
     };
 
-    if (updates.petitioner !== undefined) updateFields.petitioner = updates.petitioner;
-    if (updates.respondent !== undefined) updateFields.respondent = updates.respondent;
-    if (updates.title !== undefined && updates.petitioner === undefined) {
-      const parts = updates.title.split(/\s+vs\.?\s+|\s+-\s+|\s+—\s+/i);
-      updateFields.petitioner = parts[0]?.trim() || updates.title;
-      if (parts.length > 1 && parts[1]?.trim()) {
-        updateFields.respondent = parts[1].trim();
+    const hasLinkedCnr = Boolean(existing.cnr || (updates.cnr !== undefined ? updates.cnr : null));
+    if (!hasLinkedCnr) {
+      if (updates.petitioner !== undefined) updateFields.petitioner = updates.petitioner;
+      if (updates.respondent !== undefined) updateFields.respondent = updates.respondent;
+      if (updates.title !== undefined && updates.petitioner === undefined) {
+        const parts = updates.title.split(/\s+vs\.?\s+|\s+-\s+|\s+—\s+/i);
+        updateFields.petitioner = parts[0]?.trim() || updates.title;
+        if (parts.length > 1 && parts[1]?.trim()) {
+          updateFields.respondent = parts[1].trim();
+        }
       }
     }
     if (updates.description !== undefined) updateFields.description = updates.description;

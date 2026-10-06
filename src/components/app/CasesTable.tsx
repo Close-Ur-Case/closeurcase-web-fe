@@ -383,6 +383,8 @@ export function CasesTable({
       } else if (p) {
         initialPartyNames = p;
       }
+    } else if (live.petitioner) {
+      initialPartyNames = live.respondent ? `${live.petitioner} Vs. ${live.respondent}` : live.petitioner;
     }
 
     setEditingCase(live);
@@ -511,10 +513,12 @@ export function CasesTable({
           console.warn("[CasesTable] Error loading cases_imported on status change:", err);
         }
       } else {
-        const p = editingCase?.caseDetails?.petitioners?.[0];
-        const r = editingCase?.caseDetails?.respondents?.[0];
+        const p = editingCase?.petitioner || editingCase?.caseDetails?.petitioners?.[0];
+        const r = editingCase?.respondent || editingCase?.caseDetails?.respondents?.[0];
         if (p && r) {
           setPartyNames(`${p} Vs. ${r}`);
+        } else if (p) {
+          setPartyNames(p);
         }
       }
     }
@@ -666,8 +670,8 @@ export function CasesTable({
                     cnr: query,
                     courtName: cd.courtName || prev.caseDetails?.courtName,
                     caseType: cd.caseType || prev.caseDetails?.caseType,
-                    petitioners: cd.petitioners || prev.caseDetails?.petitioners,
-                    respondents: cd.respondents || prev.caseDetails?.respondents,
+                    petitioners: prev.caseDetails?.petitioners,
+                    respondents: prev.caseDetails?.respondents,
                     historyOfCaseHearings: hearings,
                     hearingCount: hearings.length,
                   },
@@ -687,8 +691,8 @@ export function CasesTable({
                     cnr: query,
                     courtName: cd.courtName || c.caseDetails?.courtName,
                     caseType: cd.caseType || c.caseDetails?.caseType,
-                    petitioners: cd.petitioners || c.caseDetails?.petitioners,
-                    respondents: cd.respondents || c.caseDetails?.respondents,
+                    petitioners: c.caseDetails?.petitioners,
+                    respondents: c.caseDetails?.respondents,
                     historyOfCaseHearings: hearings,
                     hearingCount: hearings.length,
                   },
@@ -838,6 +842,7 @@ export function CasesTable({
       const respondent = vsParts.length > 1 ? vsParts.slice(1).join(" vs ").trim() : undefined;
 
       const canonicalCaseStatus = caseStatus === "CNR Generated" ? "CNR Generated" : caseStatus;
+      const isCnrStatus = canonicalCaseStatus === "CNR Generated";
 
       const updatedCases = allCases.map((c) => {
         if (c.id !== targetCaseId) return c;
@@ -855,13 +860,13 @@ export function CasesTable({
           : c.timeline;
         return {
           ...c,
-          title: trimmedTitle,
+          title: isCnrStatus ? (c.title || trimmedTitle) : trimmedTitle,
           caseDetails: {
             ...(c.caseDetails || {}),
             caseNumber: trimmedCaseNo || c.caseDetails?.caseNumber,
             cnr: trimmedCnr || c.caseDetails?.cnr,
-            petitioners: petitioner ? [petitioner] : c.caseDetails?.petitioners,
-            respondents: respondent ? [respondent] : c.caseDetails?.respondents,
+            petitioners: isCnrStatus ? c.caseDetails?.petitioners : (petitioner ? [petitioner] : c.caseDetails?.petitioners),
+            respondents: isCnrStatus ? c.caseDetails?.respondents : (respondent ? [respondent] : c.caseDetails?.respondents),
             historyOfCaseHearings,
             hearingCount: historyOfCaseHearings.length,
           },
@@ -883,15 +888,19 @@ export function CasesTable({
 
       // Persist changes to backend server and sync response back to local store
       try {
-        const isCnrStatus = canonicalCaseStatus === "CNR Generated";
-        await caseService.updateCase(targetCaseId, {
-          title: trimmedTitle,
-          petitioner,
-          respondent: respondent || null,
+        const updatePayload: Record<string, any> = {
           cnr: isCnrStatus ? trimmedCnr || null : null,
           status: canonicalCaseStatus,
           caseStatus: canonicalCaseStatus,
-        });
+        };
+        // When CNR is generated/imported, DO NOT update petitioner and respondent in cases_user table
+        if (!isCnrStatus) {
+          updatePayload.title = trimmedTitle;
+          updatePayload.petitioner = petitioner;
+          updatePayload.respondent = respondent || null;
+        }
+
+        await caseService.updateCase(targetCaseId, updatePayload);
 
         if (statusChanged || (trimmedCnr && trimmedCnr !== editingCase.caseDetails?.cnr)) {
           await caseService.updateCaseStage(targetCaseId, {

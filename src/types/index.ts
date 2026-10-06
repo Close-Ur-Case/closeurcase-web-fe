@@ -338,6 +338,8 @@ export interface LegalCase {
   title: string;
   /** Citizen's own free-text case description. */
   description: string;
+  petitioner?: string;
+  respondent?: string | null;
   category: LegalCategory;
   citizenId?: string;
   citizenName: string;
