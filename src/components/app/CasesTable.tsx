@@ -553,19 +553,52 @@ export function CasesTable({
           ? mapBackendCaseToLegalCase(dbCase, citizensList, lawyersList)
           : null;
 
-      // 3. Update local form states
+      // 3. Update local form states with original data from cases_user
+      const origPetitioner = dbCase?.petitioner || mapped?.petitioner || editingCase?.petitioner || "";
+      const origRespondent = dbCase?.respondent ?? mapped?.respondent ?? editingCase?.respondent ?? "";
+      let originalPartyNames = "";
+      if (origPetitioner && origRespondent) {
+        originalPartyNames = `${origPetitioner} Vs. ${origRespondent}`;
+      } else if (origPetitioner) {
+        originalPartyNames = origPetitioner;
+      } else if (mapped?.title) {
+        originalPartyNames = mapped.title;
+      } else if (editingCase?.title) {
+        originalPartyNames = editingCase.title;
+      }
+
       setCaseStatus("Filing in progress");
+      setPartyNames(originalPartyNames);
       setCnr("");
       setImportedCnr(null);
       setCnrError("");
       setPartyNameError("");
       setUnlinkConfirmOpen(false);
+      if (mapped) {
+        setJourney(getCourtHistory(mapped));
+        if (mapped.caseDetails?.caseNumber) {
+          setCaseNo(mapped.caseDetails.caseNumber);
+        }
+      }
 
       // 4. Update local app store
       const today = todayISO();
       const updatedCases = allCases.map((c) => {
         if (c.id !== targetCaseId) return c;
-        if (mapped) return mapped;
+        if (mapped) {
+          return {
+            ...mapped,
+            title: originalPartyNames || mapped.title,
+            caseDetails: {
+              ...(mapped.caseDetails || {}),
+              cnr: undefined,
+              petitioners: origPetitioner ? [origPetitioner] : mapped.caseDetails?.petitioners,
+              respondents: origRespondent ? [origRespondent] : mapped.caseDetails?.respondents,
+            },
+            status: "In Progress" as CaseStatus,
+            caseStatus: "Filing in progress",
+          };
+        }
         const timeline = [
           ...(c.timeline || []),
           {
@@ -578,9 +611,12 @@ export function CasesTable({
         ];
         return {
           ...c,
+          title: originalPartyNames || c.title,
           caseDetails: {
             ...(c.caseDetails || {}),
             cnr: undefined,
+            petitioners: origPetitioner ? [origPetitioner] : c.caseDetails?.petitioners,
+            respondents: origRespondent ? [origRespondent] : c.caseDetails?.respondents,
           },
           status: "In Progress" as CaseStatus,
           caseStatus: "Filing in progress",
@@ -589,7 +625,7 @@ export function CasesTable({
         };
       });
 
-      const finalSavedCase = mapped || updatedCases.find((c) => c.id === targetCaseId);
+      const finalSavedCase = updatedCases.find((c) => c.id === targetCaseId) || mapped;
       saveCases(updatedCases);
       setAllCases(updatedCases);
       if (finalSavedCase) {
