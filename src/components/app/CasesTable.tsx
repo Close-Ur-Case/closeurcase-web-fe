@@ -13,7 +13,6 @@ import {
   Maximize2,
   Minimize2,
   ChevronRight,
-  ChevronDown,
   CalendarClock,
   Landmark,
   User,
@@ -54,6 +53,7 @@ import {
   getLawyerRatingForCase,
 } from "@/data/appStore";
 import { caseService } from "@/services/caseService";
+import { apiClient } from "@/services/apiClient";
 import { chatService } from "@/services/chatService";
 import type { ChatMessage } from "@/components/app/CaseChat";
 import { storageService } from "@/services/storageService";
@@ -77,8 +77,6 @@ import {
   COURTS_FLAT,
   PRE_CNR_STAGES,
   StatusBadge,
-  getStatusStyle,
-  resolveCaseFilterStatus,
   fmtDate,
   todayISO,
   getCourtHistory,
@@ -199,44 +197,14 @@ export function CasesTable({
   const [isDragging, setIsDragging] = useState(false);
   const [previewDoc, setPreviewDoc] = useState<CaseDocument | null>(null);
   const [previewFullScreen, setPreviewFullScreen] = useState(false);
-  const [updatingStatusCaseId, setUpdatingStatusCaseId] = useState<string | null>(null);
-
-  async function handleQuickStatusChange(caseItem: LegalCase, newFilterStatus: string) {
-    if (updatingStatusCaseId) return;
-    setUpdatingStatusCaseId(caseItem.id);
-    try {
-      // 1. Optimistically update local state & store
-      updateCaseStatus(caseItem.id, newFilterStatus as CaseStatus);
-      const updatedCase: LegalCase = {
-        ...caseItem,
-        status: newFilterStatus as CaseStatus,
-        caseStatus: newFilterStatus,
-      };
-      onCaseUpdate?.(updatedCase);
-
-      // 2. Persist to backend database
-      await Promise.allSettled([
-        caseService.updateCase(caseItem.id, {
-          status: newFilterStatus,
-          caseStatus: newFilterStatus,
-        }),
-        caseService.updateCaseStage(caseItem.id, {
-          stage: newFilterStatus,
-          status: newFilterStatus,
-        }),
-      ]);
-    } catch (err) {
-      console.error("[CasesTable] Failed to update case status on backend:", err);
-    } finally {
-      setUpdatingStatusCaseId(null);
-    }
-  }
 
   const [partyNames, setPartyNames] = useState("");
   const [partyNameError, setPartyNameError] = useState("");
   const [caseNo, setCaseNo] = useState("");
   const [cnr, setCnr] = useState("");
   const [cnrError, setCnrError] = useState("");
+  const [importedCnr, setImportedCnr] = useState<string | null>(null);
+  const [isImportingCnr, setIsImportingCnr] = useState(false);
   const [caseStatus, setCaseStatus] = useState("Submitted");
   const [journey, setJourney] = useState<CourtHistoryRow[]>([]);
   const [cnrImportResult, setCnrImportResult] = useState<CnrImportResult>(null);
@@ -391,11 +359,21 @@ export function CasesTable({
     setPartyNames(c.title || "");
     setPartyNameError("");
     setCaseNo(c.caseDetails?.caseNumber || "");
-    setCnr(c.caseDetails?.cnr || "");
+    const initialCnr = c.caseDetails?.cnr || "";
+    setCnr(initialCnr);
     setCnrError("");
     setCaseStatus(c.status || "Submitted");
     setJourney(getCourtHistory(c));
     setCnrImportResult(null);
+
+    // If case already has a 16-character CNR and is already CNR Generated, it is pre-verified.
+    // Otherwise, switching to or modifying CNR Generated requires a valid import.
+    const filterKey = STORED_STATUS_TO_FILTER[c.status] ?? (c as any).caseStatus ?? c.status;
+    if (filterKey === "CNR Generated" && initialCnr.trim().length === 16) {
+      setImportedCnr(initialCnr.trim().toUpperCase());
+    } else {
+      setImportedCnr(null);
+    }
 
     setDialogOpen(true);
   }
@@ -404,65 +382,150 @@ export function CasesTable({
     setCnr(value);
     setCnrError("");
     setCnrImportResult(null);
+    const upperVal = value.trim().toUpperCase();
+    if (importedCnr && importedCnr !== upperVal) {
+      setImportedCnr(null);
+    }
   }
 
-  // Checks our own database first (a case already on file), then falls back to eCourts —
-  // and on an eCourts hit, saves it into our database immediately so the next lookup for
-  // this CNR is served from our own records instead of hitting eCourts again.
-  function handleImportCnr() {
-    const query = cnr.trim();
-    if (!query) return;
+  // Checks our own database first, then backend eCourts API, then falls back to fixtures
+  async function handleImportCnr() {
+    const query = cnr.trim().toUpperCase();
+    if (!query) {
+      setCnrError("Please enter a CNR number.");
+      return;
+    }
 
+    const cnrCheck = validateCNR(query);
+    if (!cnrCheck.isValid) {
+      setCnrError(cnrCheck.error || "CNR number must be exactly 16 alphanumeric characters.");
+      return;
+    }
+
+    setIsImportingCnr(true);
+    setCnrError("");
+
+    // 1st check case_imported table via backend getImportedCase.
+    // If not present in case_imported, backend connects to eCourts API and inserts into case_imported.
+    try {
+      const res = await caseService.getImportedCase<any>(query);
+      if (res && (res.cnr || res.courtCaseData?.caseNumber || res.data?.courtCaseData?.caseNumber || res.caseDetails?.caseNumber)) {
+        const cd = res.courtCaseData || res.data?.courtCaseData || res.caseDetails || res.rawData?.data?.courtCaseData || {};
+        const p =
+          Array.isArray(cd.petitioners) && cd.petitioners[0] ? cd.petitioners[0] : "";
+        const r =
+          Array.isArray(cd.respondents) && cd.respondents[0] ? cd.respondents[0] : "";
+        const title =
+          p && r
+            ? `${p} Vs. ${r}`
+            : cd.caseType
+            ? `${cd.caseType} - ${cd.caseNumber || query}`
+            : cd.caseNumber || query;
+        const caseNumber = cd.caseNumber || "";
+        const hearings = Array.isArray(cd.historyOfCaseHearings) ? cd.historyOfCaseHearings : [];
+
+        setPartyNames(title);
+        setCaseNo(caseNumber);
+        setJourney(hearings.map((h: any, i: number) => ({ ...h, id: `h_${i}` })));
+        setImportedCnr(query);
+        setCnrError("");
+
+        if (editingCase) {
+          const today = todayISO();
+          const updatedCases = allCases.map((c) =>
+            c.id === editingCase.id
+              ? {
+                  ...c,
+                  title,
+                  source: "ecourt" as const,
+                  caseDetails: {
+                    ...(c.caseDetails || {}),
+                    caseNumber,
+                    cnr: query,
+                    courtName: cd.courtName || c.caseDetails?.courtName,
+                    caseType: cd.caseType || c.caseDetails?.caseType,
+                    petitioners: cd.petitioners || c.caseDetails?.petitioners,
+                    respondents: cd.respondents || c.caseDetails?.respondents,
+                    historyOfCaseHearings: hearings,
+                    hearingCount: hearings.length,
+                  },
+                  updatedAt: today,
+                }
+              : c,
+          );
+          saveCases(updatedCases);
+        }
+
+        const source =
+          res.source === "database" || res.isNewlyImported === false ? "database" : "ecourts";
+        setCnrImportResult({ status: "found", source, title });
+        setIsImportingCnr(false);
+        return;
+      }
+    } catch (err) {
+      console.warn("[handleImportCnr] getImportedCase notice:", err);
+    }
+
+    // 2. Check local database / existing cases
     const dbMatch = allCases.find((c) => {
       if (c.id === editingCase?.id) return false;
-      return (c.caseDetails?.cnr || "").toLowerCase() === query.toLowerCase();
+      return (c.caseDetails?.cnr || "").toUpperCase() === query;
     });
     if (dbMatch) {
       setPartyNames(dbMatch.title);
       setCaseNo(dbMatch.caseDetails?.caseNumber || "");
       setJourney(getCourtHistory(dbMatch));
+      setImportedCnr(query);
+      setCnrError("");
       setCnrImportResult({ status: "found", source: "database", title: dbMatch.title });
+      setIsImportingCnr(false);
       return;
     }
 
+    // 3. Fallback to fixture
     const ecourtMatch =
       searchCourtCases({ method: "CNR Number", query }).find(
-        (m) => m.cnrNumber.toLowerCase() === query.toLowerCase(),
+        (m) => m.cnrNumber.toUpperCase() === query,
       ) ?? null;
 
-    if (!ecourtMatch) {
-      setCnrImportResult({ status: "not-found" });
+    if (ecourtMatch) {
+      const hearings = ecourtMatch.historyOfCaseHearings || [];
+      setPartyNames(ecourtMatch.title);
+      setCaseNo(ecourtMatch.caseNumber);
+      setJourney(hearings.map((h, i) => ({ ...h, id: `h_${i}` })));
+      setImportedCnr(query);
+      setCnrError("");
+
+      if (editingCase) {
+        const today = todayISO();
+        const updatedCases = allCases.map((c) =>
+          c.id === editingCase.id
+            ? {
+                ...c,
+                title: ecourtMatch.title,
+                source: "ecourt" as const,
+                caseDetails: {
+                  ...(c.caseDetails || {}),
+                  caseNumber: ecourtMatch.caseNumber,
+                  cnr: query,
+                  historyOfCaseHearings: hearings,
+                  hearingCount: hearings.length,
+                },
+                updatedAt: today,
+              }
+            : c,
+        );
+        saveCases(updatedCases);
+      }
+
+      setCnrImportResult({ status: "found", source: "ecourts", title: ecourtMatch.title });
+      setIsImportingCnr(false);
       return;
     }
 
-    const hearings = ecourtMatch.historyOfCaseHearings || [];
-    setPartyNames(ecourtMatch.title);
-    setCaseNo(ecourtMatch.caseNumber);
-    setJourney(hearings.map((h, i) => ({ ...h, id: `h_${i}` })));
-
-    if (editingCase) {
-      const today = todayISO();
-      const updatedCases = allCases.map((c) =>
-        c.id === editingCase.id
-          ? {
-              ...c,
-              title: ecourtMatch.title,
-              source: "ecourt" as const,
-              caseDetails: {
-                ...(c.caseDetails || {}),
-                caseNumber: ecourtMatch.caseNumber,
-                cnr: query,
-                historyOfCaseHearings: hearings,
-                hearingCount: hearings.length,
-              },
-              updatedAt: today,
-            }
-          : c,
-      );
-      saveCases(updatedCases);
-    }
-
-    setCnrImportResult({ status: "found", source: "ecourts", title: ecourtMatch.title });
+    setCnrError("No matching case found in our database or eCourts for this CNR.");
+    setCnrImportResult({ status: "not-found" });
+    setIsImportingCnr(false);
   }
 
   function handleApprove(c: LegalCase) {
@@ -493,9 +556,16 @@ export function CasesTable({
     setPartyNameError("");
 
     if (caseStatus === "CNR Generated") {
-      const cnrCheck = validateCNR(cnr);
+      const trimmedCnr = cnr.trim().toUpperCase();
+      const cnrCheck = validateCNR(trimmedCnr);
       if (!cnrCheck.isValid) {
-        setCnrError(cnrCheck.error || "CNR number is required.");
+        setCnrError(cnrCheck.error || "CNR number must be exactly 16 alphanumeric characters.");
+        return;
+      }
+      if (!importedCnr || importedCnr !== trimmedCnr) {
+        setCnrError(
+          "Valid import required: Click 'Import' to verify and load case details before saving as CNR Generated.",
+        );
         return;
       }
     }
@@ -509,7 +579,7 @@ export function CasesTable({
       const statusChanged = editingCase.status !== caseStatus;
       const trimmedTitle = partyNames.trim();
       const trimmedCaseNo = caseNo.trim();
-      const trimmedCnr = cnr.trim();
+      const trimmedCnr = cnr.trim().toUpperCase();
       const updatedCases = allCases.map((c) => {
         if (c.id !== targetCaseId) return c;
         const timeline = statusChanged
@@ -535,11 +605,17 @@ export function CasesTable({
             hearingCount: historyOfCaseHearings.length,
           },
           status: caseStatus as CaseStatus,
+          caseStatus,
           timeline,
           updatedAt: today,
         };
       });
       saveCases(updatedCases);
+
+      const savedCase = updatedCases.find((c) => c.id === targetCaseId);
+      if (savedCase) {
+        onCaseUpdate?.(savedCase);
+      }
 
       // Persist changes to backend server
       caseService
@@ -555,6 +631,7 @@ export function CasesTable({
         .updateCaseStage(targetCaseId, {
           stage: caseStatus,
           status: caseStatus,
+          generatedCnr: trimmedCnr || undefined,
         })
         .catch((err: unknown) => console.warn("[Case Edit Stage] Server notice:", err));
     }
@@ -798,53 +875,7 @@ export function CasesTable({
                     </div>
                     <div className="flex shrink-0 flex-wrap items-center gap-1.5 self-start sm:self-auto">
                       <CaseTypeBadge caseItem={c} />
-                      {isLawyer ? (
-                        <div
-                          className="relative inline-flex items-center"
-                          onClick={(e) => e.stopPropagation()}
-                        >
-                          {(() => {
-                            const isUpdating = updatingStatusCaseId === c.id;
-                            const filterKey = resolveCaseFilterStatus(c);
-                            const meta = STATUS_META[filterKey] || STATUS_META["Pending by Lawyer"];
-                            const style = getStatusStyle(meta.color);
-                            return (
-                              <div className="relative inline-flex items-center">
-                                <select
-                                  aria-label={`Case Status for ${c.id}`}
-                                  value={filterKey}
-                                  onChange={(e) => handleQuickStatusChange(c, e.target.value)}
-                                  disabled={isUpdating}
-                                  className={`cursor-pointer appearance-none rounded-lg pl-6 pr-6 py-1 text-xs font-semibold border border-border/60 transition-all focus:outline-none focus:ring-1 focus:ring-primary ${style.bg} ${
-                                    isUpdating ? "opacity-60 pointer-events-none" : ""
-                                  }`}
-                                  title={`Case Status: ${meta.label} — ${meta.meaning}`}
-                                >
-                                  {STATUS_LIST.map((s) => (
-                                    <option
-                                      key={s}
-                                      value={s}
-                                      className="bg-card text-foreground font-medium text-xs"
-                                    >
-                                      {STATUS_META[s].label}
-                                    </option>
-                                  ))}
-                                </select>
-                                {isUpdating ? (
-                                  <Loader2 className="absolute left-2 h-3 w-3 animate-spin text-primary pointer-events-none" />
-                                ) : (
-                                  <span
-                                    className={`absolute left-2.5 h-1.5 w-1.5 shrink-0 rounded-full pointer-events-none ${style.dot}`}
-                                  />
-                                )}
-                                <ChevronDown className="absolute right-2 h-3.5 w-3.5 pointer-events-none text-current opacity-70" />
-                              </div>
-                            );
-                          })()}
-                        </div>
-                      ) : (
-                        <StatusBadge status={c} />
-                      )}
+                      <StatusBadge status={c} />
                     </div>
                   </div>
 
@@ -1094,10 +1125,10 @@ export function CasesTable({
                       </div>
 
                       {caseStatus === "CNR Generated" && (
-                        <div className="sm:col-span-2 flex flex-col gap-1">
+                        <div className="sm:col-span-2 flex flex-col gap-2 rounded-xl border border-primary/20 bg-primary/[0.03] p-3.5">
                           <div className="flex items-center justify-between">
-                            <label className="text-[11px] font-semibold text-muted-foreground">
-                              CNR No. (16 Alphanumeric Characters){" "}
+                            <label className="text-[11px] font-semibold text-foreground flex items-center gap-1">
+                              <span>CNR No. (16 Alphanumeric Characters)</span>
                               <span className="text-destructive">*</span>
                             </label>
                             <span className="font-mono text-[10px] text-muted-foreground">
@@ -1108,7 +1139,7 @@ export function CasesTable({
                             <input
                               value={cnr}
                               onChange={(e) => handleCnrChange(sanitizeCNR(e.target.value))}
-                              placeholder="e.g. TSHC010011342025"
+                              placeholder="e.g. APVK020004422026"
                               maxLength={16}
                               className={`h-11 flex-1 rounded-lg border px-3.5 text-sm text-foreground font-mono outline-hidden focus:border-primary focus:ring-1 focus:ring-primary uppercase ${
                                 cnrError
@@ -1119,19 +1150,39 @@ export function CasesTable({
                             <div className="flex shrink-0 gap-2">
                               <Button
                                 variant="tonal"
-                                icon={<Download className="h-4 w-4" />}
+                                icon={
+                                  isImportingCnr ? (
+                                    <Loader2 className="h-4 w-4 animate-spin" />
+                                  ) : (
+                                    <Download className="h-4 w-4" />
+                                  )
+                                }
                                 onClick={handleImportCnr}
-                                disabled={cnr.length !== 16}
+                                disabled={cnr.length !== 16 || isImportingCnr}
                               >
-                                Import
+                                {isImportingCnr ? "Importing..." : "Import"}
                               </Button>
                             </div>
                           </div>
+
+                          {/* Guidance, Error, or Verified Badges */}
                           {cnrError ? (
-                            <p className="text-[10.5px] font-medium text-destructive">{cnrError}</p>
+                            <p className="text-[11px] font-semibold text-destructive flex items-center gap-1">
+                              <X className="h-3.5 w-3.5 shrink-0" />
+                              <span>{cnrError}</span>
+                            </p>
                           ) : cnr && cnr.length !== 16 ? (
                             <p className="text-[10.5px] font-medium text-amber-600 dark:text-amber-400">
-                              CNR number must be exactly 16 characters (e.g., TSHC010011342025).
+                              CNR number must be exactly 16 characters (e.g., APVK020004422026).
+                            </p>
+                          ) : importedCnr && importedCnr === cnr.trim().toUpperCase() ? (
+                            <div className="flex items-center gap-1.5 rounded-lg bg-emerald-500/10 px-2.5 py-1.5 text-[11px] font-semibold text-emerald-600 dark:text-emerald-400">
+                              <Check className="h-4 w-4 shrink-0" />
+                              <span>Case verified & imported successfully for CNR {importedCnr}. Ready to save.</span>
+                            </div>
+                          ) : cnr.length === 16 ? (
+                            <p className="text-[11px] font-medium text-amber-600 dark:text-amber-400 flex items-center gap-1">
+                              <span>* Click <strong>Import</strong> to verify and fetch case details before saving as CNR Generated.</span>
                             </p>
                           ) : null}
                         </div>
@@ -1358,7 +1409,26 @@ export function CasesTable({
                   <Button variant="text" onClick={() => setDialogOpen(false)}>
                     {isLawyer ? "Cancel" : "Close"}
                   </Button>
-                  {isLawyer && <Button onClick={handleSaveCase}>Save Case</Button>}
+                  {isLawyer && (
+                    <span
+                      title={
+                        caseStatus === "CNR Generated" &&
+                        (!importedCnr || importedCnr !== cnr.trim().toUpperCase())
+                          ? "Please import a valid 16-character CNR before saving as CNR Generated"
+                          : undefined
+                      }
+                    >
+                      <Button
+                        onClick={handleSaveCase}
+                        disabled={
+                          caseStatus === "CNR Generated" &&
+                          (!importedCnr || importedCnr !== cnr.trim().toUpperCase())
+                        }
+                      >
+                        Save Case
+                      </Button>
+                    </span>
+                  )}
                 </div>
               </div>
             </div>
@@ -1396,16 +1466,9 @@ export function CasesTable({
               </div>
               <p className="text-sm leading-relaxed text-muted-foreground">
                 {cnrImportResult.status === "found" && cnrImportResult.source === "database" ? (
-                  <>
-                    Already in our database — matched <strong>"{cnrImportResult.title}"</strong>. No
-                    need to fetch from eCourts.
-                  </>
+                  <>The case with this CNR is available in imports , so it will directly imported from imports.</>
                 ) : cnrImportResult.status === "found" ? (
-                  <>
-                    Fetched from eCourts and saved to our database — matched{" "}
-                    <strong>"{cnrImportResult.title}"</strong>. The next import for this CNR will be
-                    served from our records instead of eCourts.
-                  </>
+                  <>Case with this CNR not present in your imports it will imported from ecourts and will be saved to imports.</>
                 ) : (
                   "No matching case found in our database or eCourts for this CNR."
                 )}

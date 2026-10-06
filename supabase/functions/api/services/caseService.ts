@@ -7,6 +7,7 @@ import { eq, desc, asc, and, or, ilike, sql, inArray } from "drizzle-orm";
 import { ApiError } from "../utils/apiError.ts";
 import { NotificationService } from "./notificationService.ts";
 import { LawyerCategoryService } from "./lawyerCategoryService.ts";
+import { FakeEcourtsService } from "./fakeEcourtsService.ts";
 
 export class CaseService {
   static mapDocRecord(d: CaseDocumentRecord | any) {
@@ -96,7 +97,11 @@ export class CaseService {
         .from(casesImported)
         .where(or(eq(casesImported.cnr, cnr), ilike(casesImported.cnr, cnr)));
 
-      if (existing && existing.rawData && (existing.rawData as any).caseDetails) {
+      if (
+        existing &&
+        existing.rawData &&
+        (existing.rawData as any).data?.courtCaseData
+      ) {
         return existing;
       }
     }
@@ -104,61 +109,72 @@ export class CaseService {
     const nowIso = new Date().toISOString();
     const caseNumber = `CNR/${cnr.slice(-8)}`;
 
-    const caseDetails = payload?.caseDetails || (canonicalRecord?.caseDetails
-      ? {
-          ...canonicalRecord.caseDetails,
-          cnr,
-          caseNumber: cnr === "DLND020047882015" ? canonicalRecord.caseDetails.caseNumber : caseNumber,
-        }
-      : {
-          cnr,
-          caseNumber,
-          courtName: "District Court",
-          caseType: "CC",
-          caseStatus: "PENDING",
-          filingDate: nowIso.slice(0, 10),
-          petitioners: ["Petitioner"],
-          respondents: ["State / Respondent"],
-          historyOfCaseHearings: [],
-          interimOrders: [],
-          judgmentOrders: [],
-          orderCount: 0,
-          hearingCount: 0,
-        });
+    let totalSuccessResponse: any = null;
+    let courtCaseData: any = null;
+    let entityInfo: any = null;
+    let files: any = null;
+    let descriptions: any = null;
+    let caseAiAnalysis: any = null;
 
-    const entityInfo = payload?.entityInfo || (canonicalRecord?.entityInfo
-      ? { ...canonicalRecord.entityInfo, cnr, dateCreated: nowIso, dateModified: nowIso }
-      : { cnr, dateCreated: nowIso, dateModified: nowIso });
-
-    const files = payload?.files || canonicalRecord?.files || { files: [] };
-    const descriptions = payload?.descriptions || canonicalRecord?.descriptions || { enumFields: [], enumLookup: {} };
-    const caseAiAnalysis = payload?.caseAiAnalysis !== undefined ? payload.caseAiAnalysis : (canonicalRecord?.caseAiAnalysis || null);
-
-    // Total success response: complete object containing all fields returned by eCourts API
-    const totalSuccessResponse = (payload && (payload.rawData || (payload.caseDetails && Object.keys(payload).length > 1)))
-      ? (payload.rawData || payload)
-      : (canonicalRecord
-        ? {
-            ...canonicalRecord,
-            caseDetails,
-            entityInfo,
-            files,
-            descriptions,
-            caseAiAnalysis,
-          }
-        : {
-            caseDetails,
-            entityInfo,
-            files,
-            descriptions,
-            caseAiAnalysis,
-          });
+    if (payload && (payload.rawData?.data?.courtCaseData || payload.data?.courtCaseData)) {
+      totalSuccessResponse = payload.rawData || payload;
+      const dataObj = totalSuccessResponse.data || {};
+      courtCaseData = dataObj.courtCaseData || {};
+      entityInfo = dataObj.entityInfo || { cnr, dateCreated: nowIso, dateModified: nowIso };
+      files = dataObj.files || { files: [] };
+      descriptions = dataObj.descriptions || { enumFields: [], enumLookup: {} };
+      caseAiAnalysis = dataObj.caseAiAnalysis || null;
+    } else if (cnr === "DLND020047882015" && canonicalRecord?.data?.courtCaseData) {
+      totalSuccessResponse = canonicalRecord;
+      courtCaseData = canonicalRecord.data.courtCaseData;
+      entityInfo = canonicalRecord.data.entityInfo;
+      files = canonicalRecord.data.files;
+      descriptions = canonicalRecord.data.descriptions;
+      caseAiAnalysis = canonicalRecord.data.caseAiAnalysis;
+    } else if (cnr.length === 16) {
+      totalSuccessResponse = FakeEcourtsService.generateFullResponse(cnr);
+      courtCaseData = totalSuccessResponse.data.courtCaseData;
+      entityInfo = totalSuccessResponse.data.entityInfo;
+      files = totalSuccessResponse.data.files;
+      descriptions = totalSuccessResponse.data.descriptions;
+      caseAiAnalysis = totalSuccessResponse.data.caseAiAnalysis;
+    } else {
+      courtCaseData = {
+        cnr,
+        caseNumber,
+        courtName: "District Court",
+        caseType: "CC",
+        caseStatus: "PENDING",
+        filingDate: nowIso.slice(0, 10),
+        petitioners: ["Petitioner"],
+        respondents: ["State / Respondent"],
+        historyOfCaseHearings: [],
+        interimOrders: [],
+        judgmentOrders: [],
+        orderCount: 0,
+        hearingCount: 0,
+      };
+      entityInfo = { cnr, dateCreated: nowIso, dateModified: nowIso };
+      files = { files: [] };
+      descriptions = { enumFields: [], enumLookup: {} };
+      caseAiAnalysis = null;
+      totalSuccessResponse = {
+        data: {
+          courtCaseData,
+          entityInfo,
+          files,
+          descriptions,
+          caseAiAnalysis,
+        },
+        meta: { request_id: "400006a5-0010-d800-b63f-84710c7967bb" },
+      };
+    }
 
     const [imported] = await db
       .insert(casesImported)
       .values({
         cnr,
-        caseDetails,
+        caseDetails: courtCaseData,
         entityInfo,
         files,
         descriptions,
@@ -170,7 +186,7 @@ export class CaseService {
       .onConflictDoUpdate({
         target: casesImported.cnr,
         set: {
-          caseDetails,
+          caseDetails: courtCaseData,
           entityInfo,
           files,
           descriptions,
@@ -198,16 +214,36 @@ export class CaseService {
       .from(casesImported)
       .where(or(eq(casesImported.cnr, cnr), ilike(casesImported.cnr, cnr)));
 
-    if (!found) {
-      // Auto-import if requested CNR matches canonical or pattern
+    if (!found || !(found.rawData as any)?.data?.courtCaseData) {
+      // Auto-import or upgrade legacy rawData structure to standard courtCaseData schema
       try {
-        return await this.importFromEcourts(cnr);
+        const imported = await this.importFromEcourts(cnr);
+        const courtCaseData = (imported.rawData as any)?.data?.courtCaseData || imported.caseDetails;
+        return {
+          ...imported,
+          courtCaseData,
+          source: found ? ("database" as const) : ("ecourts" as const),
+          isNewlyImported: !found,
+          importMessage: found
+            ? "The case with this CNR is available in imports, so it will directly imported from imports"
+            : "Case with this CNR not present in your imports it will imported from ecourts and will be saved to imports",
+        };
       } catch {
-        throw ApiError.notFound(`Imported case with CNR '${cnr}' not found`);
+        if (!found) {
+          throw ApiError.notFound(`Imported case with CNR '${cnr}' not found`);
+        }
       }
     }
 
-    return found;
+    const courtCaseData = (found.rawData as any)?.data?.courtCaseData || found.caseDetails;
+    return {
+      ...found,
+      courtCaseData,
+      source: "database" as const,
+      isNewlyImported: false,
+      importMessage:
+        "The case with this CNR is available in imports, so it will directly imported from imports",
+    };
   }
 
   static async listImportedCases(filters: { search?: string; limit?: number; offset?: number } = {}) {

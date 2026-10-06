@@ -1,5 +1,6 @@
 {
-  "caseDetails": {
+  "data": {
+    "courtCaseData": {
       "caseNumber": "202400248072016",
       "district": "New Delhi",
       "state": "DL",
@@ -145,5 +146,6 @@
       }
     },
     "caseAiAnalysis": null
-
+  },
+  "meta": { "request_id": "400006a5-0010-d800-b63f-84710c7967bb" }
 }

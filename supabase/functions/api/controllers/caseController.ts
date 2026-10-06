@@ -40,7 +40,9 @@ export async function importCase(c: Context) {
 export async function getImportedCase(c: Context) {
   const cnr = c.req.param("cnr")!;
   const result = await CaseService.getImportedCase(cnr);
-  return ApiResponse.success(c, result, `Imported court case '${cnr}' retrieved successfully`);
+  const message =
+    (result as any).importMessage || `Imported court case '${cnr}' retrieved successfully`;
+  return ApiResponse.success(c, result, message);
 }
 
 export async function listImportedCases(c: Context) {

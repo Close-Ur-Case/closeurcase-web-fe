@@ -17,6 +17,7 @@ import subscriptionRoutes from "./subscriptionRoutes.ts";
 import emailTemplateRoutes from "./emailTemplateRoutes.ts";
 import lookupRoutes from "./lookupRoutes.ts";
 import summarizationRoutes from "./summarizationRoutes.ts";
+import ecourtsRoutes from "./ecourtsRoutes.ts";
 import { caseAnalysis } from "../controllers/aiController.ts";
 import { caseAnalysisRoute } from "./aiRoutes.ts";
 import { ApiResponse } from "../utils/apiResponse.ts";
@@ -57,5 +58,6 @@ api.route("/admin", adminRoutes);
 api.route("/subscriptions", subscriptionRoutes);
 api.route("/email-templates", emailTemplateRoutes);
 api.route("/summarization", summarizationRoutes);
+api.route("/ecourts", ecourtsRoutes);
 
 export default api;

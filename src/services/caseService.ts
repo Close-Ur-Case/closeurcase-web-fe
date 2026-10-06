@@ -142,6 +142,13 @@ export const caseService = {
   },
 
   /**
+   * Get mock/live eCourts case docket by CNR
+   */
+  async getEcourtsDocket<T = Record<string, unknown>>(cnr: string): Promise<T> {
+    return apiClient.get<T>(`/ecourts/cases/${cnr}?raw=true`);
+  },
+
+  /**
    * Get case types lookup
    */
   async getCaseTypes(): Promise<CaseTypeLookup[]> {
@@ -256,25 +263,26 @@ export function mapBackendCaseToLegalCase(
     string,
     unknown
   >;
-  const impCaseDetails = (imp.caseDetails || imp.case_details || {}) as Record<
+  const impData = (imp.data && typeof imp.data === "object" ? imp.data : imp) as Record<string, unknown>;
+  const impCaseDetails = (impData.courtCaseData || impData.caseDetails || imp.caseDetails || imp.case_details || {}) as Record<
     string,
     unknown
   > as Partial<CaseDetails> & Record<string, unknown>;
-  const impEntityInfo = (imp.entityInfo || imp.entity_info || {}) as Record<
+  const impEntityInfo = (impData.entityInfo || imp.entityInfo || imp.entity_info || {}) as Record<
     string,
     unknown
   > as Partial<EntityInfo>;
-  const impFilesObj = imp.files as { files?: Array<Record<string, unknown>> } | undefined;
-  const impFiles = Array.isArray(imp.files)
-    ? (imp.files as Array<Record<string, unknown>>)
+  const impFilesObj = (impData.files || imp.files) as { files?: Array<Record<string, unknown>> } | undefined;
+  const impFiles = Array.isArray(impData.files || imp.files)
+    ? ((impData.files || imp.files) as Array<Record<string, unknown>>)
     : Array.isArray(impFilesObj?.files)
       ? impFilesObj.files
       : [];
-  const impDescriptions = (imp.descriptions || { enumFields: [], enumLookup: {} }) as {
+  const impDescriptions = (impData.descriptions || imp.descriptions || { enumFields: [], enumLookup: {} }) as {
     enumFields: string[];
     enumLookup: Record<string, Record<string, string>>;
   };
-  const impAiAnalysis = (imp.caseAiAnalysis || imp.case_ai_analysis || null) as AIReport | null;
+  const impAiAnalysis = (impData.caseAiAnalysis || imp.caseAiAnalysis || imp.case_ai_analysis || null) as AIReport | null;
 
   // Files: merge user documents and eCourts imported files
   const rawDocs: any[] = Array.isArray(backend.documents)

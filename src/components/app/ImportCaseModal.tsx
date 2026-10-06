@@ -1,4 +1,5 @@
 import { useState, useEffect } from "react";
+import { createPortal } from "react-dom";
 import { useNavigate } from "@tanstack/react-router";
 import {
   ChevronRight,
@@ -11,6 +12,8 @@ import {
   Check,
   Download,
   Inbox,
+  X,
+  Loader2,
 } from "lucide-react";
 import {
   Dialog,
@@ -31,6 +34,7 @@ import {
   type ImportSearchMethod,
   type ImportableCourtCase,
 } from "@/data/courtCasesFixture";
+import type { CaseStatus, LegalCategory } from "@/types";
 import { addCase, getActiveCourts, subscribeToStore } from "@/data/appStore";
 import { caseService } from "@/services/caseService";
 
@@ -134,14 +138,74 @@ export function ImportCaseModal({
     setStep("results");
   }
 
-  function runCnrSearch() {
-    if (!cnrQuery.trim()) return;
-    // A CNR number is a precise unique ID — unlike the broader party/case-number
-    // search, an exact-CNR miss should show "no match", never an unrelated fallback.
-    const matches = searchCourtCases({ method: "CNR Number", query: cnrQuery });
+  const [cnrImportResult, setCnrImportResult] = useState<{
+    status: "found" | "not-found";
+    source?: "database" | "ecourts";
+    title?: string;
+  } | null>(null);
+  const [isSearchingCnr, setIsSearchingCnr] = useState(false);
+
+  async function runCnrSearch() {
+    const query = cnrQuery.trim().toUpperCase();
+    if (!query) return;
     setMethod("CNR Number");
-    setResults(matches);
-    setStep("results");
+    setIsSearchingCnr(true);
+    setCnrImportResult(null);
+
+    try {
+      // 1st check case_imported table via backend getImportedCase.
+      // If not present in case_imported, backend connects to eCourts API and inserts into case_imported.
+      const res = await caseService.getImportedCase<any>(query);
+      if (res && (res.cnr || res.courtCaseData?.caseNumber || res.data?.courtCaseData?.caseNumber || res.caseDetails?.caseNumber)) {
+        const cd = res.courtCaseData || res.data?.courtCaseData || res.caseDetails || res.rawData?.data?.courtCaseData || {};
+        const p = Array.isArray(cd.petitioners) ? cd.petitioners : [];
+        const r = Array.isArray(cd.respondents) ? cd.respondents : [];
+        const title =
+          p[0] && r[0] ? `${p[0]} Vs. ${r[0]}` : (cd.caseNumber || query);
+        const matchItem: ImportableCourtCase = {
+          id: `imp_${query}`,
+          courtName: cd.courtName || "District Court",
+          caseType: cd.caseType || "Civil",
+          caseNumber: cd.caseNumber || `CNR/${query.slice(-8)}`,
+          caseYear: cd.filingDate ? cd.filingDate.slice(0, 4) : "2026",
+          cnrNumber: query,
+          diaryNumber: cd.diaryNumber || `D-${query.slice(-6)}`,
+          title,
+          category: (cd.category || "Civil") as LegalCategory,
+          stage: cd.purpose || cd.caseStatus || "Registered",
+          filingDate: cd.filingDate || new Date().toISOString().slice(0, 10),
+          petitioners: p.length ? p : ["Petitioner"],
+          respondents: r.length ? r : ["Respondent"],
+          petitionerLawyers: Array.isArray(cd.petitionerLawyers) ? cd.petitionerLawyers : ["Advocate"],
+          respondentLawyers: Array.isArray(cd.respondentLawyers) ? cd.respondentLawyers : ["Advocate"],
+          status: "Submitted" as CaseStatus,
+          city: cd.city || (typeof cd.courtName === "string" && cd.courtName.includes(",") ? cd.courtName.split(",")[1].trim() : "City"),
+          description: cd.purpose || "eCourts imported case",
+          historyOfCaseHearings: cd.historyOfCaseHearings || [],
+        };
+        const source =
+          res.source === "database" || res.isNewlyImported === false ? "database" : "ecourts";
+        setCnrImportResult({ status: "found", source, title });
+        setResults([matchItem]);
+        setStep("results");
+        setIsSearchingCnr(false);
+        return;
+      }
+    } catch (err) {
+      console.warn("[runCnrSearch] Backend import notice:", err);
+    }
+
+    // Fallback to local fixtures
+    const matches = searchCourtCases({ method: "CNR Number", query });
+    if (matches.length > 0) {
+      setCnrImportResult({ status: "found", source: "database", title: matches[0].title });
+      setResults(matches);
+      setStep("results");
+    } else {
+      setCnrImportResult({ status: "not-found" });
+      setResults([]);
+    }
+    setIsSearchingCnr(false);
   }
 
   function startConfirmImport(match: ImportableCourtCase) {
@@ -182,7 +246,8 @@ export function ImportCaseModal({
   const stepIndex = STEP_ORDER.indexOf(step);
 
   return (
-    <Dialog open={open} onOpenChange={handleClose}>
+    <>
+      <Dialog open={open} onOpenChange={handleClose}>
       <DialogHeader>
         <DialogTitle className="flex items-center gap-2 text-base font-bold text-foreground">
           <Download className="h-5 w-5 text-primary" />
@@ -240,8 +305,15 @@ export function ImportCaseModal({
                     placeholder="e.g. TSNI080001912025"
                     className="flex-1"
                   />
-                  <Button onClick={runCnrSearch} disabled={!cnrQuery.trim()}>
-                    Find
+                  <Button onClick={runCnrSearch} disabled={!cnrQuery.trim() || isSearchingCnr}>
+                    {isSearchingCnr ? (
+                      <span className="flex items-center gap-1.5">
+                        <Loader2 className="h-4 w-4 animate-spin" />
+                        <span>Searching...</span>
+                      </span>
+                    ) : (
+                      "Find"
+                    )}
                   </Button>
                 </div>
               </div>
@@ -496,6 +568,52 @@ export function ImportCaseModal({
         />
       </DialogFooter>
     </Dialog>
+
+      {/* CNR Import Result Popup */}
+      {cnrImportResult &&
+        createPortal(
+          <div
+            className="fixed inset-0 top-0 left-0 right-0 bottom-0 z-[110] flex h-screen w-screen min-h-[100dvh] items-center justify-center bg-black/70 p-4 backdrop-blur-sm animate-in fade-in duration-150"
+            onClick={(e) => {
+              if (e.target === e.currentTarget) setCnrImportResult(null);
+            }}
+          >
+            <div className="w-full max-w-sm rounded-2xl bg-[var(--md-sys-color-surface-container-low,#f5f3f7)] shadow-2xl border border-border/80 p-6 text-foreground">
+              <div className="flex items-center gap-3 mb-3">
+                <span
+                  className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-full ${
+                    cnrImportResult.status === "found"
+                      ? "bg-[var(--md-extended-color-success)]/10 text-[var(--md-extended-color-success)]"
+                      : "bg-destructive/10 text-destructive"
+                  }`}
+                >
+                  {cnrImportResult.status === "found" ? (
+                    <Check className="h-5 w-5" />
+                  ) : (
+                    <X className="h-5 w-5" />
+                  )}
+                </span>
+                <h3 className="text-base font-bold text-foreground">
+                  {cnrImportResult.status === "found" ? "Case Imported" : "No Match Found"}
+                </h3>
+              </div>
+              <p className="text-sm leading-relaxed text-muted-foreground">
+                {cnrImportResult.status === "found" && cnrImportResult.source === "database" ? (
+                  <>The case with this CNR is available in imports , so it will directly imported from imports.</>
+                ) : cnrImportResult.status === "found" ? (
+                  <>Case with this CNR not present in your imports it will imported from ecourts and will be saved to imports.</>
+                ) : (
+                  "No matching case found in our database or eCourts for this CNR."
+                )}
+              </p>
+              <div className="mt-5 flex justify-end">
+                <Button onClick={() => setCnrImportResult(null)}>OK</Button>
+              </div>
+            </div>
+          </div>,
+          document.body,
+        )}
+    </>
   );
 }
 
