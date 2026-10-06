@@ -18,7 +18,6 @@ import { formatDateTime } from "@/lib/dateUtils";
 import {
   ArrowLeft,
   ChevronRight,
-  Printer,
   Landmark,
   MapPin,
   User,
@@ -31,7 +30,6 @@ import {
   Clock,
   CheckCircle2,
   FileText,
-  MessageCircle,
 } from "lucide-react";
 
 export const Route = createFileRoute("/lawyer/cases/$id")({
@@ -142,28 +140,7 @@ function LawyerCaseDetailBody({
 
   return (
     <div className="space-y-5">
-      <PageHeader
-        title={c.title}
-        actions={
-          <div className="flex items-center gap-2">
-            <Link
-              to="/lawyer/chat/$id"
-              params={{ id: c.id }}
-              className="inline-flex cursor-pointer items-center gap-1.5 rounded-full bg-primary px-3.5 py-2 text-xs font-semibold text-primary-foreground hover:bg-primary/90 transition-all shadow-xs"
-            >
-              <MessageCircle className="h-3.5 w-3.5" />
-              <span>Chat with Client</span>
-            </Link>
-            <Button
-              variant="outlined"
-              icon={<Printer className="h-4 w-4" />}
-              onClick={() => window.print()}
-            >
-              Print
-            </Button>
-          </div>
-        }
-      />
+      <PageHeader title={c.title} />
 
       {/* Back Button */}
       <div className="-mt-3">

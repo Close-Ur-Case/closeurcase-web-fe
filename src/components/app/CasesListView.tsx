@@ -188,7 +188,7 @@ export function CasesListView() {
           ) : (
             <div className="grid grid-cols-1 gap-3 lg:grid-cols-2">
               {pageCases.map((c) => (
-                <CaseListCard key={c.id} caseItem={c} />
+                <CaseListCard key={c.id} caseItem={c} hideChat={tab === "Imported"} />
               ))}
             </div>
           )}

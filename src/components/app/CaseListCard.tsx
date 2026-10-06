@@ -29,7 +29,13 @@ function formatDate(iso?: string, time?: string): string | undefined {
   return formatDateTime(iso, time);
 }
 
-export function CaseListCard({ caseItem }: { caseItem: LegalCase }) {
+export function CaseListCard({
+  caseItem,
+  hideChat,
+}: {
+  caseItem: LegalCase;
+  hideChat?: boolean;
+}) {
   const navigate = useNavigate();
 
   const nextHearingObj = nextHearing(caseItem);
@@ -151,7 +157,7 @@ export function CaseListCard({ caseItem }: { caseItem: LegalCase }) {
           >
             <Eye className="h-4 w-4" />
           </IconButton>
-          <ChatButton caseItem={caseItem} role="lawyer" />
+          {!isImported && !hideChat && <ChatButton caseItem={caseItem} role="lawyer" />}
         </div>
       </div>
     </div>
