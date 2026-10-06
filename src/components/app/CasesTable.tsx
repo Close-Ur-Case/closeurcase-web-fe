@@ -224,6 +224,10 @@ export function CasesTable({
 
   const isLawyer = role === "lawyer";
 
+  const isCnrImported =
+    (STORED_STATUS_TO_FILTER[caseStatus] ?? caseStatus) === "CNR Generated" &&
+    Boolean(importedCnr && importedCnr === cnr.trim().toUpperCase() && cnr.trim().length === 16);
+
   const [ratingCase, setRatingCase] = useState<LegalCase | null>(null);
   const [ratingScore, setRatingScore] = useState<number>(5);
   const [hoveredScore, setHoveredScore] = useState<number | null>(null);
@@ -603,34 +607,6 @@ export function CasesTable({
     const upperVal = value.trim().toUpperCase();
     if (importedCnr && importedCnr !== upperVal) {
       setImportedCnr(null);
-    }
-    // When CNR Generated, automatically populate party names from cases_imported if 16 valid characters are entered
-    if (caseStatus === "CNR Generated" && upperVal.length === 16) {
-      caseService
-        .getImportedCase<any>(upperVal)
-        .then((res) => {
-          if (res) {
-            const cd =
-              res.courtCaseData ||
-              res.data?.courtCaseData ||
-              res.caseDetails ||
-              res.rawData?.data?.courtCaseData ||
-              {};
-            const p = Array.isArray(cd.petitioners) && cd.petitioners[0] ? cd.petitioners[0] : "";
-            const r = Array.isArray(cd.respondents) && cd.respondents[0] ? cd.respondents[0] : "";
-            if (p && r) {
-              setPartyNames(`${p} Vs. ${r}`);
-            } else if (p) {
-              setPartyNames(p);
-            }
-            if (cd.caseNumber) setCaseNo(cd.caseNumber);
-            if (Array.isArray(cd.historyOfCaseHearings) && cd.historyOfCaseHearings.length > 0) {
-              setJourney(cd.historyOfCaseHearings.map((h: any, i: number) => ({ ...h, id: `h_${i}` })));
-            }
-            setImportedCnr(upperVal);
-          }
-        })
-        .catch(() => {});
     }
   }
 
@@ -1393,10 +1369,10 @@ export function CasesTable({
                       <div className="sm:col-span-2 flex flex-col gap-1">
                         <div className="flex items-center justify-between">
                           <label className="text-[11px] font-semibold text-muted-foreground flex items-center gap-1.5">
-                            <span>Party Names {caseStatus !== "CNR Generated" ? "(Letters Only)" : ""}</span>
+                            <span>Party Names {isCnrImported ? "" : "(Letters Only)"}</span>
                             <span className="text-destructive">*</span>
                           </label>
-                          {caseStatus === "CNR Generated" && (
+                          {isCnrImported && (
                             <span className="inline-flex items-center gap-1 rounded-md bg-primary/10 px-2 py-0.5 font-mono text-[10px] font-bold text-primary shadow-2xs">
                               <Lock className="h-2.5 w-2.5" />
                               From cases_imported
@@ -1409,10 +1385,10 @@ export function CasesTable({
                             setPartyNames(sanitizeName(e.target.value));
                             setPartyNameError("");
                           }}
-                          disabled={caseStatus === "CNR Generated"}
-                          placeholder={caseStatus === "CNR Generated" ? "Imported from cases_imported" : "e.g. Y L N R Vs. NSF"}
+                          disabled={isCnrImported}
+                          placeholder={isCnrImported ? "Imported from cases_imported" : "e.g. Y L N R Vs. NSF"}
                           className={`h-11 rounded-lg border px-3.5 text-sm outline-hidden focus:border-primary focus:ring-1 focus:ring-primary transition-colors ${
-                            caseStatus === "CNR Generated"
+                            isCnrImported
                               ? "bg-muted/50 text-foreground/85 font-medium cursor-not-allowed border-border/70 select-none shadow-none"
                               : partyNameError
                                 ? "border-destructive bg-destructive/5 text-foreground"
@@ -1424,7 +1400,7 @@ export function CasesTable({
                             {partyNameError}
                           </p>
                         )}
-                        {caseStatus === "CNR Generated" && (
+                        {isCnrImported && (
                           <p className="text-[10.5px] text-muted-foreground flex items-center gap-1">
                             <span>Party names are imported and locked from verified court record (<code className="font-mono text-primary font-semibold">cases_imported</code>).</span>
                           </p>
@@ -1437,7 +1413,7 @@ export function CasesTable({
                             <span>Case Status</span>
                             <span className="text-destructive">*</span>
                           </label>
-                          {caseStatus === "CNR Generated" && (
+                          {isCnrImported && (
                             <span className="inline-flex items-center gap-1 rounded-md bg-primary/10 px-2 py-0.5 font-mono text-[10px] font-bold text-primary shadow-2xs">
                               <Lock className="h-2.5 w-2.5" />
                               Locked
@@ -1447,9 +1423,9 @@ export function CasesTable({
                         <select
                           value={caseStatus}
                           onChange={(e) => handleStatusChange(e.target.value)}
-                          disabled={caseStatus === "CNR Generated"}
+                          disabled={isCnrImported}
                           className={`h-11 rounded-lg border px-3.5 text-sm outline-hidden transition-colors ${
-                            caseStatus === "CNR Generated"
+                            isCnrImported
                               ? "bg-muted/50 text-foreground/80 font-medium cursor-not-allowed border-border/70 select-none shadow-none"
                               : "border-border bg-card text-foreground focus:border-primary focus:ring-1 focus:ring-primary"
                           }`}
@@ -1464,9 +1440,9 @@ export function CasesTable({
                           {STATUS_META[caseStatus]?.meaning}
                         </div>
 
-                        {/* Unlink CNR button below Case Status dropdown */}
-                        {caseStatus === "CNR Generated" && (
-                          <div className="mt-2.5 flex items-center justify-between gap-3 rounded-xl border border-destructive/20 bg-destructive/5 p-3">
+                        {/* Unlink CNR button below Case Status dropdown — ONLY SHOWN AFTER SUCCESSFUL IMPORT */}
+                        {isCnrImported && (
+                          <div className="mt-2.5 flex items-center justify-between gap-3 rounded-xl border border-destructive/20 bg-destructive/5 p-3 animate-in fade-in duration-150">
                             <div className="flex items-center gap-2 text-xs text-foreground/80">
                               <Lock className="h-4 w-4 text-amber-600 dark:text-amber-400 shrink-0" />
                               <span className="text-[12px] leading-tight">
@@ -1489,16 +1465,22 @@ export function CasesTable({
 
                       {caseStatus === "CNR Generated" && (
                         <div
-                          className="sm:col-span-2 flex flex-col gap-2 rounded-xl border border-border/70 bg-muted/30 p-3.5 transition-all select-none cursor-not-allowed opacity-90"
+                          className={`sm:col-span-2 flex flex-col gap-2 rounded-xl border p-3.5 transition-all ${
+                            isCnrImported
+                              ? "border-border/70 bg-muted/30 select-none cursor-not-allowed opacity-90"
+                              : "border-primary/20 bg-primary/[0.03]"
+                          }`}
                         >
                           <div className="flex items-center justify-between">
                             <label className="text-[11px] font-semibold text-foreground flex items-center gap-1.5">
                               <span>CNR No. (16 Alphanumeric Characters)</span>
                               <span className="text-destructive">*</span>
-                              <span className="inline-flex items-center gap-1 rounded-md bg-muted px-1.5 py-0.5 font-mono text-[9.5px] font-bold text-muted-foreground">
-                                <Lock className="h-2.5 w-2.5" />
-                                Disabled
-                              </span>
+                              {isCnrImported && (
+                                <span className="inline-flex items-center gap-1 rounded-md bg-muted px-1.5 py-0.5 font-mono text-[9.5px] font-bold text-muted-foreground">
+                                  <Lock className="h-2.5 w-2.5" />
+                                  Disabled
+                                </span>
+                              )}
                             </label>
                             <span className="font-mono text-[10px] text-muted-foreground">
                               {cnr.length} / 16
@@ -1510,8 +1492,14 @@ export function CasesTable({
                               onChange={(e) => handleCnrChange(sanitizeCNR(e.target.value))}
                               placeholder="e.g. APVK020004422026"
                               maxLength={16}
-                              disabled={true}
-                              className="h-11 flex-1 rounded-lg border border-border/70 bg-muted/50 px-3.5 text-sm text-foreground/80 font-mono outline-hidden uppercase cursor-not-allowed select-none shadow-none"
+                              disabled={isCnrImported}
+                              className={`h-11 flex-1 rounded-lg border px-3.5 text-sm font-mono outline-hidden uppercase transition-colors ${
+                                isCnrImported
+                                  ? "border-border/70 bg-muted/50 text-foreground/80 cursor-not-allowed select-none shadow-none"
+                                  : cnrError
+                                    ? "border-destructive bg-destructive/5 text-foreground"
+                                    : "border-border bg-card text-foreground focus:border-primary focus:ring-1 focus:ring-primary"
+                              }`}
                             />
                             <div className="flex shrink-0 gap-2">
                               <Button
@@ -1524,8 +1512,8 @@ export function CasesTable({
                                   )
                                 }
                                 onClick={handleImportCnr}
-                                disabled={true}
-                                className="cursor-not-allowed opacity-60 pointer-events-none"
+                                disabled={isCnrImported || cnr.length !== 16 || isImportingCnr}
+                                className={isCnrImported ? "cursor-not-allowed opacity-60 pointer-events-none" : ""}
                               >
                                 {isImportingCnr ? "Importing..." : "Import"}
                               </Button>
@@ -1538,11 +1526,19 @@ export function CasesTable({
                               <X className="h-3.5 w-3.5 shrink-0" />
                               <span>{cnrError}</span>
                             </p>
-                          ) : cnr && cnr.length === 16 ? (
+                          ) : isCnrImported ? (
                             <div className="flex items-center gap-1.5 rounded-lg bg-emerald-500/10 px-2.5 py-1.5 text-[11px] font-semibold text-emerald-600 dark:text-emerald-400">
                               <Check className="h-4 w-4 shrink-0" />
                               <span>Case verified & imported for CNR {cnr.trim().toUpperCase()}. To modify, unlink CNR first.</span>
                             </div>
+                          ) : cnr && cnr.length !== 16 ? (
+                            <p className="text-[10.5px] font-medium text-amber-600 dark:text-amber-400">
+                              CNR number must be exactly 16 characters (e.g., APVK020004422026).
+                            </p>
+                          ) : cnr.length === 16 ? (
+                            <p className="text-[11px] font-medium text-amber-600 dark:text-amber-400 flex items-center gap-1">
+                              <span>* Click <strong>Import</strong> to verify and fetch case details before saving as CNR Generated.</span>
+                            </p>
                           ) : null}
                         </div>
                       )}
