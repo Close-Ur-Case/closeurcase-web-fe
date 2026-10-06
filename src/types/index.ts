@@ -8,6 +8,7 @@ export type CaseStatus =
   | "Under Review"
   | "In Progress"
   | "Awaiting Documents"
+  | "CNR Generated"
   | "Resolved"
   | "Closed";
 

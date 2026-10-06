@@ -439,9 +439,23 @@ export class CaseService {
       importedRecord = imp || null;
     }
 
-    const caseTitle = foundCase.petitioner
+    const impDetails = (importedRecord?.rawData as any)?.data?.courtCaseData || importedRecord?.caseDetails || {};
+    const impPetitioner = Array.isArray(impDetails.petitioners) && impDetails.petitioners[0] ? impDetails.petitioners[0] : null;
+    const impRespondent = Array.isArray(impDetails.respondents) && impDetails.respondents[0] ? impDetails.respondents[0] : null;
+    const isCnrGenerated =
+      foundCase.lawyerCasestageId === "cnrgenerated" ||
+      String(foundCase.caseStatus || "").toLowerCase().includes("cnr");
+    const importedTitle = impPetitioner
+      ? impRespondent
+        ? `${impPetitioner} vs ${impRespondent}`
+        : impPetitioner
+      : null;
+
+    const caseTitle = isCnrGenerated && importedTitle
+      ? importedTitle
+      : foundCase.petitioner
       ? foundCase.respondent ? `${foundCase.petitioner} vs ${foundCase.respondent}` : foundCase.petitioner
-      : "Legal Matter";
+      : importedTitle || "Legal Matter";
 
     const docs = await db
       .select()
@@ -532,14 +546,30 @@ export class CaseService {
     }
 
     const cnrs = Array.from(new Set(rows.map((r) => r.cnr).filter(Boolean)));
-    const formatRow = (r: any, imp: any) => ({
-      ...r,
-      documents: docsByCaseId.get(r.id) || [],
-      title: r.petitioner
-        ? r.respondent ? `${r.petitioner} vs ${r.respondent}` : r.petitioner
-        : "Legal Matter",
-      importedCase: imp,
-    });
+    const formatRow = (r: any, imp: any) => {
+      const impDetails = (imp?.rawData as any)?.data?.courtCaseData || imp?.caseDetails || {};
+      const impPetitioner = Array.isArray(impDetails.petitioners) && impDetails.petitioners[0] ? impDetails.petitioners[0] : null;
+      const impRespondent = Array.isArray(impDetails.respondents) && impDetails.respondents[0] ? impDetails.respondents[0] : null;
+      const isCnrGenerated =
+        r.lawyerCasestageId === "cnrgenerated" ||
+        String(r.caseStatus || "").toLowerCase().includes("cnr");
+      const importedTitle = impPetitioner
+        ? impRespondent
+          ? `${impPetitioner} vs ${impRespondent}`
+          : impPetitioner
+        : null;
+
+      return {
+        ...r,
+        documents: docsByCaseId.get(r.id) || [],
+        title: isCnrGenerated && importedTitle
+          ? importedTitle
+          : r.petitioner
+          ? r.respondent ? `${r.petitioner} vs ${r.respondent}` : r.petitioner
+          : importedTitle || "Legal Matter",
+        importedCase: imp,
+      };
+    };
 
     if (cnrs.length > 0) {
       const importedList = await db
@@ -646,6 +676,21 @@ export class CaseService {
       updateFields.cnr = generatedCnr;
     }
 
+    const effectiveCnr = generatedCnr || existing.cnr;
+    if (targetStage === "cnrgenerated" && effectiveCnr) {
+      const [imp] = await db
+        .select()
+        .from(casesImported)
+        .where(or(eq(casesImported.cnr, effectiveCnr), ilike(casesImported.cnr, effectiveCnr)));
+      if (imp) {
+        const cd = (imp.rawData as any)?.data?.courtCaseData || imp.caseDetails || {};
+        const p = Array.isArray(cd.petitioners) && cd.petitioners[0] ? cd.petitioners[0] : null;
+        const r = Array.isArray(cd.respondents) && cd.respondents[0] ? cd.respondents[0] : null;
+        if (p) updateFields.petitioner = p;
+        if (r) updateFields.respondent = r;
+      }
+    }
+
     const [updated] = await db
       .update(casesUser)
       .set(updateFields)
@@ -712,9 +757,10 @@ export class CaseService {
     if (updates.petitioner !== undefined) updateFields.petitioner = updates.petitioner;
     if (updates.respondent !== undefined) updateFields.respondent = updates.respondent;
     if (updates.title !== undefined && updates.petitioner === undefined) {
-      updateFields.petitioner = updates.title.split(/\s+vs\.?\s+/i)[0]?.trim() || updates.title;
-      if (updates.title.includes(" vs")) {
-        updateFields.respondent = updates.title.split(/\s+vs\.?\s+/i)[1]?.trim();
+      const parts = updates.title.split(/\s+vs\.?\s+|\s+-\s+|\s+—\s+/i);
+      updateFields.petitioner = parts[0]?.trim() || updates.title;
+      if (parts.length > 1 && parts[1]?.trim()) {
+        updateFields.respondent = parts[1].trim();
       }
     }
     if (updates.description !== undefined) updateFields.description = updates.description;

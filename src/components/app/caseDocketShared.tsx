@@ -188,8 +188,8 @@ export interface StageHistoryEntry {
  * case's timeline — falling back to updatedAt for the current stage if no
  * matching timeline entry exists (e.g. older seed data, which predates the
  * time-of-day field and so only carries a date). */
-export function getStageHistory(c: LegalCase): StageHistoryEntry[] {
-  const currentKey = STORED_STATUS_TO_FILTER[c.status] ?? c.status;
+export function getStageHistory(c: LegalCase, currentFilterKey?: string): StageHistoryEntry[] {
+  const currentKey = currentFilterKey ?? resolveCaseFilterStatus(c);
   return PRE_CNR_STAGES.map((key) => {
     const match = [...(c.timeline || [])]
       .reverse()

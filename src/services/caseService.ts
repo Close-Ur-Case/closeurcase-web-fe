@@ -221,32 +221,32 @@ export function mapBackendCaseToLegalCase(
 
   // Status mapping
   const stage = String(backend.lawyerCasestageId || "").toLowerCase();
-  const rawStatus = String(backend.caseStatus || "").trim();
+  const rawStatus = String(backend.caseStatus || "").trim().toLowerCase();
   let status: CaseStatus = "Submitted";
   if (
-    stage === "accepted" ||
-    rawStatus.toLowerCase().includes("accepted") ||
-    rawStatus.toLowerCase().includes("assigned")
+    stage === "cnrgenerated" ||
+    rawStatus.includes("cnr") ||
+    rawStatus.includes("registered")
   ) {
-    status = "Assigned";
+    status = "CNR Generated";
   } else if (
     stage === "filinginprogress" ||
-    rawStatus.toLowerCase().includes("filing") ||
-    rawStatus.toLowerCase().includes("progress")
+    rawStatus.includes("filing") ||
+    rawStatus.includes("progress")
   ) {
     status = "In Progress";
   } else if (
-    stage === "cnrgenerated" ||
-    rawStatus.toLowerCase().includes("cnr") ||
-    rawStatus.toLowerCase().includes("registered")
+    stage === "accepted" ||
+    rawStatus.includes("accepted") ||
+    rawStatus.includes("assigned")
   ) {
     status = "Assigned";
-  } else if (stage === "rejected" || rawStatus.toLowerCase().includes("reject")) {
+  } else if (stage === "rejected" || rawStatus.includes("reject")) {
     status = "Rejected";
-  } else if (stage === "submitted" || rawStatus.toLowerCase().includes("pending")) {
+  } else if (stage === "submitted" || rawStatus.includes("pending")) {
     status = "Submitted";
-  } else if (rawStatus) {
-    status = (rawStatus as CaseStatus) || "Submitted";
+  } else if (backend.caseStatus) {
+    status = (backend.caseStatus as CaseStatus) || "Submitted";
   }
 
   // Category mapping — shared with the lawyer merge so both agree on what a
@@ -332,19 +332,28 @@ export function mapBackendCaseToLegalCase(
   });
   const files: CaseDocument[] = Array.from(filesMap.values());
 
-  const timeline: TimelineEvent[] = (backend.timeline || []).map((t, i) => ({
-    id: t.id || `t_${i}`,
-    status: (t.status === "accepted"
-      ? "Assigned"
-      : t.status === "filinginprogress"
-        ? "In Progress"
-        : t.status === "rejected"
-          ? "Rejected"
-          : "Submitted") as CaseStatus,
-    at: t.at ? t.at.slice(0, 10) : createdDate,
-    time: t.time || "12:00 PM",
-    note: t.note,
-  }));
+  const timeline: TimelineEvent[] = (backend.timeline || []).map((t, i) => {
+    const rawTStatus = String(t.status || "").trim().toLowerCase();
+    let evStatus: CaseStatus = "Submitted";
+    if (rawTStatus === "cnrgenerated" || rawTStatus.includes("cnr") || rawTStatus.includes("registered")) {
+      evStatus = "CNR Generated";
+    } else if (rawTStatus === "filinginprogress" || rawTStatus.includes("filing") || rawTStatus.includes("progress")) {
+      evStatus = "In Progress";
+    } else if (rawTStatus === "accepted" || rawTStatus.includes("accepted") || rawTStatus.includes("assigned")) {
+      evStatus = "Assigned";
+    } else if (rawTStatus === "rejected" || rawTStatus.includes("reject")) {
+      evStatus = "Rejected";
+    } else if (t.status) {
+      evStatus = t.status as CaseStatus;
+    }
+    return {
+      id: t.id || `t_${i}`,
+      status: evStatus,
+      at: t.at ? t.at.slice(0, 10) : createdDate,
+      time: t.time || (t.at && t.at.includes("T") ? formatDateTime(t.at).split(", ")[1] || "12:00 PM" : "12:00 PM"),
+      note: t.note,
+    };
+  });
 
   const rawHearings = (impCaseDetails.historyOfCaseHearings || []) as Array<
     Partial<HistoryOfHearing> & Record<string, unknown>
@@ -475,11 +484,28 @@ export function mapBackendCaseToLegalCase(
     dateModified: impEntityInfo.dateModified || updatedDate,
   };
 
+  const hasImpParties =
+    Array.isArray(impCaseDetails.petitioners) &&
+    impCaseDetails.petitioners.length > 0;
+  const impPetitioner = hasImpParties ? (impCaseDetails.petitioners as string[])[0] : null;
+  const impRespondent =
+    Array.isArray(impCaseDetails.respondents) && impCaseDetails.respondents.length > 0
+      ? (impCaseDetails.respondents as string[])[0]
+      : null;
+  const impPartyTitle = impPetitioner
+    ? impRespondent
+      ? `${impPetitioner} Vs. ${impRespondent}`
+      : impPetitioner
+    : null;
+
   const computedTitle =
-    backend.title ||
-    (backend.petitioner
-      ? `${backend.petitioner}${backend.respondent ? ` vs ${backend.respondent}` : ""}`
-      : "Untitled Case");
+    status === "CNR Generated" && impPartyTitle
+      ? impPartyTitle
+      : (impPartyTitle && !backend.title ? impPartyTitle : null) ||
+        backend.title ||
+        (backend.petitioner
+          ? `${backend.petitioner}${backend.respondent ? ` vs ${backend.respondent}` : ""}`
+          : "Untitled Case");
 
   return {
     id: backend.id,

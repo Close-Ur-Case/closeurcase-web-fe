@@ -51,8 +51,13 @@ import {
   getLawyers,
   submitLawyerRating,
   getLawyerRatingForCase,
+  getCitizens,
 } from "@/data/appStore";
-import { caseService } from "@/services/caseService";
+import {
+  caseService,
+  mapBackendCaseToLegalCase,
+  type BackendUserCase,
+} from "@/services/caseService";
 import { apiClient } from "@/services/apiClient";
 import { chatService } from "@/services/chatService";
 import type { ChatMessage } from "@/components/app/CaseChat";
@@ -74,6 +79,7 @@ import {
   STATUS_LIST,
   STATUS_META,
   STORED_STATUS_TO_FILTER,
+  resolveCaseFilterStatus,
   COURTS_FLAT,
   PRE_CNR_STAGES,
   StatusBadge,
@@ -354,28 +360,156 @@ export function CasesTable({
     setPage(1);
   }, [cases.length]);
 
-  function handleOpenModal(c: LegalCase) {
-    setEditingCase(c);
-    setPartyNames(c.title || "");
+  async function handleOpenModal(c: LegalCase) {
+    const live = allCases.find((ac) => ac.id === c.id) || c;
+    const initialCnr = live.caseDetails?.cnr || (live as any).cnr || live.entityInfo?.cnr || "";
+    const resolvedStatus = resolveCaseFilterStatus(live);
+
+    // If case is CNR Generated, Party Names must be derived from cases_imported
+    let initialPartyNames = live.title || formatCaseVsTitle(live);
+    if (resolvedStatus === "CNR Generated") {
+      const p = live.caseDetails?.petitioners?.[0];
+      const r = live.caseDetails?.respondents?.[0];
+      if (p && r) {
+        initialPartyNames = `${p} Vs. ${r}`;
+      } else if (p) {
+        initialPartyNames = p;
+      }
+    }
+
+    setEditingCase(live);
+    setPartyNames(initialPartyNames);
     setPartyNameError("");
-    setCaseNo(c.caseDetails?.caseNumber || "");
-    const initialCnr = c.caseDetails?.cnr || "";
+    setCaseNo(live.caseDetails?.caseNumber || (live as any).caseNumber || live.id || "");
     setCnr(initialCnr);
     setCnrError("");
-    setCaseStatus(c.status || "Submitted");
-    setJourney(getCourtHistory(c));
+    setCaseStatus(resolvedStatus);
+    setJourney(getCourtHistory(live));
     setCnrImportResult(null);
 
-    // If case already has a 16-character CNR and is already CNR Generated, it is pre-verified.
-    // Otherwise, switching to or modifying CNR Generated requires a valid import.
-    const filterKey = STORED_STATUS_TO_FILTER[c.status] ?? (c as any).caseStatus ?? c.status;
-    if (filterKey === "CNR Generated" && initialCnr.trim().length === 16) {
-      setImportedCnr(initialCnr.trim().toUpperCase());
+    // If case already has a 16-character CNR and is already CNR Generated, pre-verify and fetch from cases_imported
+    if (resolvedStatus === "CNR Generated" && initialCnr.trim().length === 16) {
+      const upperCnr = initialCnr.trim().toUpperCase();
+      setImportedCnr(upperCnr);
+      caseService
+        .getImportedCase<any>(upperCnr)
+        .then((res) => {
+          if (res) {
+            const cd =
+              res.courtCaseData ||
+              res.data?.courtCaseData ||
+              res.caseDetails ||
+              res.rawData?.data?.courtCaseData ||
+              {};
+            const p = Array.isArray(cd.petitioners) && cd.petitioners[0] ? cd.petitioners[0] : "";
+            const r = Array.isArray(cd.respondents) && cd.respondents[0] ? cd.respondents[0] : "";
+            if (p && r) {
+              setPartyNames(`${p} Vs. ${r}`);
+            } else if (p) {
+              setPartyNames(p);
+            }
+            if (cd.caseNumber) setCaseNo(cd.caseNumber);
+            if (Array.isArray(cd.historyOfCaseHearings) && cd.historyOfCaseHearings.length > 0) {
+              setJourney(cd.historyOfCaseHearings.map((h: any, i: number) => ({ ...h, id: `h_${i}` })));
+            }
+          }
+        })
+        .catch((err) => console.warn("[CasesTable] Error loading cases_imported:", err));
     } else {
       setImportedCnr(null);
     }
 
     setDialogOpen(true);
+
+    // Fetch fresh case directly from backend database to ensure 100% synchronization
+    try {
+      const dbCase = await caseService.getUserCase<BackendUserCase>(live.id);
+      if (dbCase && dbCase.id) {
+        const citizensList = getCitizens();
+        const lawyersList = getLawyers();
+        const mapped = mapBackendCaseToLegalCase(dbCase, citizensList, lawyersList);
+
+        // Update local store with fresh DB case
+        const currentCases = getCases();
+        const updated = currentCases.map((existing) => (existing.id === mapped.id ? mapped : existing));
+        saveCases(updated);
+        setAllCases(updated);
+
+        // Update dialog state if dialog is currently editing this case
+        setEditingCase((current) => {
+          if (!current || current.id !== mapped.id) return current;
+          const freshCnr = mapped.caseDetails?.cnr || (mapped as any).cnr || mapped.entityInfo?.cnr || "";
+          const freshStatus = resolveCaseFilterStatus(mapped);
+
+          if (freshStatus === "CNR Generated") {
+            const p = mapped.caseDetails?.petitioners?.[0];
+            const r = mapped.caseDetails?.respondents?.[0];
+            if (p && r) {
+              setPartyNames(`${p} Vs. ${r}`);
+            } else if (p) {
+              setPartyNames(p);
+            } else if (mapped.title) {
+              setPartyNames(mapped.title);
+            }
+          } else {
+            setPartyNames((prevTitle) => (prevTitle === live.title || !prevTitle ? (mapped.title || "") : prevTitle));
+          }
+
+          setCaseNo(mapped.caseDetails?.caseNumber || mapped.id || "");
+          setCnr((prevCnr) => (!prevCnr || prevCnr === initialCnr ? freshCnr : prevCnr));
+          setCaseStatus(freshStatus);
+          setJourney(getCourtHistory(mapped));
+          if (freshStatus === "CNR Generated" && freshCnr.trim().length === 16) {
+            setImportedCnr(freshCnr.trim().toUpperCase());
+          }
+          return mapped;
+        });
+      }
+    } catch (err) {
+      console.warn("[CasesTable] Backend fetch notice for case " + live.id + ":", err);
+    }
+  }
+
+  async function handleStatusChange(nextStatus: string) {
+    setCaseStatus(nextStatus);
+    setPartyNameError("");
+    if (nextStatus === "CNR Generated") {
+      const targetCnr = (cnr || editingCase?.caseDetails?.cnr || (editingCase as any)?.cnr || "").trim().toUpperCase();
+      if (targetCnr.length === 16) {
+        try {
+          const res = await caseService.getImportedCase<any>(targetCnr);
+          if (res) {
+            const cd =
+              res.courtCaseData ||
+              res.data?.courtCaseData ||
+              res.caseDetails ||
+              res.rawData?.data?.courtCaseData ||
+              {};
+            const p = Array.isArray(cd.petitioners) && cd.petitioners[0] ? cd.petitioners[0] : "";
+            const r = Array.isArray(cd.respondents) && cd.respondents[0] ? cd.respondents[0] : "";
+            const importedTitle = p && r ? `${p} Vs. ${r}` : p || r || "";
+            if (importedTitle) {
+              setPartyNames(importedTitle);
+              setPartyNameError("");
+            }
+            if (cd.caseNumber) setCaseNo(cd.caseNumber);
+            if (Array.isArray(cd.historyOfCaseHearings) && cd.historyOfCaseHearings.length > 0) {
+              setJourney(cd.historyOfCaseHearings.map((h: any, i: number) => ({ ...h, id: `h_${i}` })));
+            }
+            setImportedCnr(targetCnr);
+            setCnrError("");
+          }
+        } catch (err) {
+          console.warn("[CasesTable] Error loading cases_imported on status change:", err);
+        }
+      } else {
+        const p = editingCase?.caseDetails?.petitioners?.[0];
+        const r = editingCase?.caseDetails?.respondents?.[0];
+        if (p && r) {
+          setPartyNames(`${p} Vs. ${r}`);
+        }
+      }
+    }
   }
 
   function handleCnrChange(value: string) {
@@ -385,6 +519,34 @@ export function CasesTable({
     const upperVal = value.trim().toUpperCase();
     if (importedCnr && importedCnr !== upperVal) {
       setImportedCnr(null);
+    }
+    // When CNR Generated, automatically populate party names from cases_imported if 16 valid characters are entered
+    if (caseStatus === "CNR Generated" && upperVal.length === 16) {
+      caseService
+        .getImportedCase<any>(upperVal)
+        .then((res) => {
+          if (res) {
+            const cd =
+              res.courtCaseData ||
+              res.data?.courtCaseData ||
+              res.caseDetails ||
+              res.rawData?.data?.courtCaseData ||
+              {};
+            const p = Array.isArray(cd.petitioners) && cd.petitioners[0] ? cd.petitioners[0] : "";
+            const r = Array.isArray(cd.respondents) && cd.respondents[0] ? cd.respondents[0] : "";
+            if (p && r) {
+              setPartyNames(`${p} Vs. ${r}`);
+            } else if (p) {
+              setPartyNames(p);
+            }
+            if (cd.caseNumber) setCaseNo(cd.caseNumber);
+            if (Array.isArray(cd.historyOfCaseHearings) && cd.historyOfCaseHearings.length > 0) {
+              setJourney(cd.historyOfCaseHearings.map((h: any, i: number) => ({ ...h, id: `h_${i}` })));
+            }
+            setImportedCnr(upperVal);
+          }
+        })
+        .catch(() => {});
     }
   }
 
@@ -432,6 +594,27 @@ export function CasesTable({
 
         if (editingCase) {
           const today = todayISO();
+          setEditingCase((prev) =>
+            prev
+              ? {
+                  ...prev,
+                  title,
+                  source: "ecourt" as const,
+                  caseDetails: {
+                    ...(prev.caseDetails || {}),
+                    caseNumber,
+                    cnr: query,
+                    courtName: cd.courtName || prev.caseDetails?.courtName,
+                    caseType: cd.caseType || prev.caseDetails?.caseType,
+                    petitioners: cd.petitioners || prev.caseDetails?.petitioners,
+                    respondents: cd.respondents || prev.caseDetails?.respondents,
+                    historyOfCaseHearings: hearings,
+                    hearingCount: hearings.length,
+                  },
+                  updatedAt: today,
+                }
+              : null,
+          );
           const updatedCases = allCases.map((c) =>
             c.id === editingCase.id
               ? {
@@ -454,6 +637,7 @@ export function CasesTable({
               : c,
           );
           saveCases(updatedCases);
+          setAllCases(updatedCases);
         }
 
         const source =
@@ -547,11 +731,18 @@ export function CasesTable({
     }
   }
 
-  function handleSaveCase() {
-    const nameCheck = validateName(partyNames);
-    if (!nameCheck.isValid) {
-      setPartyNameError(nameCheck.error || "Party name is required.");
-      return;
+  async function handleSaveCase() {
+    if (caseStatus !== "CNR Generated") {
+      const nameCheck = validateName(partyNames);
+      if (!nameCheck.isValid) {
+        setPartyNameError(nameCheck.error || "Party name is required.");
+        return;
+      }
+    } else {
+      if (!partyNames.trim()) {
+        setPartyNameError("Party name is required from cases_imported.");
+        return;
+      }
     }
     setPartyNameError("");
 
@@ -576,10 +767,18 @@ export function CasesTable({
 
     if (editingCase) {
       const targetCaseId = editingCase.id;
-      const statusChanged = editingCase.status !== caseStatus;
+      const initialStatus = resolveCaseFilterStatus(editingCase);
+      const statusChanged = initialStatus !== caseStatus;
       const trimmedTitle = partyNames.trim();
       const trimmedCaseNo = caseNo.trim();
       const trimmedCnr = cnr.trim().toUpperCase();
+
+      const vsParts = trimmedTitle.split(/\s+vs\.?\s+|\s+-\s+|\s+—\s+/i);
+      const petitioner = vsParts[0]?.trim();
+      const respondent = vsParts.length > 1 ? vsParts.slice(1).join(" vs ").trim() : undefined;
+
+      const canonicalCaseStatus = caseStatus === "CNR Generated" ? "CNR Generated" : caseStatus;
+
       const updatedCases = allCases.map((c) => {
         if (c.id !== targetCaseId) return c;
         const timeline = statusChanged
@@ -587,7 +786,7 @@ export function CasesTable({
               ...(c.timeline || []),
               {
                 id: `t_${Date.now()}`,
-                status: caseStatus as CaseStatus,
+                status: canonicalCaseStatus as CaseStatus,
                 at: today,
                 time: new Date().toLocaleTimeString([], { hour: "numeric", minute: "2-digit" }),
                 note: `Status updated to ${STATUS_META[caseStatus]?.label ?? caseStatus}`,
@@ -599,44 +798,63 @@ export function CasesTable({
           title: trimmedTitle,
           caseDetails: {
             ...(c.caseDetails || {}),
-            caseNumber: trimmedCaseNo,
-            cnr: trimmedCnr,
+            caseNumber: trimmedCaseNo || c.caseDetails?.caseNumber,
+            cnr: trimmedCnr || c.caseDetails?.cnr,
+            petitioners: petitioner ? [petitioner] : c.caseDetails?.petitioners,
+            respondents: respondent ? [respondent] : c.caseDetails?.respondents,
             historyOfCaseHearings,
             hearingCount: historyOfCaseHearings.length,
           },
-          status: caseStatus as CaseStatus,
-          caseStatus,
+          status: canonicalCaseStatus as CaseStatus,
+          caseStatus: canonicalCaseStatus,
           timeline,
           updatedAt: today,
         };
       });
       saveCases(updatedCases);
+      setAllCases(updatedCases);
 
       const savedCase = updatedCases.find((c) => c.id === targetCaseId);
       if (savedCase) {
         onCaseUpdate?.(savedCase);
       }
 
-      // Persist changes to backend server
-      caseService
-        .updateCase(targetCaseId, {
+      setDialogOpen(false);
+
+      // Persist changes to backend server and sync response back to local store
+      try {
+        await caseService.updateCase(targetCaseId, {
           title: trimmedTitle,
+          petitioner,
+          respondent: respondent || null,
           cnr: trimmedCnr || undefined,
-          status: caseStatus,
-          caseStatus: caseStatus,
-        })
-        .catch((err: unknown) => console.warn("[Case Edit] Server notice:", err));
+          status: canonicalCaseStatus,
+          caseStatus: canonicalCaseStatus,
+        });
 
-      caseService
-        .updateCaseStage(targetCaseId, {
-          stage: caseStatus,
-          status: caseStatus,
-          generatedCnr: trimmedCnr || undefined,
-        })
-        .catch((err: unknown) => console.warn("[Case Edit Stage] Server notice:", err));
+        if (statusChanged || (trimmedCnr && trimmedCnr !== editingCase.caseDetails?.cnr)) {
+          await caseService.updateCaseStage(targetCaseId, {
+            stage: canonicalCaseStatus,
+            status: canonicalCaseStatus,
+            generatedCnr: trimmedCnr || undefined,
+          });
+        }
+
+        // Re-fetch authoritative record from DB to ensure 100% sync
+        const refreshed = await caseService.getUserCase<BackendUserCase>(targetCaseId);
+        if (refreshed && refreshed.id) {
+          const citizensList = getCitizens();
+          const lawyersList = getLawyers();
+          const mapped = mapBackendCaseToLegalCase(refreshed, citizensList, lawyersList);
+          const finalCases = getCases().map((c) => (c.id === mapped.id ? mapped : c));
+          saveCases(finalCases);
+          setAllCases(finalCases);
+          onCaseUpdate?.(mapped);
+        }
+      } catch (err: unknown) {
+        console.warn("[Case Edit] Server notice:", err);
+      }
     }
-
-    setDialogOpen(false);
   }
 
   function handleDeleteCase() {
@@ -874,8 +1092,8 @@ export function CasesTable({
                       </h3>
                     </div>
                     <div className="flex shrink-0 flex-wrap items-center gap-1.5 self-start sm:self-auto">
-                      <CaseTypeBadge caseItem={c} />
-                      <StatusBadge status={c} />
+                      <CaseTypeBadge caseItem={liveCase} />
+                      <StatusBadge status={liveCase} />
                     </div>
                   </div>
 
@@ -883,36 +1101,36 @@ export function CasesTable({
                   <div className="flex flex-wrap items-center gap-1.5 text-[11px]">
                     <span className="inline-flex items-center gap-1 rounded-lg border border-primary/20 bg-primary/10 px-2.5 py-1 font-mono text-[11px] font-bold text-primary shadow-2xs">
                       <Hash className="h-3 w-3" />
-                      {c.caseDetails?.caseNumber && c.caseDetails.caseNumber !== c.id
-                        ? c.caseDetails.caseNumber
-                        : c.id}
+                      {liveCase.caseDetails?.caseNumber && liveCase.caseDetails.caseNumber !== liveCase.id
+                        ? liveCase.caseDetails.caseNumber
+                        : liveCase.id}
                     </span>
-                    {c.caseDetails?.courtName && (
+                    {liveCase.caseDetails?.courtName && (
                       <span
                         className="inline-flex max-w-[220px] items-center gap-1 truncate rounded-lg border border-border/50 bg-background/80 px-2.5 py-1 text-[11px] text-muted-foreground shadow-2xs sm:max-w-xs"
-                        title={c.caseDetails.courtName}
+                        title={liveCase.caseDetails.courtName}
                       >
                         <Landmark className="h-3 w-3 shrink-0 text-primary/70" />
-                        <span className="truncate">{c.caseDetails.courtName}</span>
+                        <span className="truncate">{liveCase.caseDetails.courtName}</span>
                       </span>
                     )}
                     <span className="inline-flex items-center gap-1 rounded-lg border border-border/50 bg-background/80 px-2.5 py-1 font-mono text-[11px] text-muted-foreground shadow-2xs">
                       CNR:{" "}
                       <span
                         className={
-                          c.caseDetails?.cnr
+                          liveCase.caseDetails?.cnr
                             ? "font-bold text-foreground"
                             : "font-normal text-muted-foreground/60"
                         }
                       >
-                        {c.caseDetails?.cnr || "N/A"}
+                        {liveCase.caseDetails?.cnr || "N/A"}
                       </span>
                     </span>
-                    {c.citizenName && (
+                    {liveCase.citizenName && (
                       <span className="inline-flex items-center gap-1.5 rounded-lg border border-border/50 bg-background/80 px-2.5 py-1 text-[11px] text-muted-foreground shadow-2xs">
                         <User className="h-3 w-3 text-primary/70" />
                         Client:{" "}
-                        <span className="font-semibold text-foreground">{c.citizenName}</span>
+                        <span className="font-semibold text-foreground">{liveCase.citizenName}</span>
                       </span>
                     )}
                   </div>
@@ -960,7 +1178,7 @@ export function CasesTable({
                       <>
                         <button
                           type="button"
-                          onClick={() => handleApprove(c)}
+                          onClick={() => handleApprove(liveCase)}
                           className="inline-flex items-center gap-1.5 rounded-xl bg-[var(--md-extended-color-success)]/15 px-3 py-1.5 text-xs font-bold text-[var(--md-extended-color-success)] hover:bg-[var(--md-extended-color-success)]/25 transition-all duration-150 cursor-pointer shadow-2xs"
                           title="Approve case"
                         >
@@ -969,7 +1187,7 @@ export function CasesTable({
                         </button>
                         <button
                           type="button"
-                          onClick={() => handleReject(c)}
+                          onClick={() => handleReject(liveCase)}
                           className="inline-flex items-center gap-1.5 rounded-xl bg-[var(--md-sys-color-error)]/15 px-3 py-1.5 text-xs font-bold text-[var(--md-sys-color-error)] hover:bg-[var(--md-sys-color-error)]/25 transition-all duration-150 cursor-pointer shadow-2xs"
                           title="Reject case"
                         >
@@ -982,9 +1200,9 @@ export function CasesTable({
                         {!isLawyer && (
                           <IconButton
                             variant="tonal"
-                            title={c.lawyerName ? `Rate Lawyer (${c.lawyerName})` : "Rate Lawyer"}
-                            ariaLabel={`Rate lawyer for case ${c.id}`}
-                            onClick={() => handleOpenRatingModal(c)}
+                            title={liveCase.lawyerName ? `Rate Lawyer (${liveCase.lawyerName})` : "Rate Lawyer"}
+                            ariaLabel={`Rate lawyer for case ${liveCase.id}`}
+                            onClick={() => handleOpenRatingModal(liveCase)}
                           >
                             <Star className="h-4 w-4 text-[var(--md-extended-color-warning)] fill-[var(--md-extended-color-warning)]" />
                           </IconButton>
@@ -993,9 +1211,9 @@ export function CasesTable({
                           variant="tonal"
                           title={isLawyer ? "Edit case" : "View case details"}
                           ariaLabel={
-                            isLawyer ? `Edit case ${c.id}` : `View details for case ${c.id}`
+                            isLawyer ? `Edit case ${liveCase.id}` : `View details for case ${liveCase.id}`
                           }
-                          onClick={() => handleOpenModal(c)}
+                          onClick={() => handleOpenModal(liveCase)}
                         >
                           {isLawyer ? <Pencil className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
                         </IconButton>
@@ -1009,7 +1227,7 @@ export function CasesTable({
                     >
                       <Paperclip className="h-4 w-4" />
                     </IconButton>
-                    {(isLawyer || c.lawyerName) && <ChatButton caseItem={c} role={role} />}
+                    {(isLawyer || liveCase.lawyerName) && <ChatButton caseItem={liveCase} role={role} />}
                   </div>
                 </div>
               </div>
@@ -1081,25 +1299,42 @@ export function CasesTable({
                   {isLawyer ? (
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                       <div className="sm:col-span-2 flex flex-col gap-1">
-                        <label className="text-[11px] font-semibold text-muted-foreground">
-                          Party Names (Letters Only) <span className="text-destructive">*</span>
-                        </label>
+                        <div className="flex items-center justify-between">
+                          <label className="text-[11px] font-semibold text-muted-foreground flex items-center gap-1.5">
+                            <span>Party Names {caseStatus !== "CNR Generated" ? "(Letters Only)" : ""}</span>
+                            <span className="text-destructive">*</span>
+                          </label>
+                          {caseStatus === "CNR Generated" && (
+                            <span className="inline-flex items-center gap-1 rounded-md bg-primary/10 px-2 py-0.5 font-mono text-[10px] font-bold text-primary shadow-2xs">
+                              <Lock className="h-2.5 w-2.5" />
+                              From cases_imported
+                            </span>
+                          )}
+                        </div>
                         <input
                           value={partyNames}
                           onChange={(e) => {
                             setPartyNames(sanitizeName(e.target.value));
                             setPartyNameError("");
                           }}
-                          placeholder="e.g. Y L N R Vs. NSF"
-                          className={`h-11 rounded-lg border px-3.5 text-sm text-foreground outline-hidden focus:border-primary focus:ring-1 focus:ring-primary ${
-                            partyNameError
-                              ? "border-destructive bg-destructive/5"
-                              : "border-border bg-card"
+                          disabled={caseStatus === "CNR Generated"}
+                          placeholder={caseStatus === "CNR Generated" ? "Imported from cases_imported" : "e.g. Y L N R Vs. NSF"}
+                          className={`h-11 rounded-lg border px-3.5 text-sm outline-hidden focus:border-primary focus:ring-1 focus:ring-primary transition-colors ${
+                            caseStatus === "CNR Generated"
+                              ? "bg-muted/50 text-foreground/85 font-medium cursor-not-allowed border-border/70 select-none shadow-none"
+                              : partyNameError
+                                ? "border-destructive bg-destructive/5 text-foreground"
+                                : "border-border bg-card text-foreground"
                           }`}
                         />
                         {partyNameError && (
                           <p className="text-[10.5px] font-medium text-destructive">
                             {partyNameError}
+                          </p>
+                        )}
+                        {caseStatus === "CNR Generated" && (
+                          <p className="text-[10.5px] text-muted-foreground flex items-center gap-1">
+                            <span>Party names are imported and locked from verified court record (<code className="font-mono text-primary font-semibold">cases_imported</code>).</span>
                           </p>
                         )}
                       </div>
@@ -1110,7 +1345,7 @@ export function CasesTable({
                         </label>
                         <select
                           value={caseStatus}
-                          onChange={(e) => setCaseStatus(e.target.value)}
+                          onChange={(e) => handleStatusChange(e.target.value)}
                           className="h-11 rounded-lg border border-border bg-card px-3.5 text-sm text-foreground outline-hidden focus:border-primary focus:ring-1 focus:ring-primary"
                         >
                           {STATUS_LIST.map((s) => (
@@ -1236,7 +1471,7 @@ export function CasesTable({
                         STAGE HISTORY
                       </div>
                       <div className="relative border-l-2 border-border ml-3 space-y-3.5 pl-6 py-1">
-                        {getStageHistory(editingCase).map((stage) => (
+                        {getStageHistory(editingCase, caseStatus).map((stage) => (
                           <div key={stage.key} className="relative">
                             <span
                               className={`absolute -left-[29px] top-0.5 h-[14px] w-[14px] rounded-full border-2 ${

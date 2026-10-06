@@ -13,6 +13,7 @@ export const caseStatusColor: Record<CaseStatus, string> = {
   "In Progress": "var(--md-sys-color-primary)",
   "Awaiting Documents": "var(--md-extended-color-warning)",
   Resolved: "var(--md-extended-color-success)",
+  "CNR Generated": "var(--md-extended-color-success)",
   Closed: "var(--md-sys-color-on-surface-variant)",
 };
 
