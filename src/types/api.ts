@@ -183,7 +183,7 @@ export interface UpdateLawyerCaseStagePayload {
   stage?: "accepted" | "rejected" | "filinginprogress" | "cnrgenerated" | string;
   status?: string;
   rejectionReason?: string;
-  generatedCnr?: string;
+  generatedCnr?: string | null;
 }
 
 export interface ImportCasePayload {

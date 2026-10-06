@@ -619,7 +619,7 @@ export class CaseService {
   static async updateLawyerStage(
     caseId: string,
     lawyerId: string | null,
-    updateData: { stage?: string; status?: string; rejectionReason?: string; generatedCnr?: string }
+    updateData: { stage?: string; status?: string; rejectionReason?: string; generatedCnr?: string | null }
   ) {
     const [existing] = await db.select().from(casesUser).where(eq(casesUser.id, caseId));
     if (!existing) {
@@ -640,7 +640,7 @@ export class CaseService {
       throw ApiError.badRequest(`Invalid stage '${rawStage}'. Must be one of: ${validStages}`);
     }
 
-    const generatedCnr = this.normalizeCnr(updateData.generatedCnr);
+    const generatedCnr = updateData.generatedCnr === null ? null : this.normalizeCnr(updateData.generatedCnr);
     if (targetStage === "cnrgenerated" && !generatedCnr && !existing.cnr) {
       throw ApiError.badRequest("A valid CNR number is required when setting stage to 'cnrgenerated'.");
     }
@@ -661,6 +661,8 @@ export class CaseService {
           ? `Advocate declined brief: ${updateData.rejectionReason || "No reason specified"}`
           : targetStage === "cnrgenerated"
           ? `Case registered in court with CNR: ${generatedCnr || existing.cnr}`
+          : targetStage === "filinginprogress" && updateData.generatedCnr === null
+          ? `Advocate unlinked CNR and reset stage to: ${stageRecord.label}`
           : `Advocate updated stage to: ${stageRecord.label}`,
     });
 
@@ -674,6 +676,8 @@ export class CaseService {
 
     if (generatedCnr) {
       updateFields.cnr = generatedCnr;
+    } else if (updateData.generatedCnr === null) {
+      updateFields.cnr = null;
     }
 
     const effectiveCnr = generatedCnr || existing.cnr;

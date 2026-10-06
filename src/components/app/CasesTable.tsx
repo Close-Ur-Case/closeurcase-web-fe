@@ -26,6 +26,8 @@ import {
   ExternalLink,
   Loader2,
   Lock,
+  Link2Off,
+  AlertTriangle,
   FileCheck,
   AlignLeft,
   FolderOpen,
@@ -211,6 +213,8 @@ export function CasesTable({
   const [cnrError, setCnrError] = useState("");
   const [importedCnr, setImportedCnr] = useState<string | null>(null);
   const [isImportingCnr, setIsImportingCnr] = useState(false);
+  const [isUnlinkingCnr, setIsUnlinkingCnr] = useState(false);
+  const [unlinkConfirmOpen, setUnlinkConfirmOpen] = useState(false);
   const [caseStatus, setCaseStatus] = useState("Submitted");
   const [journey, setJourney] = useState<CourtHistoryRow[]>([]);
   const [cnrImportResult, setCnrImportResult] = useState<CnrImportResult>(null);
@@ -509,6 +513,86 @@ export function CasesTable({
           setPartyNames(`${p} Vs. ${r}`);
         }
       }
+    }
+  }
+
+  async function handleConfirmUnlink() {
+    if (!editingCase) return;
+    const targetCaseId = editingCase.id;
+    setIsUnlinkingCnr(true);
+    setCnrError("");
+
+    try {
+      // 1. Move case status back to filinginprogress and clear CNR in backend DB
+      await caseService.updateCase(targetCaseId, {
+        cnr: null,
+        status: "Filing in progress",
+        caseStatus: "Filing in progress",
+      });
+
+      await caseService.updateCaseStage(targetCaseId, {
+        stage: "filinginprogress",
+        status: "Filing in progress",
+        generatedCnr: null,
+      });
+
+      // 2. Fetch fresh case directly from backend database to ensure 100% synchronization
+      const dbCase = await caseService.getUserCase<BackendUserCase>(targetCaseId);
+      const citizensList = getCitizens();
+      const lawyersList = getLawyers();
+      const mapped =
+        dbCase && dbCase.id
+          ? mapBackendCaseToLegalCase(dbCase, citizensList, lawyersList)
+          : null;
+
+      // 3. Update local form states
+      setCaseStatus("Filing in progress");
+      setCnr("");
+      setImportedCnr(null);
+      setCnrError("");
+      setPartyNameError("");
+      setUnlinkConfirmOpen(false);
+
+      // 4. Update local app store
+      const today = todayISO();
+      const updatedCases = allCases.map((c) => {
+        if (c.id !== targetCaseId) return c;
+        if (mapped) return mapped;
+        const timeline = [
+          ...(c.timeline || []),
+          {
+            id: `t_${Date.now()}`,
+            status: "In Progress" as CaseStatus,
+            at: today,
+            time: new Date().toLocaleTimeString([], { hour: "numeric", minute: "2-digit" }),
+            note: "CNR unlinked. Status returned to Filing in progress.",
+          },
+        ];
+        return {
+          ...c,
+          caseDetails: {
+            ...(c.caseDetails || {}),
+            cnr: undefined,
+          },
+          status: "In Progress" as CaseStatus,
+          caseStatus: "Filing in progress",
+          timeline,
+          updatedAt: today,
+        };
+      });
+
+      const finalSavedCase = mapped || updatedCases.find((c) => c.id === targetCaseId);
+      saveCases(updatedCases);
+      setAllCases(updatedCases);
+      if (finalSavedCase) {
+        setEditingCase(finalSavedCase);
+        onCaseUpdate?.(finalSavedCase);
+      }
+    } catch (err: unknown) {
+      console.warn("[CasesTable] Error unlinking CNR:", err);
+      setCnrError("Failed to unlink CNR. Please try again.");
+    } finally {
+      setIsUnlinkingCnr(false);
     }
   }
 
@@ -823,20 +907,21 @@ export function CasesTable({
 
       // Persist changes to backend server and sync response back to local store
       try {
+        const isCnrStatus = canonicalCaseStatus === "CNR Generated";
         await caseService.updateCase(targetCaseId, {
           title: trimmedTitle,
           petitioner,
           respondent: respondent || null,
-          cnr: trimmedCnr || undefined,
+          cnr: isCnrStatus ? trimmedCnr || null : null,
           status: canonicalCaseStatus,
           caseStatus: canonicalCaseStatus,
         });
 
         if (statusChanged || (trimmedCnr && trimmedCnr !== editingCase.caseDetails?.cnr)) {
           await caseService.updateCaseStage(targetCaseId, {
-            stage: canonicalCaseStatus,
+            stage: isCnrStatus ? "cnrgenerated" : canonicalCaseStatus === "Filing in progress" ? "filinginprogress" : canonicalCaseStatus,
             status: canonicalCaseStatus,
-            generatedCnr: trimmedCnr || undefined,
+            generatedCnr: isCnrStatus ? trimmedCnr || null : null,
           });
         }
 
@@ -1347,13 +1432,27 @@ export function CasesTable({
                       </div>
 
                       <div className="sm:col-span-2 flex flex-col gap-1">
-                        <label className="text-[11px] font-semibold text-muted-foreground">
-                          Case Status
-                        </label>
+                        <div className="flex items-center justify-between">
+                          <label className="text-[11px] font-semibold text-muted-foreground flex items-center gap-1.5">
+                            <span>Case Status</span>
+                            <span className="text-destructive">*</span>
+                          </label>
+                          {caseStatus === "CNR Generated" && (
+                            <span className="inline-flex items-center gap-1 rounded-md bg-primary/10 px-2 py-0.5 font-mono text-[10px] font-bold text-primary shadow-2xs">
+                              <Lock className="h-2.5 w-2.5" />
+                              Locked
+                            </span>
+                          )}
+                        </div>
                         <select
                           value={caseStatus}
                           onChange={(e) => handleStatusChange(e.target.value)}
-                          className="h-11 rounded-lg border border-border bg-card px-3.5 text-sm text-foreground outline-hidden focus:border-primary focus:ring-1 focus:ring-primary"
+                          disabled={caseStatus === "CNR Generated"}
+                          className={`h-11 rounded-lg border px-3.5 text-sm outline-hidden transition-colors ${
+                            caseStatus === "CNR Generated"
+                              ? "bg-muted/50 text-foreground/80 font-medium cursor-not-allowed border-border/70 select-none shadow-none"
+                              : "border-border bg-card text-foreground focus:border-primary focus:ring-1 focus:ring-primary"
+                          }`}
                         >
                           {STATUS_LIST.map((s) => (
                             <option key={s} value={s}>
@@ -1364,14 +1463,42 @@ export function CasesTable({
                         <div className="text-xs text-muted-foreground mt-1">
                           {STATUS_META[caseStatus]?.meaning}
                         </div>
+
+                        {/* Unlink CNR button below Case Status dropdown */}
+                        {caseStatus === "CNR Generated" && (
+                          <div className="mt-2.5 flex items-center justify-between gap-3 rounded-xl border border-destructive/20 bg-destructive/5 p-3">
+                            <div className="flex items-center gap-2 text-xs text-foreground/80">
+                              <Lock className="h-4 w-4 text-amber-600 dark:text-amber-400 shrink-0" />
+                              <span className="text-[12px] leading-tight">
+                                Case status and CNR are locked to court records.
+                              </span>
+                            </div>
+                            <Button
+                              type="button"
+                              variant="tonal"
+                              onClick={() => setUnlinkConfirmOpen(true)}
+                              disabled={isUnlinkingCnr}
+                              icon={<Link2Off className="h-3.5 w-3.5" />}
+                              className="text-destructive hover:bg-destructive/10 border-destructive/30 font-semibold shrink-0 cursor-pointer"
+                            >
+                              Unlink CNR
+                            </Button>
+                          </div>
+                        )}
                       </div>
 
                       {caseStatus === "CNR Generated" && (
-                        <div className="sm:col-span-2 flex flex-col gap-2 rounded-xl border border-primary/20 bg-primary/[0.03] p-3.5">
+                        <div
+                          className="sm:col-span-2 flex flex-col gap-2 rounded-xl border border-border/70 bg-muted/30 p-3.5 transition-all select-none cursor-not-allowed opacity-90"
+                        >
                           <div className="flex items-center justify-between">
-                            <label className="text-[11px] font-semibold text-foreground flex items-center gap-1">
+                            <label className="text-[11px] font-semibold text-foreground flex items-center gap-1.5">
                               <span>CNR No. (16 Alphanumeric Characters)</span>
                               <span className="text-destructive">*</span>
+                              <span className="inline-flex items-center gap-1 rounded-md bg-muted px-1.5 py-0.5 font-mono text-[9.5px] font-bold text-muted-foreground">
+                                <Lock className="h-2.5 w-2.5" />
+                                Disabled
+                              </span>
                             </label>
                             <span className="font-mono text-[10px] text-muted-foreground">
                               {cnr.length} / 16
@@ -1383,11 +1510,8 @@ export function CasesTable({
                               onChange={(e) => handleCnrChange(sanitizeCNR(e.target.value))}
                               placeholder="e.g. APVK020004422026"
                               maxLength={16}
-                              className={`h-11 flex-1 rounded-lg border px-3.5 text-sm text-foreground font-mono outline-hidden focus:border-primary focus:ring-1 focus:ring-primary uppercase ${
-                                cnrError
-                                  ? "border-destructive bg-destructive/5"
-                                  : "border-border bg-card"
-                              }`}
+                              disabled={true}
+                              className="h-11 flex-1 rounded-lg border border-border/70 bg-muted/50 px-3.5 text-sm text-foreground/80 font-mono outline-hidden uppercase cursor-not-allowed select-none shadow-none"
                             />
                             <div className="flex shrink-0 gap-2">
                               <Button
@@ -1400,7 +1524,8 @@ export function CasesTable({
                                   )
                                 }
                                 onClick={handleImportCnr}
-                                disabled={cnr.length !== 16 || isImportingCnr}
+                                disabled={true}
+                                className="cursor-not-allowed opacity-60 pointer-events-none"
                               >
                                 {isImportingCnr ? "Importing..." : "Import"}
                               </Button>
@@ -1413,19 +1538,11 @@ export function CasesTable({
                               <X className="h-3.5 w-3.5 shrink-0" />
                               <span>{cnrError}</span>
                             </p>
-                          ) : cnr && cnr.length !== 16 ? (
-                            <p className="text-[10.5px] font-medium text-amber-600 dark:text-amber-400">
-                              CNR number must be exactly 16 characters (e.g., APVK020004422026).
-                            </p>
-                          ) : importedCnr && importedCnr === cnr.trim().toUpperCase() ? (
+                          ) : cnr && cnr.length === 16 ? (
                             <div className="flex items-center gap-1.5 rounded-lg bg-emerald-500/10 px-2.5 py-1.5 text-[11px] font-semibold text-emerald-600 dark:text-emerald-400">
                               <Check className="h-4 w-4 shrink-0" />
-                              <span>Case verified & imported successfully for CNR {importedCnr}. Ready to save.</span>
+                              <span>Case verified & imported for CNR {cnr.trim().toUpperCase()}. To modify, unlink CNR first.</span>
                             </div>
-                          ) : cnr.length === 16 ? (
-                            <p className="text-[11px] font-medium text-amber-600 dark:text-amber-400 flex items-center gap-1">
-                              <span>* Click <strong>Import</strong> to verify and fetch case details before saving as CNR Generated.</span>
-                            </p>
                           ) : null}
                         </div>
                       )}
@@ -1717,6 +1834,84 @@ export function CasesTable({
               </p>
               <div className="mt-5 flex justify-end">
                 <Button onClick={() => setCnrImportResult(null)}>OK</Button>
+              </div>
+            </div>
+          </div>,
+          document.body,
+        )}
+
+      {/* Unlink CNR Confirmation Card Popup */}
+      {unlinkConfirmOpen &&
+        createPortal(
+          <div
+            className="fixed inset-0 top-0 left-0 right-0 bottom-0 z-[120] flex h-screen w-screen min-h-[100dvh] items-center justify-center bg-black/70 p-4 backdrop-blur-sm animate-in fade-in duration-150"
+            onClick={(e) => {
+              if (e.target === e.currentTarget && !isUnlinkingCnr) setUnlinkConfirmOpen(false);
+            }}
+          >
+            <div className="w-full max-w-[460px] rounded-[28px] bg-[var(--md-sys-color-surface-container-low,#f5f3f7)] shadow-2xl border border-border/80 p-6 text-foreground animate-in zoom-in-95 duration-150">
+              <div className="flex items-start gap-4">
+                <span className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-amber-500/10 text-amber-600 dark:text-amber-400 border border-amber-500/20 shadow-xs">
+                  <AlertTriangle className="h-6 w-6" />
+                </span>
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-center justify-between gap-2">
+                    <h3 className="text-lg font-semibold text-foreground tracking-tight">
+                      Unlink CNR Confirmation
+                    </h3>
+                    <button
+                      type="button"
+                      onClick={() => !isUnlinkingCnr && setUnlinkConfirmOpen(false)}
+                      disabled={isUnlinkingCnr}
+                      className="rounded-full p-1 text-muted-foreground hover:bg-black/5 hover:text-foreground transition-colors cursor-pointer disabled:opacity-50"
+                      title="Close"
+                    >
+                      <X className="h-4 w-4" />
+                    </button>
+                  </div>
+                  {cnr && (
+                    <div className="font-mono text-xs text-primary font-medium mt-0.5">
+                      CNR: {cnr}
+                    </div>
+                  )}
+                </div>
+              </div>
+
+              <div className="mt-4 rounded-xl border border-border/80 bg-card p-4 shadow-2xs">
+                <p className="text-sm leading-relaxed text-foreground/90 font-medium">
+                  Are you sure you want to unlink the CNR? The case status will be moved back to{" "}
+                  <span className="font-semibold text-primary">'Filing in progress'</span> and the CNR number will be cleared.
+                </p>
+                <div className="mt-2.5 flex items-center gap-2 text-xs text-muted-foreground border-t border-border/60 pt-2.5">
+                  <span className="inline-block h-1.5 w-1.5 rounded-full bg-amber-500 shrink-0" />
+                  <span>This action will disconnect court hearing history and reset the stage.</span>
+                </div>
+              </div>
+
+              <div className="mt-6 flex items-center justify-end gap-2.5">
+                <Button
+                  variant="text"
+                  type="button"
+                  onClick={() => setUnlinkConfirmOpen(false)}
+                  disabled={isUnlinkingCnr}
+                >
+                  Cancel
+                </Button>
+                <Button
+                  type="button"
+                  onClick={handleConfirmUnlink}
+                  disabled={isUnlinkingCnr}
+                  icon={
+                    isUnlinkingCnr ? (
+                      <Loader2 className="h-4 w-4 animate-spin" />
+                    ) : (
+                      <Link2Off className="h-4 w-4" />
+                    )
+                  }
+                  className="bg-destructive text-destructive-foreground hover:bg-destructive/90 shadow-sm font-semibold"
+                >
+                  {isUnlinkingCnr ? "Unlinking..." : "Unlink CNR"}
+                </Button>
               </div>
             </div>
           </div>,

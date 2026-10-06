@@ -63,7 +63,7 @@ export const UpdateLawyerCaseStageSchema = z
     stage: z.string().optional().openapi({ example: "accepted" }),
     status: z.string().optional().openapi({ example: "Accepted by Lawyer" }),
     rejectionReason: z.string().optional().openapi({ example: "Conflict of interest with opposing party." }),
-    generatedCnr: z.string().optional().transform((v) => (v ? v.trim().toUpperCase() : undefined)).openapi({ example: "TSHC010022112026" }),
+    generatedCnr: z.string().nullable().optional().transform((v) => (v ? v.trim().toUpperCase() : v === null ? null : undefined)).openapi({ example: "TSHC010022112026" }),
   })
   .passthrough()
   .openapi("UpdateLawyerCaseStageRequest");
@@ -119,7 +119,7 @@ export const UpdateUserCaseSchema = z
   .object({
     title: z.string().optional().openapi({ example: "Updated Case Title" }),
     description: z.string().optional().openapi({ example: "Updated case description" }),
-    cnr: z.string().optional().transform((v) => (v ? v.trim().toUpperCase() : undefined)).openapi({ example: "DLND020047882015" }),
+    cnr: z.string().nullable().optional().transform((v) => (v ? v.trim().toUpperCase() : v === null ? null : undefined)).openapi({ example: "DLND020047882015" }),
     caseType: z.string().optional().openapi({ example: "new" }),
     practiceArea: z.string().optional().openapi({ example: "cat_1" }),
     specialization: z.string().optional().openapi({ example: "spec_1_1" }),
