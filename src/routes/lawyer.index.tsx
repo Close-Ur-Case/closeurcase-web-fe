@@ -8,6 +8,7 @@ import type { LegalCase, Lawyer } from "@/types";
 import { Briefcase, Clock, CalendarClock, CheckCircle2, ArrowRight } from "lucide-react";
 import { Card } from "@/components/m3";
 import { hasUpcomingHearing, nextHearingSortKey } from "@/components/app/caseDocketShared";
+import { SegmentedControl } from "@/components/app/SegmentedControl";
 import { useAuth } from "@/context/useAuth";
 import { authService } from "@/services/authService";
 
@@ -67,6 +68,8 @@ export function LawyerDashboard() {
     return false;
   };
 
+  const [hearingTab, setHearingTab] = useState<"upcoming" | "completed">("upcoming");
+
   const myCases = allCases.filter(isLawyerCase);
   const activeCases = myCases.filter((c) => c.status !== "Resolved" && c.status !== "Closed");
   const resolvedCases = myCases.filter((c) => c.status === "Resolved" || c.status === "Closed");
@@ -75,6 +78,19 @@ export function LawyerDashboard() {
   const upcomingHearingCases = [...activeCases]
     .filter((c) => hasUpcomingHearing(c, today))
     .sort((a, b) => nextHearingSortKey(a).localeCompare(nextHearingSortKey(b)));
+
+  const completedHearingCases = [...myCases]
+    .filter((c) => {
+      const hearings = c?.caseDetails?.historyOfCaseHearings || [];
+      return hearings.some((h) => h.hearingDate && h.hearingDate < today);
+    })
+    .sort((a, b) => {
+      const aHearings = a?.caseDetails?.historyOfCaseHearings || [];
+      const bHearings = b?.caseDetails?.historyOfCaseHearings || [];
+      const aLast = aHearings[aHearings.length - 1]?.hearingDate ?? "";
+      const bLast = bHearings[bHearings.length - 1]?.hearingDate ?? "";
+      return bLast.localeCompare(aLast);
+    });
 
   const displayName = currentLawyer?.name ?? user?.name ?? "Advocate";
 
@@ -209,26 +225,50 @@ export function LawyerDashboard() {
         </Card>
       </div>
 
-      {/* Upcoming Hearings — pending cases only, soonest hearing first */}
+      {/* Upcoming & Completed Hearings — switchable tabs */}
       <div className="space-y-3">
-        <div className="flex items-center justify-between">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
           <div>
             <h3 className="text-sm font-bold text-foreground">Upcoming Hearings</h3>
-            <p className="text-xs text-muted-foreground">Active matters, soonest hearing first.</p>
+            <p className="text-xs text-muted-foreground">
+              {hearingTab === "upcoming"
+                ? "Active matters with scheduled upcoming hearings, soonest first."
+                : "Matters with completed past hearings, most recent first."}
+            </p>
           </div>
-          <Link
-            to="/lawyer/cases"
-            className="inline-flex items-center gap-1 text-xs font-bold text-primary hover:underline"
-          >
-            View all <ArrowRight className="h-3.5 w-3.5" />
-          </Link>
+          <div className="flex items-center gap-2.5">
+            <SegmentedControl
+              value={hearingTab}
+              onChange={(tab) => setHearingTab(tab)}
+              options={[
+                { value: "upcoming", label: `Upcoming (${upcomingHearingCases.length})` },
+                { value: "completed", label: `Completed (${completedHearingCases.length})` },
+              ]}
+            />
+            <Link
+              to="/lawyer/cases"
+              className="inline-flex items-center gap-1 text-xs font-bold text-primary hover:underline ml-1"
+            >
+              View all <ArrowRight className="h-3.5 w-3.5" />
+            </Link>
+          </div>
         </div>
-        {upcomingHearingCases.length === 0 ? (
-          <div className="rounded-2xl border border-dashed border-border bg-surface p-8 text-center text-xs text-muted-foreground">
-            No cases with upcoming hearings.
-          </div>
+        {hearingTab === "upcoming" ? (
+          upcomingHearingCases.length === 0 ? (
+            <div className="rounded-2xl border border-dashed border-border bg-surface p-8 text-center text-xs text-muted-foreground">
+              No cases with upcoming hearings.
+            </div>
+          ) : (
+            <CasesTable cases={upcomingHearingCases} role="lawyer" />
+          )
         ) : (
-          <CasesTable cases={upcomingHearingCases} role="lawyer" />
+          completedHearingCases.length === 0 ? (
+            <div className="rounded-2xl border border-dashed border-border bg-surface p-8 text-center text-xs text-muted-foreground">
+              No cases with completed hearings.
+            </div>
+          ) : (
+            <CasesTable cases={completedHearingCases} role="lawyer" />
+          )
         )}
       </div>
     </div>

@@ -1135,28 +1135,35 @@ export function CasesTable({
                     )}
                   </div>
 
-                  {/* Next Hearing Strip */}
+                  {/* Next / Last Hearing Strip */}
                   {entry && (
-                    <div className="relative overflow-hidden rounded-xl border border-primary/20 bg-gradient-to-r from-primary/10 via-primary/[0.04] to-transparent p-3 text-xs text-foreground shadow-2xs">
-                      <div className="absolute top-0 left-0 bottom-0 w-1 bg-primary" />
-                      <div className="flex items-start gap-2.5 pl-1">
-                        <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg bg-primary/15 text-primary">
-                          <CalendarClock className="h-4 w-4" />
-                        </div>
-                        <div className="min-w-0 flex-1">
-                          <div className="flex flex-wrap items-center justify-between gap-1">
-                            <span className="font-bold text-foreground text-[12px]">
-                              Next Hearing: {fmtDate(entry.hearingDate ?? entry.businessOnDate)}
-                            </span>
+                    (() => {
+                      const hearingDateVal = entry.hearingDate ?? entry.businessOnDate;
+                      const isUpcoming = Boolean(hearingDateVal && hearingDateVal >= today);
+                      return (
+                        <div className="relative overflow-hidden rounded-xl border border-primary/20 bg-gradient-to-r from-primary/10 via-primary/[0.04] to-transparent p-3 text-xs text-foreground shadow-2xs">
+                          <div className="absolute top-0 left-0 bottom-0 w-1 bg-primary" />
+                          <div className="flex items-start gap-2.5 pl-1">
+                            <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg bg-primary/15 text-primary">
+                              <CalendarClock className="h-4 w-4" />
+                            </div>
+                            <div className="min-w-0 flex-1">
+                              <div className="flex flex-wrap items-center justify-between gap-1">
+                                <span className="font-bold text-foreground text-[12px]">
+                                  {isUpcoming ? "Next Hearing: " : "Last Hearing: "}
+                                  {fmtDate(hearingDateVal)}
+                                </span>
+                              </div>
+                              {entry.purposeOfListing && (
+                                <p className="mt-0.5 line-clamp-1 text-[11px] font-medium text-muted-foreground">
+                                  {entry.purposeOfListing}
+                                </p>
+                              )}
+                            </div>
                           </div>
-                          {entry.purposeOfListing && (
-                            <p className="mt-0.5 line-clamp-1 text-[11px] font-medium text-muted-foreground">
-                              {entry.purposeOfListing}
-                            </p>
-                          )}
                         </div>
-                      </div>
-                    </div>
+                      );
+                    })()
                   )}
                 </div>
 
