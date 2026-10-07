@@ -12,5 +12,8 @@ export const videoCalls = pgTable("video_calls", {
   durationSeconds: integer("duration_seconds"),
   status: varchar("status", { length: 32 }).default("completed").notNull(),
   role: varchar("role", { length: 32 }).notNull(),
+  endedAt: timestamp("ended_at", { withTimezone: true }),
+  notes: text("notes"),
+  recordingUrl: text("recording_url"),
   createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
 });

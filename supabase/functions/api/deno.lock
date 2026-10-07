@@ -4,6 +4,7 @@
     "npm:@hono/swagger-ui@0.5": "0.5.3_hono@4.13.8",
     "npm:@hono/zod-openapi@~0.18.4": "0.18.4_hono@4.13.8_zod@3.25.76",
     "npm:@supabase/supabase-js@^2.48.1": "2.116.0",
+    "npm:agora-token@^2.0.3": "2.0.6",
     "npm:drizzle-orm@*": "0.38.4_postgres@3.4.9",
     "npm:drizzle-orm@~0.38.4": "0.38.4_postgres@3.4.9",
     "npm:hono@^4.6.14": "4.13.8",
@@ -86,6 +87,27 @@
         "@supabase/storage-js"
       ]
     },
+    "agora-token@2.0.6": {
+      "integrity": "sha512-IndnG81dFxdTEj9G14FykEEilxrjPo92crGwB8ip5K/pwKNrd1pI98HZppCNNnHPhIwmAWiLmjmdBpgGB4UqKA==",
+      "dependencies": [
+        "crc-32",
+        "cuint",
+        "md5"
+      ]
+    },
+    "charenc@0.0.2": {
+      "integrity": "sha512-yrLQ/yVUFXkzg7EDQsPieE/53+0RlaWTs+wBrvW36cyilJ2SaDWfl4Yj7MtLTXleV9uEKefbAGUPv2/iWSooRA=="
+    },
+    "crc-32@1.2.2": {
+      "integrity": "sha512-ROmzCKrTnOwybPcJApAA6WBWij23HVfGVNKqqrZpuyZOHqK2CwHSvpGuyt/UNNvaIjEd8X5IFGp4Mh+Ie1IHJQ==",
+      "bin": true
+    },
+    "crypt@0.0.2": {
+      "integrity": "sha512-mCxBlsHFYh9C+HVpiEacem8FEBnMXgU9gy4zmNC+SXAZNB/1idgp/aulFJ4FgCi7GPEVbfyng092GqL2k2rmow=="
+    },
+    "cuint@0.2.2": {
+      "integrity": "sha512-d4ZVpCW31eWwCMe1YT3ur7mUDnTXbgwyzaL320DrcRT45rfjYxkt5QWLrmOJ+/UEAI2+fQgKe/fCjR8l4TpRgw=="
+    },
     "drizzle-orm@0.38.4_postgres@3.4.9": {
       "integrity": "sha512-s7/5BpLKO+WJRHspvpqTydxFob8i1vo2rEx4pY6TGY7QSMuUfWUuzaY0DIpXCkgHOo37BaFC+SJQb99dDUXT3Q==",
       "dependencies": [
@@ -100,6 +122,17 @@
     },
     "iceberg-js@0.8.1": {
       "integrity": "sha512-1dhVQZXhcHje7798IVM+xoo/1ZdVfzOMIc8/rgVSijRK38EDqOJoGula9N/8ZI5RD8QTxNQtK/Gozpr+qUqRRA=="
+    },
+    "is-buffer@1.1.6": {
+      "integrity": "sha512-NcdALwpXkTm5Zvvbk7owOUSvVvBKDgKP5/ewfXEznmQFfs4ZRmanOeKBTjRVjka3QFoN6XJ+9F3USqfHqTaU5w=="
+    },
+    "md5@2.3.0": {
+      "integrity": "sha512-T1GITYmFaKuO91vxyoQMFETst+O71VUPEU3ze5GNzDm0OWdP8v1ziTaAEPUr/3kLsY3Sftgz242A1SetQiDL7g==",
+      "dependencies": [
+        "charenc",
+        "crypt",
+        "is-buffer"
+      ]
     },
     "openapi3-ts@4.6.1": {
       "integrity": "sha512-XW9MOldkhoICNeXVzzmXzmOW5G73ppOEGmh7fLCqHjgfdEYCGGN+00MlVCeUZgovjjfC56j9tvtDt1zGabNjjA==",
@@ -126,6 +159,7 @@
       "npm:@hono/swagger-ui@0.5",
       "npm:@hono/zod-openapi@~0.18.4",
       "npm:@supabase/supabase-js@^2.48.1",
+      "npm:agora-token@^2.0.3",
       "npm:drizzle-orm@~0.38.4",
       "npm:hono@^4.6.14",
       "npm:postgres@^3.4.5",

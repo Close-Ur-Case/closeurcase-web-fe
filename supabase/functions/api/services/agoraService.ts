@@ -9,13 +9,14 @@ export class AgoraService {
   static generateToken({ channelName, uid = 0, role = "publisher", expireSeconds = 3600 }: any) {
     if (!channelName) throw ApiError.badRequest("channelName is required");
 
+    const numericUid = Number(uid) || Math.floor(Math.random() * 900000) + 100000;
     const rtcRole = role === "subscriber" ? RtcRole.SUBSCRIBER : RtcRole.PUBLISHER;
 
     if (!agoraConfig.appId || agoraConfig.appId.includes("placeholder")) {
       return {
         appId: agoraConfig.appId || "mock_agora_app_id",
         channelName,
-        uid,
+        uid: numericUid,
         token: `mock_agora_token_${Date.now()}_${channelName}`,
         expiresIn: expireSeconds,
       };
@@ -25,7 +26,7 @@ export class AgoraService {
       appId: agoraConfig.appId,
       appCertificate: agoraConfig.appCertificate,
       channelName,
-      uid,
+      uid: numericUid,
       role: rtcRole,
       expireSeconds,
     });
@@ -33,13 +34,25 @@ export class AgoraService {
     return {
       appId: agoraConfig.appId,
       channelName,
-      uid,
+      uid: numericUid,
       token,
       expiresIn: expireSeconds,
     };
   }
 
-  static async logCall({ caseId, channelName, withName, callerId, receiverId, role = "citizen", status = "completed", durationSeconds }: any) {
+  static async logCall({
+    caseId,
+    channelName,
+    withName,
+    callerId,
+    receiverId,
+    role = "citizen",
+    status = "completed",
+    durationSeconds = 0,
+    endedAt,
+    notes,
+    recordingUrl,
+  }: any) {
     const id = `vc_${Date.now()}`;
     const nowIso = new Date().toISOString();
 
@@ -56,6 +69,9 @@ export class AgoraService {
         at: nowIso,
         durationSeconds: durationSeconds || 0,
         status,
+        endedAt: endedAt ? new Date(endedAt) : null,
+        notes: notes || null,
+        recordingUrl: recordingUrl || null,
       })
       .returning();
 

@@ -21,8 +21,8 @@ export const env = {
   RAZORPAY_KEY_SECRET: Deno.env.get("RAZORPAY_KEY_SECRET") || "chdjmoKLnyZ80UlqDrqKYe65",
   RAZORPAY_WEBHOOK_SECRET: Deno.env.get("RAZORPAY_WEBHOOK_SECRET") || "cuc_webhook_secret_2026",
 
-  AGORA_APP_ID: Deno.env.get("AGORA_APP_ID") || "placeholder_agora_app_id",
-  AGORA_APP_CERTIFICATE: Deno.env.get("AGORA_APP_CERTIFICATE") || "placeholder_agora_certificate",
+  AGORA_APP_ID: Deno.env.get("AGORA_APP_ID") || "8e72faf625694717b1e97affbe775762",
+  AGORA_APP_CERTIFICATE: Deno.env.get("AGORA_APP_CERTIFICATE") || "c49ca274f895473f868cb7452eec9706",
 
   FIREBASE_SERVICE_ACCOUNT_KEY: Deno.env.get("FIREBASE_SERVICE_ACCOUNT_KEY") || "",
 

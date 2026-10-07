@@ -1,8 +1,8 @@
-import crypto from "node:crypto";
+import { RtcTokenBuilder, RtcRole as AgoraRtcRole } from "agora-token";
 
 export const RtcRole = {
-  PUBLISHER: 1,
-  SUBSCRIBER: 2,
+  PUBLISHER: AgoraRtcRole?.PUBLISHER ?? 1,
+  SUBSCRIBER: AgoraRtcRole?.SUBSCRIBER ?? 2,
 };
 
 export function buildAgoraRtcToken({
@@ -24,35 +24,17 @@ export function buildAgoraRtcToken({
     throw new Error("AGORA_APP_ID and AGORA_APP_CERTIFICATE must be configured");
   }
 
+  const numericUid = Number(uid) || 0;
   const currentTimestamp = Math.floor(Date.now() / 1000);
   const privilegeExpiredTs = currentTimestamp + expireSeconds;
-  const salt = Math.floor(Math.random() * 99999999) + 1;
 
-  const uidStr = String(uid);
-  const message = Buffer.concat([
-    Buffer.from(appId, "utf8"),
-    Buffer.from(channelName, "utf8"),
-    Buffer.from(uidStr, "utf8"),
-    Buffer.from(String(salt), "utf8"),
-    Buffer.from(String(privilegeExpiredTs), "utf8"),
-    Buffer.from(String(role), "utf8"),
-  ]);
-
-  const signature = crypto
-    .createHmac("sha256", appCertificate)
-    .update(message)
-    .digest("hex");
-
-  const tokenPayload = {
-    v: "006",
+  return RtcTokenBuilder.buildTokenWithUid(
     appId,
-    cname: channelName,
-    uid: uidStr,
+    appCertificate,
+    channelName,
+    numericUid,
     role,
-    salt,
-    ts: privilegeExpiredTs,
-    sig: signature,
-  };
-
-  return Buffer.from(JSON.stringify(tokenPayload)).toString("base64");
+    privilegeExpiredTs,
+    privilegeExpiredTs
+  );
 }

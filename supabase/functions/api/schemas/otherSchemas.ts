@@ -18,6 +18,9 @@ export const LogCallSessionSchema = z
     channelName: z.string().optional().openapi({ example: "consult_case_102" }),
     role: z.string().optional().openapi({ example: "citizen" }),
     status: z.string().optional().openapi({ example: "completed" }),
+    endedAt: z.string().optional().openapi({ example: "2026-10-07T14:30:00.000Z" }),
+    notes: z.string().optional().openapi({ example: "Client discussed bail application draft." }),
+    recordingUrl: z.string().optional().openapi({ example: "https://storage.supabase.co/..." }),
   })
   .openapi("LogCallSessionRequest");
 

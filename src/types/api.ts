@@ -598,6 +598,9 @@ export interface LogCallPayload {
   role?: string;
   status?: string;
   durationSeconds?: number;
+  endedAt?: string;
+  notes?: string;
+  recordingUrl?: string;
 }
 
 export interface VideoCallRecord {
@@ -611,6 +614,9 @@ export interface VideoCallRecord {
   durationSeconds?: number;
   status: string;
   role: string;
+  endedAt?: string | null;
+  notes?: string | null;
+  recordingUrl?: string | null;
   createdAt?: string;
 }
 
