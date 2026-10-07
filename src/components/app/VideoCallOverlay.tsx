@@ -13,6 +13,7 @@ import {
   Wifi,
   PhoneCall,
   XCircle,
+  CheckCircle2,
 } from "lucide-react";
 import type { ActiveVideoCall } from "@/features/video-call/VideoCallContext";
 import { addVideoCall } from "@/data/appStore";
@@ -44,6 +45,7 @@ export function VideoCallOverlay({
 
   const [elapsed, setElapsed] = useState(0);
   const [tokenLoading, setTokenLoading] = useState(true);
+  const [exitCountdown, setExitCountdown] = useState<number | null>(null);
 
   const { callStatus, isInitiator, cancelOutgoingCall } = useVideoCall();
 
@@ -52,6 +54,8 @@ export function VideoCallOverlay({
     isConnecting,
     remoteUser,
     hasRemoteVideo,
+    peerLeft,
+    peerLeftReason,
     micOn,
     camOn,
     isScreenSharing,
@@ -70,8 +74,6 @@ export function VideoCallOverlay({
   useEffect(() => {
     let cancelled = false;
 
-    // If caller is still in ringing state, we can already pre-connect to Agora
-    // so connection is zero-latency when the receiver picks up!
     async function initializeCall() {
       try {
         setTokenLoading(true);
@@ -121,7 +123,7 @@ export function VideoCallOverlay({
 
   // 4. Consultation timer (30 mins cap with 25 mins warning)
   useEffect(() => {
-    if (!isJoined || callStatus === "ringing") return;
+    if (!isJoined || callStatus === "ringing" || peerLeft) return;
 
     const timer = window.setInterval(() => {
       if (!connectedAtRef.current) return;
@@ -134,7 +136,7 @@ export function VideoCallOverlay({
     }, 1000);
 
     return () => window.clearInterval(timer);
-  }, [isJoined, callStatus]);
+  }, [isJoined, callStatus, peerLeft]);
 
   // 5. Hang up and log call
   const hangUp = useCallback(() => {
@@ -173,7 +175,27 @@ export function VideoCallOverlay({
     onEnd();
   }, [call.caseId, call.role, call.withName, leave, onEnd]);
 
-  // 6. Escape key listener to exit
+  // 6. When the other user exits the call, start auto-exit countdown
+  useEffect(() => {
+    if (!peerLeft || endedRef.current) return;
+
+    setExitCountdown(4);
+
+    const interval = window.setInterval(() => {
+      setExitCountdown((prev) => {
+        if (prev === null || prev <= 1) {
+          window.clearInterval(interval);
+          hangUp();
+          return 0;
+        }
+        return prev - 1;
+      });
+    }, 1000);
+
+    return () => window.clearInterval(interval);
+  }, [peerLeft, hangUp]);
+
+  // 7. Escape key listener to exit
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       if (e.key === "Escape") {
@@ -288,7 +310,60 @@ export function VideoCallOverlay({
   }
 
   // ─────────────────────────────────────────────────────────────────────────────
-  // C. ACTIVE 1-ON-1 AGORA VIDEO CONSULTATION (Connected / Accepted)
+  // C. PEER LEFT / CONSULTATION CONCLUDED SCREEN (Other User Exited)
+  // ─────────────────────────────────────────────────────────────────────────────
+  if (peerLeft && connectedAtRef.current) {
+    return (
+      <div
+        className="fixed inset-0 z-[115] flex flex-col items-center justify-center bg-slate-950/95 backdrop-blur-md text-white p-6 select-none animate-fade-in"
+        role="dialog"
+        aria-label="Consultation Ended"
+      >
+        <div className="relative w-full max-w-md overflow-hidden rounded-3xl border border-white/15 bg-gradient-to-b from-slate-900 via-slate-900 to-slate-950 p-8 text-center shadow-2xl shadow-emerald-500/10">
+          <div className="flex justify-center mb-5">
+            <div className="flex h-18 w-18 items-center justify-center rounded-full bg-emerald-500/20 text-emerald-400 border border-emerald-500/30">
+              <CheckCircle2 className="h-9 w-9" />
+            </div>
+          </div>
+
+          <h2 className="text-xl font-bold tracking-tight text-white">
+            Consultation Ended by {call.withName}
+          </h2>
+          <p className="mt-2 text-xs text-slate-300">
+            {peerLeftReason === "Quit"
+              ? `${otherRoleLabel} ${call.withName} concluded the video consultation session.`
+              : `${otherRoleLabel} ${call.withName} disconnected from the call.`}
+          </p>
+
+          <div className="mt-6 flex items-center justify-center gap-3">
+            <div className="flex items-center gap-1.5 rounded-full bg-slate-800/80 px-3.5 py-1.5 text-xs font-mono font-medium text-slate-300 border border-slate-700/60">
+              <Clock className="h-3.5 w-3.5 text-emerald-400" />
+              <span>Duration: {formatTime(elapsed)}</span>
+            </div>
+            <div className="flex items-center gap-1 rounded-full bg-slate-800/80 px-3.5 py-1.5 text-xs text-slate-400 border border-slate-700/60">
+              <span>Case #{call.caseId}</span>
+            </div>
+          </div>
+
+          <div className="mt-5 text-[11px] font-medium text-slate-400">
+            Returning to dashboard in{" "}
+            <span className="font-bold text-emerald-400 font-mono">{exitCountdown ?? 3}s</span>…
+          </div>
+
+          <button
+            type="button"
+            onClick={hangUp}
+            className="mt-6 w-full rounded-xl bg-emerald-600 px-5 py-2.5 text-xs font-semibold text-white hover:bg-emerald-500 transition-colors shadow-lg shadow-emerald-600/20 cursor-pointer"
+          >
+            Close Consultation Now
+          </button>
+        </div>
+      </div>
+    );
+  }
+
+  // ─────────────────────────────────────────────────────────────────────────────
+  // D. ACTIVE 1-ON-1 AGORA VIDEO CONSULTATION (Connected / Both Users In Call)
   // ─────────────────────────────────────────────────────────────────────────────
   return (
     <div
@@ -337,7 +412,7 @@ export function VideoCallOverlay({
         </div>
       </header>
 
-      {/* Main Viewport Stage (Remote Stream or Waiting Room) */}
+      {/* Main Viewport Stage (Remote Stream or Connecting State) */}
       <main className="relative flex flex-1 items-center justify-center overflow-hidden bg-slate-950">
         {/* Remote Video Container */}
         <div

@@ -24,6 +24,8 @@ export interface UseAgoraRtcReturn {
   remoteUser: IAgoraRTCRemoteUser | null;
   hasRemoteVideo: boolean;
   hasRemoteAudio: boolean;
+  peerLeft: boolean;
+  peerLeftReason: string | null;
   micOn: boolean;
   camOn: boolean;
   isScreenSharing: boolean;
@@ -51,6 +53,8 @@ export function useAgoraRtc(): UseAgoraRtcReturn {
   const [remoteUser, setRemoteUser] = useState<IAgoraRTCRemoteUser | null>(null);
   const [hasRemoteVideo, setHasRemoteVideo] = useState(false);
   const [hasRemoteAudio, setHasRemoteAudio] = useState(false);
+  const [peerLeft, setPeerLeft] = useState(false);
+  const [peerLeftReason, setPeerLeftReason] = useState<string | null>(null);
   const [micOn, setMicOn] = useState(true);
   const [camOn, setCamOn] = useState(true);
   const [isScreenSharing, setIsScreenSharing] = useState(false);
@@ -105,6 +109,8 @@ export function useAgoraRtc(): UseAgoraRtcReturn {
       setHasRemoteVideo(false);
       setHasRemoteAudio(false);
       setIsScreenSharing(false);
+      setPeerLeft(false);
+      setPeerLeftReason(null);
     }
   }, []);
 
@@ -113,6 +119,8 @@ export function useAgoraRtc(): UseAgoraRtcReturn {
       if (isConnecting || isJoined) return;
       setIsConnecting(true);
       setErrorMessage(null);
+      setPeerLeft(false);
+      setPeerLeftReason(null);
 
       // Handle Mock Mode for local offline development
       if (!appId || appId.includes("mock") || appId.includes("placeholder") || token.includes("mock")) {
@@ -147,6 +155,7 @@ export function useAgoraRtc(): UseAgoraRtcReturn {
         client.on("user-published", async (user, mediaType) => {
           await client.subscribe(user, mediaType);
           setRemoteUser(user);
+          setPeerLeft(false);
 
           if (mediaType === "video") {
             setHasRemoteVideo(true);
@@ -172,10 +181,12 @@ export function useAgoraRtc(): UseAgoraRtcReturn {
         });
 
         // Remote user left consultation
-        client.on("user-left", () => {
+        client.on("user-left", (_user, reason) => {
           setRemoteUser(null);
           setHasRemoteVideo(false);
           setHasRemoteAudio(false);
+          setPeerLeft(true);
+          setPeerLeftReason(reason);
         });
 
         // Network quality monitor
@@ -310,6 +321,8 @@ export function useAgoraRtc(): UseAgoraRtcReturn {
     remoteUser,
     hasRemoteVideo,
     hasRemoteAudio,
+    peerLeft,
+    peerLeftReason,
     micOn,
     camOn,
     isScreenSharing,
