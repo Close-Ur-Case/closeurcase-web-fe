@@ -99,6 +99,25 @@ export function VideoCallProvider({ children }: { children: ReactNode }) {
     };
   }, [active, incomingCall, user?.id]);
 
+  // Auto-dismiss incoming call dialog if caller cancelled or timed out
+  useEffect(() => {
+    if (!incomingCall) return;
+
+    const interval = window.setInterval(async () => {
+      try {
+        const statusData = await videoCallService.getCallStatus(incomingCall.id);
+        if (!statusData || statusData.status !== "ringing") {
+          ringtone.stopRing();
+          setIncomingCall(null);
+        }
+      } catch {
+        // Ignore polling errors
+      }
+    }, 1800);
+
+    return () => window.clearInterval(interval);
+  }, [incomingCall]);
+
   // 2. Clear status polling and timeouts
   const clearTimers = useCallback(() => {
     ringtone.stopRing();

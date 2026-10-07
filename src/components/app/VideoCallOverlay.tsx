@@ -21,6 +21,7 @@ import { UserAvatar } from "@/components/app/UserAvatar";
 import { videoCallService } from "@/services/videoCallService";
 import { useAgoraRtc } from "@/features/video-call/useAgoraRtc";
 import { useVideoCall } from "@/features/video-call/VideoCallContext";
+import { getApiBaseUrl } from "@/services/apiClient";
 
 const CONSULTATION_LIMIT_SECONDS = 30 * 60; // 30 minutes consultation window
 const WARNING_LIMIT_SECONDS = 25 * 60; // Warning banner at 25 minutes (5 min left)
@@ -63,6 +64,7 @@ export function VideoCallOverlay({
     errorMessage,
     join,
     leave,
+    triggerPeerLeft,
     toggleMic,
     toggleCam,
     toggleScreenShare,
@@ -92,7 +94,9 @@ export function VideoCallOverlay({
           uid: tokenRes.uid,
         });
 
-        connectedAtRef.current = Date.now();
+        if (!cancelled) {
+          connectedAtRef.current = Date.now();
+        }
       } catch (err) {
         console.warn("[VideoCallOverlay] Token or join error:", err);
       } finally {
@@ -138,17 +142,69 @@ export function VideoCallOverlay({
     return () => window.clearInterval(timer);
   }, [isJoined, callStatus, peerLeft]);
 
-  // 5. Hang up and log call
-  const hangUp = useCallback(() => {
+  // 5. Dual-guarantee sync: Poll backend call status during consultation.
+  // If the other party exited and marked call completed/cancelled, trigger consultation ended immediately.
+  useEffect(() => {
+    const targetCallId = call.callId;
+    if (!targetCallId || peerLeft || endedRef.current) return;
+    if (callStatus === "ringing") return;
+
+    const interval = window.setInterval(async () => {
+      if (endedRef.current || peerLeft) return;
+
+      if (typeof document !== "undefined" && document.visibilityState === "hidden") {
+        return;
+      }
+
+      try {
+        const data = await videoCallService.getCallStatus(targetCallId);
+        if (!data) return;
+
+        if (data.status === "completed" || data.status === "cancelled") {
+          window.clearInterval(interval);
+          triggerPeerLeft("Quit");
+        }
+      } catch {
+        // Ignore polling error
+      }
+    }, 2000);
+
+    return () => window.clearInterval(interval);
+  }, [call.callId, callStatus, peerLeft, triggerPeerLeft]);
+
+  // 6. Beforeunload beacon: If user closes tab abruptly, update call status to completed
+  useEffect(() => {
+    const onBeforeUnload = () => {
+      if (call.callId && !endedRef.current) {
+        try {
+          const url = `${getApiBaseUrl()}/video-calls/respond`;
+          navigator.sendBeacon?.(
+            url,
+            new Blob([JSON.stringify({ callId: call.callId, action: "completed" })], {
+              type: "application/json",
+            })
+          );
+        } catch {
+          // ignore
+        }
+      }
+    };
+    window.addEventListener("beforeunload", onBeforeUnload);
+    return () => window.removeEventListener("beforeunload", onBeforeUnload);
+  }, [call.callId]);
+
+  // 7. Hang up and log call
+  const hangUp = useCallback(async () => {
     if (endedRef.current) return;
     endedRef.current = true;
 
     const connectedAt = connectedAtRef.current;
     const durationSeconds = connectedAt
       ? Math.max(1, Math.floor((Date.now() - connectedAt) / 1000))
-      : 0;
+      : elapsed || 0;
 
-    void leave();
+    // Gracefully leave Agora channel so peer receives WebRTC user-left packet immediately
+    await leave().catch((err) => console.warn("[VideoCallOverlay] Leave error:", err));
 
     // Persist to local app store
     addVideoCall({
@@ -173,7 +229,7 @@ export function VideoCallOverlay({
       .catch((err) => console.warn("[VideoCallOverlay] Remote call log error:", err));
 
     onEnd();
-  }, [call.caseId, call.role, call.withName, leave, onEnd]);
+  }, [call.caseId, call.role, call.withName, elapsed, leave, onEnd]);
 
   // 6. When the other user exits the call, start auto-exit countdown
   useEffect(() => {
@@ -312,7 +368,7 @@ export function VideoCallOverlay({
   // ─────────────────────────────────────────────────────────────────────────────
   // C. PEER LEFT / CONSULTATION CONCLUDED SCREEN (Other User Exited)
   // ─────────────────────────────────────────────────────────────────────────────
-  if (peerLeft && connectedAtRef.current) {
+  if (peerLeft) {
     return (
       <div
         className="fixed inset-0 z-[115] flex flex-col items-center justify-center bg-slate-950/95 backdrop-blur-md text-white p-6 select-none animate-fade-in"
@@ -338,7 +394,9 @@ export function VideoCallOverlay({
           <div className="mt-6 flex items-center justify-center gap-3">
             <div className="flex items-center gap-1.5 rounded-full bg-slate-800/80 px-3.5 py-1.5 text-xs font-mono font-medium text-slate-300 border border-slate-700/60">
               <Clock className="h-3.5 w-3.5 text-emerald-400" />
-              <span>Duration: {formatTime(elapsed)}</span>
+              <span>
+                Duration: {formatTime(elapsed || (connectedAtRef.current ? Math.floor((Date.now() - connectedAtRef.current) / 1000) : 0))}
+              </span>
             </div>
             <div className="flex items-center gap-1 rounded-full bg-slate-800/80 px-3.5 py-1.5 text-xs text-slate-400 border border-slate-700/60">
               <span>Case #{call.caseId}</span>

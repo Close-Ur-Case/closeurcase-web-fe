@@ -33,6 +33,7 @@ export interface UseAgoraRtcReturn {
   errorMessage: string | null;
   join: (config: AgoraTokenConfig) => Promise<void>;
   leave: () => Promise<void>;
+  triggerPeerLeft: (reason?: string) => void;
   toggleMic: () => Promise<void>;
   toggleCam: () => Promise<void>;
   toggleScreenShare: () => Promise<void>;
@@ -47,6 +48,8 @@ export function useAgoraRtc(): UseAgoraRtcReturn {
   const screenTrackRef = useRef<ILocalVideoTrack | null>(null);
   const localContainerRef = useRef<HTMLElement | null>(null);
   const remoteContainerRef = useRef<HTMLElement | null>(null);
+  const isConnectingRef = useRef(false);
+  const isJoinedRef = useRef(false);
 
   const [isJoined, setIsJoined] = useState(false);
   const [isConnecting, setIsConnecting] = useState(false);
@@ -61,12 +64,26 @@ export function useAgoraRtc(): UseAgoraRtcReturn {
   const [networkQuality, setNetworkQuality] = useState(1);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
+  const triggerPeerLeft = useCallback((reason: string = "Quit") => {
+    setRemoteUser(null);
+    setHasRemoteVideo(false);
+    setHasRemoteAudio(false);
+    setPeerLeft(true);
+    setPeerLeftReason(reason);
+  }, []);
+
   const playLocalVideo = useCallback((element: HTMLElement | null) => {
     localContainerRef.current = element;
     if (element && localVideoTrackRef.current) {
-      localVideoTrackRef.current.play(element, { fit: "cover" });
+      localVideoTrackTrackPlay(element);
     }
   }, []);
+
+  function localVideoTrackTrackPlay(element: HTMLElement) {
+    if (localVideoTrackRef.current) {
+      localVideoTrackRef.current.play(element, { fit: "cover" });
+    }
+  }
 
   const playRemoteVideo = useCallback((element: HTMLElement | null) => {
     remoteContainerRef.current = element;
@@ -96,13 +113,19 @@ export function useAgoraRtc(): UseAgoraRtcReturn {
       }
 
       if (clientRef.current) {
-        await clientRef.current.leave();
-        clientRef.current.removeAllListeners();
+        const client = clientRef.current;
         clientRef.current = null;
+        try {
+          await client.leave();
+        } finally {
+          client.removeAllListeners();
+        }
       }
     } catch (err) {
       console.warn("[AgoraRTC] Error leaving channel:", err);
     } finally {
+      isJoinedRef.current = false;
+      isConnectingRef.current = false;
       setIsJoined(false);
       setIsConnecting(false);
       setRemoteUser(null);
@@ -116,7 +139,8 @@ export function useAgoraRtc(): UseAgoraRtcReturn {
 
   const join = useCallback(
     async ({ appId, channelName, token, uid }: AgoraTokenConfig) => {
-      if (isConnecting || isJoined) return;
+      if (isConnectingRef.current || isJoinedRef.current) return;
+      isConnectingRef.current = true;
       setIsConnecting(true);
       setErrorMessage(null);
       setPeerLeft(false);
@@ -136,11 +160,14 @@ export function useAgoraRtc(): UseAgoraRtcReturn {
             videoEl.className = "w-full h-full object-cover";
             localContainerRef.current.replaceChildren(videoEl);
           }
+          isJoinedRef.current = true;
+          isConnectingRef.current = false;
           setIsJoined(true);
           setIsConnecting(false);
           return;
         } catch {
           setErrorMessage("Camera or microphone permission was denied.");
+          isConnectingRef.current = false;
           setIsConnecting(false);
           return;
         }
@@ -214,6 +241,7 @@ export function useAgoraRtc(): UseAgoraRtcReturn {
         // Publish local media
         await client.publish([audioTrack, videoTrack]);
 
+        isJoinedRef.current = true;
         setIsJoined(true);
       } catch (err: any) {
         console.error("[AgoraRTC] Connection failed:", err);
@@ -223,10 +251,11 @@ export function useAgoraRtc(): UseAgoraRtcReturn {
             : "Could not connect to Agora video consultation room. Please retry."
         );
       } finally {
+        isConnectingRef.current = false;
         setIsConnecting(false);
       }
     },
-    [isConnecting, isJoined]
+    []
   );
 
   const toggleMic = useCallback(async () => {
@@ -330,6 +359,7 @@ export function useAgoraRtc(): UseAgoraRtcReturn {
     errorMessage,
     join,
     leave,
+    triggerPeerLeft,
     toggleMic,
     toggleCam,
     toggleScreenShare,
