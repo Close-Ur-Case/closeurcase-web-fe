@@ -2,7 +2,7 @@ import { agoraConfig } from "../config/agora.ts";
 import { buildAgoraRtcToken, RtcRole } from "../utils/agoraTokenBuilder.ts";
 import { db } from "../config/db.ts";
 import { videoCalls } from "../models/videoCalls.ts";
-import { eq } from "drizzle-orm";
+import { eq, desc, and, gte } from "drizzle-orm";
 import { ApiError } from "../utils/apiError.ts";
 
 export class AgoraService {
@@ -38,6 +38,93 @@ export class AgoraService {
       token,
       expiresIn: expireSeconds,
     };
+  }
+
+  static async initiateCall({
+    caseId,
+    channelName,
+    withName,
+    callerId,
+    callerName,
+    receiverId,
+    role = "citizen",
+  }: any) {
+    if (!caseId) throw ApiError.badRequest("caseId is required");
+
+    const id = `vc_${Date.now()}`;
+    const nowIso = new Date().toISOString();
+
+    const [record] = await db
+      .insert(videoCalls)
+      .values({
+        id,
+        caseId,
+        channelName: channelName || `case_${caseId}`,
+        withName: withName || callerName || "Consultation Participant",
+        callerId: callerId || null,
+        receiverId: receiverId || null,
+        role,
+        at: nowIso,
+        durationSeconds: 0,
+        status: "ringing",
+        notes: callerName ? `Caller: ${callerName}` : null,
+      })
+      .returning();
+
+    return record;
+  }
+
+  static async getIncomingCall({ userId, caseId }: any) {
+    const cutoff = new Date(Date.now() - 45 * 1000); // Calls ringing within the last 45 seconds
+
+    const conditions = [
+      eq(videoCalls.status, "ringing"),
+      gte(videoCalls.createdAt, cutoff),
+    ];
+
+    if (caseId) {
+      conditions.push(eq(videoCalls.caseId, caseId));
+    }
+
+    const calls = await db
+      .select()
+      .from(videoCalls)
+      .where(and(...conditions))
+      .orderBy(desc(videoCalls.createdAt))
+      .limit(5);
+
+    // If userId provided, filter out calls where current user was the caller
+    const incoming = calls.find((c) => !userId || c.callerId !== userId) || null;
+    return incoming;
+  }
+
+  static async respondCall({ callId, action }: any) {
+    if (!callId) throw ApiError.badRequest("callId is required");
+    const validActions = ["accepted", "declined", "cancelled", "missed", "completed"];
+    if (!validActions.includes(action)) throw ApiError.badRequest("Invalid call action");
+
+    const [record] = await db
+      .update(videoCalls)
+      .set({
+        status: action,
+        endedAt: action !== "accepted" ? new Date() : undefined,
+      })
+      .where(eq(videoCalls.id, callId))
+      .returning();
+
+    return record || null;
+  }
+
+  static async getCallStatus(callId: string) {
+    if (!callId) throw ApiError.badRequest("callId is required");
+
+    const [record] = await db
+      .select()
+      .from(videoCalls)
+      .where(eq(videoCalls.id, callId))
+      .limit(1);
+
+    return record || null;
   }
 
   static async logCall({

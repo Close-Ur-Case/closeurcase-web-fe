@@ -620,6 +620,35 @@ export interface VideoCallRecord {
   createdAt?: string;
 }
 
+export interface InitiateCallPayload {
+  caseId: string;
+  withName: string;
+  callerId?: string;
+  callerName?: string;
+  receiverId?: string;
+  role: "citizen" | "lawyer";
+  channelName?: string;
+}
+
+export interface RespondCallPayload {
+  callId: string;
+  action: "accepted" | "declined" | "cancelled" | "missed" | "completed";
+}
+
+export interface IncomingCallInfo {
+  id: string;
+  caseId: string;
+  channelName: string;
+  withName: string;
+  callerId?: string | null;
+  callerName?: string | null;
+  receiverId?: string | null;
+  role: "citizen" | "lawyer";
+  status: "ringing" | "accepted" | "declined" | "cancelled" | "completed" | "missed";
+  at: string;
+  createdAt?: string;
+}
+
 // ============================================================================
 // AI Legal Assistant & Case Insights Payloads
 // ============================================================================

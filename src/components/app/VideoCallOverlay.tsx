@@ -11,12 +11,15 @@ import {
   AlertTriangle,
   Clock,
   Wifi,
+  PhoneCall,
+  XCircle,
 } from "lucide-react";
 import type { ActiveVideoCall } from "@/features/video-call/VideoCallContext";
 import { addVideoCall } from "@/data/appStore";
 import { UserAvatar } from "@/components/app/UserAvatar";
 import { videoCallService } from "@/services/videoCallService";
 import { useAgoraRtc } from "@/features/video-call/useAgoraRtc";
+import { useVideoCall } from "@/features/video-call/VideoCallContext";
 
 const CONSULTATION_LIMIT_SECONDS = 30 * 60; // 30 minutes consultation window
 const WARNING_LIMIT_SECONDS = 25 * 60; // Warning banner at 25 minutes (5 min left)
@@ -42,6 +45,8 @@ export function VideoCallOverlay({
   const [elapsed, setElapsed] = useState(0);
   const [tokenLoading, setTokenLoading] = useState(true);
 
+  const { callStatus, isInitiator, cancelOutgoingCall } = useVideoCall();
+
   const {
     isJoined,
     isConnecting,
@@ -61,10 +66,12 @@ export function VideoCallOverlay({
     playRemoteVideo,
   } = useAgoraRtc();
 
-  // 1. Fetch Agora Token and join RTC channel on mount
+  // 1. Fetch Agora Token and join RTC channel
   useEffect(() => {
     let cancelled = false;
 
+    // If caller is still in ringing state, we can already pre-connect to Agora
+    // so connection is zero-latency when the receiver picks up!
     async function initializeCall() {
       try {
         setTokenLoading(true);
@@ -114,21 +121,20 @@ export function VideoCallOverlay({
 
   // 4. Consultation timer (30 mins cap with 25 mins warning)
   useEffect(() => {
-    if (!isJoined) return;
+    if (!isJoined || callStatus === "ringing") return;
 
     const timer = window.setInterval(() => {
       if (!connectedAtRef.current) return;
       const curElapsed = Math.floor((Date.now() - connectedAtRef.current) / 1000);
       setElapsed(curElapsed);
 
-      // Auto-terminate call gracefully when reaching 30 minutes cap
       if (curElapsed >= CONSULTATION_LIMIT_SECONDS) {
         hangUp();
       }
     }, 1000);
 
     return () => window.clearInterval(timer);
-  }, [isJoined]);
+  }, [isJoined, callStatus]);
 
   // 5. Hang up and log call
   const hangUp = useCallback(() => {
@@ -167,22 +173,123 @@ export function VideoCallOverlay({
     onEnd();
   }, [call.caseId, call.role, call.withName, leave, onEnd]);
 
-  // 6. Escape key listener to quickly exit
+  // 6. Escape key listener to exit
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       if (e.key === "Escape") {
         e.stopPropagation();
-        hangUp();
+        if (isInitiator && callStatus === "ringing") {
+          cancelOutgoingCall();
+        } else {
+          hangUp();
+        }
       }
     };
     window.addEventListener("keydown", onKey, true);
     return () => window.removeEventListener("keydown", onKey, true);
-  }, [hangUp]);
+  }, [hangUp, isInitiator, callStatus, cancelOutgoingCall]);
 
   const otherRoleLabel = call.role === "citizen" ? "Advocate" : "Client";
   const isWarningTime = elapsed >= WARNING_LIMIT_SECONDS;
   const remainingSeconds = Math.max(0, CONSULTATION_LIMIT_SECONDS - elapsed);
 
+  // ─────────────────────────────────────────────────────────────────────────────
+  // A. OUTGOING RINGING SCREEN (User A calling User B)
+  // ─────────────────────────────────────────────────────────────────────────────
+  if (isInitiator && callStatus === "ringing") {
+    return (
+      <div
+        className="fixed inset-0 z-[110] flex flex-col items-center justify-between bg-gradient-to-b from-slate-900 via-slate-950 to-black text-white p-6 sm:p-10 select-none animate-fade-in"
+        role="dialog"
+        aria-label={`Calling ${call.withName}`}
+      >
+        {/* Top Header */}
+        <div className="flex w-full items-center justify-between">
+          <div className="inline-flex items-center gap-1.5 rounded-full bg-slate-800/80 px-3 py-1 text-xs font-medium text-slate-300 border border-slate-700/60 shadow-inner">
+            <ShieldCheck className="h-4 w-4 text-emerald-400" />
+            <span>Case #{call.caseId} Consultation</span>
+          </div>
+          <span className="text-xs text-slate-400">Secure Peer Ring</span>
+        </div>
+
+        {/* Center Outgoing Avatar & Radar Wave */}
+        <div className="flex flex-col items-center text-center">
+          <div className="relative my-8 flex items-center justify-center">
+            {/* Pulsing ring waves */}
+            <span className="absolute h-48 w-48 rounded-full bg-emerald-500/10 animate-ping opacity-50" />
+            <span className="absolute h-64 w-64 rounded-full bg-emerald-500/5 animate-pulse" />
+            <UserAvatar
+              name={call.withName}
+              size="lg"
+              className="relative h-32 w-32 ring-4 ring-emerald-500/30 shadow-2xl"
+            />
+            <div className="absolute -bottom-2 -right-2 flex h-9 w-9 items-center justify-center rounded-full bg-emerald-500 text-slate-950 shadow-lg">
+              <PhoneCall className="h-5 w-5 animate-bounce" />
+            </div>
+          </div>
+
+          <h2 className="text-2xl font-bold text-white tracking-tight">{call.withName}</h2>
+          <div className="mt-2 flex items-center gap-2 text-sm text-emerald-400 font-medium">
+            <span className="inline-block h-2 w-2 rounded-full bg-emerald-400 animate-ping" />
+            <span>Ringing {otherRoleLabel}…</span>
+          </div>
+          <p className="mt-1 text-xs text-slate-400 max-w-xs">
+            Waiting for {call.withName} to accept the consultation request.
+          </p>
+        </div>
+
+        {/* Bottom Cancel Action */}
+        <div className="flex flex-col items-center gap-2 pb-6">
+          <button
+            type="button"
+            onClick={cancelOutgoingCall}
+            title="Cancel Call"
+            className="flex h-16 w-16 cursor-pointer items-center justify-center rounded-full bg-red-600 text-white hover:bg-red-500 transition-all active:scale-95 shadow-xl shadow-red-600/30 border border-red-500/40"
+          >
+            <PhoneOff className="h-7 w-7" />
+          </button>
+          <span className="text-xs font-medium text-slate-400">Cancel Call</span>
+        </div>
+      </div>
+    );
+  }
+
+  // ─────────────────────────────────────────────────────────────────────────────
+  // B. CALL DECLINED OR MISSED SCREEN
+  // ─────────────────────────────────────────────────────────────────────────────
+  if (callStatus === "declined" || callStatus === "missed") {
+    return (
+      <div
+        className="fixed inset-0 z-[110] flex flex-col items-center justify-center bg-slate-950 text-white p-6 select-none animate-fade-in"
+        role="dialog"
+      >
+        <div className="flex flex-col items-center text-center max-w-sm">
+          <div className="flex h-20 w-20 items-center justify-center rounded-full bg-red-500/20 text-red-400 border border-red-500/30 mb-4">
+            <XCircle className="h-10 w-10" />
+          </div>
+          <h2 className="text-xl font-bold">
+            {callStatus === "declined" ? "Call Declined" : "No Answer"}
+          </h2>
+          <p className="mt-2 text-xs text-slate-400">
+            {callStatus === "declined"
+              ? `${call.withName} is currently unavailable or declined the consultation request.`
+              : `${call.withName} did not answer the video consultation call.`}
+          </p>
+          <button
+            type="button"
+            onClick={hangUp}
+            className="mt-6 rounded-full bg-slate-800 px-6 py-2.5 text-xs font-semibold text-slate-200 hover:bg-slate-700 border border-slate-700"
+          >
+            Close
+          </button>
+        </div>
+      </div>
+    );
+  }
+
+  // ─────────────────────────────────────────────────────────────────────────────
+  // C. ACTIVE 1-ON-1 AGORA VIDEO CONSULTATION (Connected / Accepted)
+  // ─────────────────────────────────────────────────────────────────────────────
   return (
     <div
       className="fixed inset-0 z-[100] flex flex-col bg-slate-950 text-white select-none"
@@ -240,7 +347,7 @@ export function VideoCallOverlay({
           }`}
         />
 
-        {/* Remote Camera Off or Waiting State */}
+        {/* Remote Camera Off or Connecting State */}
         {!hasRemoteVideo && (
           <div className="relative z-10 flex flex-col items-center justify-center px-6 text-center animate-fade-in">
             {remoteUser ? (
@@ -257,7 +364,7 @@ export function VideoCallOverlay({
                 </p>
               </div>
             ) : (
-              // Waiting Room: Remote party has not entered yet
+              // Connected to channel, waiting for video packet
               <div className="flex flex-col items-center max-w-sm">
                 <div className="relative">
                   <div className="absolute -inset-2 rounded-full bg-primary/20 blur-md animate-pulse" />
@@ -271,7 +378,7 @@ export function VideoCallOverlay({
                 <p className="mt-1 text-sm text-slate-300 font-medium">
                   {tokenLoading || isConnecting
                     ? "Connecting to secure consultation channel…"
-                    : `Waiting for ${otherRoleLabel} to join the consultation…`}
+                    : `Connecting media with ${otherRoleLabel}…`}
                 </p>
                 <div className="mt-4 flex items-center gap-2 rounded-full bg-slate-900/80 px-3 py-1.5 text-xs text-slate-400 border border-slate-800">
                   <span className="relative flex h-2 w-2">
