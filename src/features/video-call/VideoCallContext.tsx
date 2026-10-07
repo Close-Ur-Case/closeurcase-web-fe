@@ -55,11 +55,16 @@ export function VideoCallProvider({ children }: { children: ReactNode }) {
   const statusPollRef = useRef<number | null>(null);
   const ringTimeoutRef = useRef<number | null>(null);
 
-  // 1. Poll for incoming calls every 2.5s (only when not in an active call)
+  // 1. Poll for incoming calls (only when tab is visible and not in an active call)
   useEffect(() => {
     if (active || incomingCall) return;
 
     const checkIncoming = async () => {
+      // Skip query if browser tab is minimized or hidden in background
+      if (typeof document !== "undefined" && document.visibilityState === "hidden") {
+        return;
+      }
+
       try {
         const incoming = await videoCallService.getIncomingCall({
           userId: user?.id,
@@ -79,9 +84,19 @@ export function VideoCallProvider({ children }: { children: ReactNode }) {
 
     const interval = window.setInterval(() => {
       void checkIncoming();
-    }, 2500);
+    }, 2800);
 
-    return () => window.clearInterval(interval);
+    const handleVisibility = () => {
+      if (document.visibilityState === "visible") {
+        void checkIncoming();
+      }
+    };
+    document.addEventListener("visibilitychange", handleVisibility);
+
+    return () => {
+      window.clearInterval(interval);
+      document.removeEventListener("visibilitychange", handleVisibility);
+    };
   }, [active, incomingCall, user?.id]);
 
   // 2. Clear status polling and timeouts

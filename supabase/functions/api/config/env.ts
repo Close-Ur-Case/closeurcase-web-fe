@@ -15,7 +15,8 @@ export const env = {
   DATABASE_URL:
     Deno.env.get("DATABASE_URL") ||
     Deno.env.get("SUPABASE_DB_URL") ||
-    "postgresql://postgres:mEzRsjRsQmek4mqn@db.zxsizwzjktorqjlzzchg.supabase.co:5432/postgres",
+    //"postgresql://postgres:mEzRsjRsQmek4mqn@db.zxsizwzjktorqjlzzchg.supabase.co:5432/postgres",
+    "postgresql://postgres.zxsizwzjktorqjlzzchg:mEzRsjRsQmek4mqn@aws-0-ap-south-1.pooler.supabase.com:6543/postgres",
 
   RAZORPAY_KEY_ID: Deno.env.get("RAZORPAY_KEY_ID") || "rzp_test_Tfpfx2vStqwoAA",
   RAZORPAY_KEY_SECRET: Deno.env.get("RAZORPAY_KEY_SECRET") || "chdjmoKLnyZ80UlqDrqKYe65",

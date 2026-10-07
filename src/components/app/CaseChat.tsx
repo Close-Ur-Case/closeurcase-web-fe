@@ -648,6 +648,9 @@ export function CaseChat({ caseItem, role, onClose }: CaseChatProps) {
     window.addEventListener("cuc_chat_updated", refreshLocal);
 
     const syncRemote = async () => {
+      if (typeof document !== "undefined" && document.visibilityState === "hidden") {
+        return;
+      }
       try {
         const remoteMessages = await chatService.getMessages(caseItem.id);
         if (remoteMessages && Array.isArray(remoteMessages)) {
@@ -683,7 +686,14 @@ export function CaseChat({ caseItem, role, onClose }: CaseChatProps) {
     };
 
     syncRemote();
-    const intervalId = setInterval(syncRemote, 2500);
+    const intervalId = setInterval(syncRemote, 3000);
+
+    const handleVisibility = () => {
+      if (document.visibilityState === "visible") {
+        void syncRemote();
+      }
+    };
+    document.addEventListener("visibilitychange", handleVisibility);
 
     // Auto mark remote incoming messages read
     chatService
@@ -692,6 +702,7 @@ export function CaseChat({ caseItem, role, onClose }: CaseChatProps) {
 
     return () => {
       clearInterval(intervalId);
+      document.removeEventListener("visibilitychange", handleVisibility);
       window.removeEventListener("cuc_chat_updated", refreshLocal);
     };
   }, [refreshLocal, caseItem.id, role]);
