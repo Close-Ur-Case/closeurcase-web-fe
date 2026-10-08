@@ -32,8 +32,12 @@ import {
   AlignLeft,
   FolderOpen,
   Copy,
+  LayoutGrid,
+  TableProperties,
+  CalendarDays,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { ViewOptionsSwitcher, type CaseViewMode } from "@/components/app/ViewOptionsSwitcher";
 import {
   Button,
   IconButton,
@@ -78,6 +82,8 @@ import { DocumentPreviewBody } from "@/components/app/DocumentPreview";
 import type { LegalCase, CaseStatus, CaseDocument } from "@/types";
 import { ChatButton } from "@/components/app/CaseChat";
 import { EditSerialCaseNumberModal } from "@/components/app/EditSerialCaseNumberModal";
+import { CasesTableView } from "@/components/app/CasesTableView";
+import { CasesCalendarView } from "@/components/app/CasesCalendarView";
 import {
   STATUS_LIST,
   STATUS_META,
@@ -179,16 +185,26 @@ export function CasesTable({
   cases,
   role,
   onCaseUpdate,
+  viewMode: controlledViewMode,
+  onViewModeChange,
+  hideViewSwitcher = false,
 }: {
   cases: LegalCase[];
   role: "lawyer" | "citizen";
   onCaseUpdate?: (updatedCase: LegalCase) => void;
+  viewMode?: CaseViewMode;
+  onViewModeChange?: (mode: CaseViewMode) => void;
+  hideViewSwitcher?: boolean;
 }) {
   const navigate = useNavigate();
   const [allCases, setAllCases] = useState<LegalCase[]>(getCases);
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editingCase, setEditingCase] = useState<LegalCase | null>(null);
   const [serialEditTarget, setSerialEditTarget] = useState<LegalCase | null>(null);
+  const [internalViewMode, setInternalViewMode] = useState<CaseViewMode>("card");
+
+  const viewMode = controlledViewMode ?? internalViewMode;
+  const setViewMode = onViewModeChange ?? setInternalViewMode;
 
   const [attachmentsCaseId, setAttachmentsCaseId] = useState<string | null>(null);
   const [attachmentTab, setAttachmentTab] = useState<AttachmentTab>("citizen_submitted");
@@ -1181,7 +1197,63 @@ export function CasesTable({
 
   return (
     <>
-      {/* Case Cards */}
+      {/* ── View Options Switcher (Card, Table, Calendar) ────────────────── */}
+      {!hideViewSwitcher && (
+        <div className="mb-4 flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-border/80 bg-surface/90 p-2 sm:p-2.5 backdrop-blur-sm shadow-2xs">
+          <div className="flex items-center gap-2">
+            <span className="text-[11px] font-bold text-muted-foreground uppercase tracking-wider px-1 hidden sm:inline">
+              View:
+            </span>
+            <ViewOptionsSwitcher viewMode={viewMode} onChange={setViewMode} />
+          </div>
+
+          <div className="flex items-center gap-2 px-2 text-xs text-muted-foreground">
+            <span className="font-bold text-foreground">{cases.length}</span>{" "}
+            <span>{cases.length === 1 ? "case" : "cases"}</span>
+          </div>
+        </div>
+      )}
+
+      {viewMode === "calendar" ? (
+        <CasesCalendarView
+          cases={cases}
+          allCases={allCases}
+          role={role}
+          onOpenEditModal={handleOpenModal}
+          onOpenSerialModal={(c) => setSerialEditTarget(c)}
+          onOpenAttachments={(id) => setAttachmentsCaseId(id)}
+          onCaseUpdate={onCaseUpdate}
+        />
+      ) : viewMode === "table" ? (
+        <>
+          <CasesTableView
+            cases={pageCases}
+            allCases={allCases}
+            role={role}
+            onOpenEditModal={handleOpenModal}
+            onOpenSerialModal={(c) => setSerialEditTarget(c)}
+            onOpenAttachments={(id) => setAttachmentsCaseId(id)}
+            onCaseUpdate={onCaseUpdate}
+          />
+
+          {cases.length > 0 && (
+            <div className="mt-4">
+              <CardPagination
+                page={safePage}
+                totalPages={totalPages}
+                onPageChange={setPage}
+                pageSize={pageSize}
+                onPageSizeChange={(size) => {
+                  setPageSize(size);
+                  setPage(1);
+                }}
+              />
+            </div>
+          )}
+        </>
+      ) : (
+        <>
+          {/* Case Cards Grid */}
       {cases.length === 0 ? (
         <div className="rounded-2xl border border-dashed border-border bg-surface p-10 text-center text-xs text-muted-foreground">
           <h3 className="text-sm font-semibold text-foreground">No matching cases</h3>
@@ -1438,6 +1510,8 @@ export function CasesTable({
           />
         </div>
       )}
+    </>
+  )}
 
       {/* Courts Datalist */}
       <datalist id="courtsList">

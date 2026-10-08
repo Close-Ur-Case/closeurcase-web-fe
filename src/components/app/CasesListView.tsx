@@ -4,6 +4,10 @@ import { CaseListCard } from "@/components/app/CaseListCard";
 import { CardPagination } from "@/components/app/CardPagination";
 import { ImportCaseModal } from "@/components/app/ImportCaseModal";
 import { CaseDocketRegister } from "@/components/app/CaseDocketRegister";
+import { CasesTableView } from "@/components/app/CasesTableView";
+import { CasesCalendarView } from "@/components/app/CasesCalendarView";
+import { EditSerialCaseNumberModal } from "@/components/app/EditSerialCaseNumberModal";
+import { ViewOptionsSwitcher, type CaseViewMode } from "@/components/app/ViewOptionsSwitcher";
 import { ExpandableFilterChips } from "@/components/app/ExpandableFilterChips";
 import { FilterPanelButton, type FilterSection } from "@/components/app/FilterPanelButton";
 import { SegmentedControl } from "@/components/app/SegmentedControl";
@@ -19,6 +23,8 @@ export function CasesListView() {
   const [rows, setRows] = useState<LegalCase[]>(getCases);
   const [lawyersList, setLawyersList] = useState(getLawyers);
   const [tab, setTab] = useState<CaseTab>("Assigned");
+  const [viewMode, setViewMode] = useState<CaseViewMode>("card");
+  const [serialEditTarget, setSerialEditTarget] = useState<LegalCase | null>(null);
   const [search, setSearch] = useState("");
   const [clientFilter, setClientFilter] = useState<string>("All");
   // Universal filter panel for Respondent — matches the admin Users page's
@@ -123,19 +129,27 @@ export function CasesListView() {
         title="My Cases"
         description="Track cases assigned to you and cases imported from eCourts."
         actions={
-          <SegmentedControl
-            value={tab}
-            onChange={selectTab}
-            options={[
-              { value: "Assigned", label: `Assigned (${assignedCases.length})` },
-              { value: "Imported", label: `Imported (${importedCases.length})` },
-            ]}
-          />
+          <div className="flex flex-wrap items-center gap-2 sm:gap-3">
+            <SegmentedControl
+              value={tab}
+              onChange={selectTab}
+              options={[
+                { value: "Assigned", label: `Assigned (${assignedCases.length})` },
+                { value: "Imported", label: `Imported (${importedCases.length})` },
+              ]}
+            />
+            <ViewOptionsSwitcher viewMode={viewMode} onChange={setViewMode} />
+          </div>
         }
       />
 
       {tab === "Assigned" ? (
-        <CaseDocketRegister role="lawyer" />
+        <CaseDocketRegister
+          role="lawyer"
+          viewMode={viewMode}
+          onViewModeChange={setViewMode}
+          hideViewSwitcher={true}
+        />
       ) : (
         <div className="space-y-6">
           {/* Mobile: Import/Search Case stays on top, chips come next, search + filter
@@ -185,27 +199,91 @@ export function CasesListView() {
             <div className="rounded-2xl border border-dashed border-border bg-surface p-10 text-center text-xs text-muted-foreground">
               No imported cases yet — use Import/Search Case to pull one in from eCourts.
             </div>
-          ) : (
-            <div className="grid grid-cols-1 gap-3 lg:grid-cols-2">
-              {pageCases.map((c) => (
-                <CaseListCard key={c.id} caseItem={c} hideChat={tab === "Imported"} />
-              ))}
-            </div>
-          )}
-
-          {filtered.length > 0 && (
-            <CardPagination
-              page={safePage}
-              totalPages={totalPages}
-              onPageChange={setPage}
-              pageSize={pageSize}
-              onPageSizeChange={(size) => {
-                setPageSize(size);
-                setPage(1);
+          ) : viewMode === "calendar" ? (
+            <CasesCalendarView
+              cases={filtered}
+              allCases={rows}
+              role="lawyer"
+              onOpenEditModal={() => {}}
+              onOpenSerialModal={(c) => setSerialEditTarget(c)}
+              onOpenAttachments={() => {}}
+              onCaseUpdate={(updated) => {
+                setRows((prev) => prev.map((item) => (item.id === updated.id ? updated : item)));
               }}
             />
+          ) : viewMode === "table" ? (
+            <>
+              <CasesTableView
+                cases={pageCases}
+                allCases={rows}
+                role="lawyer"
+                onOpenEditModal={() => {}}
+                onOpenSerialModal={(c) => setSerialEditTarget(c)}
+                onOpenAttachments={() => {}}
+                onCaseUpdate={(updated) => {
+                  setRows((prev) => prev.map((item) => (item.id === updated.id ? updated : item)));
+                }}
+              />
+
+              {filtered.length > 0 && (
+                <div className="mt-4">
+                  <CardPagination
+                    page={safePage}
+                    totalPages={totalPages}
+                    onPageChange={setPage}
+                    pageSize={pageSize}
+                    onPageSizeChange={(size) => {
+                      setPageSize(size);
+                      setPage(1);
+                    }}
+                  />
+                </div>
+              )}
+            </>
+          ) : (
+            <>
+              <div className="grid grid-cols-1 gap-3 lg:grid-cols-2">
+                {pageCases.map((c) => (
+                  <CaseListCard
+                    key={c.id}
+                    caseItem={c}
+                    hideChat={tab === "Imported"}
+                    onCaseUpdate={(updated) => {
+                      setRows((prev) => prev.map((item) => (item.id === updated.id ? updated : item)));
+                    }}
+                  />
+                ))}
+              </div>
+
+              {filtered.length > 0 && (
+                <div className="mt-4">
+                  <CardPagination
+                    page={safePage}
+                    totalPages={totalPages}
+                    onPageChange={setPage}
+                    pageSize={pageSize}
+                    onPageSizeChange={(size) => {
+                      setPageSize(size);
+                      setPage(1);
+                    }}
+                  />
+                </div>
+              )}
+            </>
           )}
         </div>
+      )}
+
+      {serialEditTarget && (
+        <EditSerialCaseNumberModal
+          isOpen={Boolean(serialEditTarget)}
+          onClose={() => setSerialEditTarget(null)}
+          caseItem={serialEditTarget}
+          onSuccess={(updated) => {
+            setRows((prev) => prev.map((item) => (item.id === updated.id ? updated : item)));
+            setSerialEditTarget(null);
+          }}
+        />
       )}
 
       {(currentLawyer || currentLawyerId) && (

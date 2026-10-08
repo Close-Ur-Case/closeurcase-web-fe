@@ -34,6 +34,7 @@ import { DocumentPreviewBody } from "@/components/app/DocumentPreview";
 import { PageHeader } from "@/components/app/PageHeader";
 import { openDocumentInNewTab } from "@/lib/files";
 import { useAuth } from "@/context/useAuth";
+import type { CaseViewMode } from "@/components/app/ViewOptionsSwitcher";
 import {
   getCases,
   getCitizens,
@@ -92,10 +93,16 @@ const NATIVE_DATE_INPUT_CLS =
 export function CaseDocketRegister({
   role,
   upcomingOnly,
+  viewMode,
+  onViewModeChange,
+  hideViewSwitcher,
 }: {
   role: "lawyer" | "citizen";
   /** Pre-filters to hearings from today onward — used by the dashboard's "All Upcoming" link. */
   upcomingOnly?: boolean;
+  viewMode?: CaseViewMode;
+  onViewModeChange?: (mode: CaseViewMode) => void;
+  hideViewSwitcher?: boolean;
 }) {
   const [cases, setCases] = useState<LegalCase[]>([]);
   const [activeFilter, setActiveFilter] = useState("all");
@@ -452,6 +459,9 @@ export function CaseDocketRegister({
       <CasesTable
         cases={displayCases}
         role={role}
+        viewMode={viewMode}
+        onViewModeChange={onViewModeChange}
+        hideViewSwitcher={hideViewSwitcher}
         onCaseUpdate={(updatedCase) => {
           setCases((prev) => prev.map((c) => (c.id === updatedCase.id ? updatedCase : c)));
         }}
