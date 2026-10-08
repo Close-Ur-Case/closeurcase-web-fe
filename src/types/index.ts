@@ -193,6 +193,18 @@ export interface CaseNote {
   createdAt: string;
 }
 
+export interface DairyNote {
+  id: string;
+  userId: string;
+  entryDate: string; // YYYY-MM-DD
+  notes: string;
+  category?: string | null;
+  caseId?: string | null;
+  isCompleted: boolean;
+  createdAt: string;
+  updatedAt: string;
+}
+
 export interface AIReport {
   id?: string;
   caseId: string;

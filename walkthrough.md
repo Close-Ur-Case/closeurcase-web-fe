@@ -177,6 +177,12 @@ All tests executed via `curl` against `http://localhost:8000`:
   - Supabase Cloud Storage integration (`knowledge-base` bucket): Admin files upload to `global-docs/`; lawyer files upload to `lawyers/{lawyerId}/`.
   - Frontend portal integration: Lawyer Global Docs tab strictly renders admin global documents; Lawyer My Docs tab displays personal documents with remote persistence; Admin Knowledge Base manages verified global statutory index.
   - Zero TypeScript compile errors (`tsc --noEmit` clean) and verified production Vite build.
-
-
-
+- [x] **Phase 7: Daily Diary Module & Complete OpenAPI Documentation**:
+  - PostgreSQL table `dairy` created with migrations `20261008010000_create_dairy_table.sql` and `20261008020000_add_category_and_case_id_to_dairy.sql`.
+  - Complete REST CRUD routes implemented in `dairyRoutes.ts` with `@hono/zod-openapi` and schemas in `dairySchemas.ts`:
+    - `GET /v1/dairy` (query filters: `userId`, `date`, `caseId`)
+    - `POST /v1/dairy` (create with `notes`, `entryDate`, `category`, `caseId`, `isCompleted`)
+    - `PATCH /v1/dairy/:id` (partial update and M3 switch toggle)
+    - `DELETE /v1/dairy/:id` (remove note by ID)
+  - Interactive OpenAPI Swagger UI (`/api-docs`) updated with 108 registered endpoints and 25 functional domains.
+  - Production-ready Markdown documentation generated at [`API_DOCUMENTATION.md`](file:///Users/sariyam/lomaa/closeurcase/API_DOCUMENTATION.md).

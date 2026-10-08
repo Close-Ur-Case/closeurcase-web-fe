@@ -3,6 +3,7 @@ import type {
   AppNotification,
   CaseDocument,
   CaseNote,
+  DairyNote,
   CaseStatus,
   Citizen,
   HistoryOfHearing,
@@ -35,6 +36,7 @@ const LAWYER_DOCS_KEY = "cuc_lawyer_docs_v1";
 const PROFILE_PHOTOS_KEY = "cuc_profile_photos_v1";
 const CASES_KEY = "cuc_cases_v13";
 const NOTES_KEY = "cuc_case_notes_v1";
+const DAIRY_NOTES_KEY = "cuc_dairy_notes_v1";
 const SUBSCRIPTIONS_KEY = "cuc_subscriptions_v2";
 const PAYMENTS_KEY = "cuc_payments_v2";
 const LAWYER_RATINGS_KEY = "cuc_lawyer_ratings_v1";
@@ -582,6 +584,108 @@ export function deleteCaseNote(noteId: string) {
     NOTES_KEY,
     all.filter((n) => n.id !== noteId),
   );
+}
+
+/* ── DAIRY NOTES (Daily / Date-based) ────────────────────────────────────── */
+export function getDairyNotes(date?: string, userId?: string): DairyNote[] {
+  const all = load<DairyNote[]>(DAIRY_NOTES_KEY, []);
+  return all
+    .filter((n) => {
+      if (date && n.entryDate !== date) return false;
+      if (userId && n.userId !== userId) return false;
+      return true;
+    })
+    .sort((a, b) => b.createdAt.localeCompare(a.createdAt));
+}
+
+export function addDairyNote(item: {
+  userId: string;
+  entryDate: string; // YYYY-MM-DD
+  notes: string;
+  category?: string | null;
+  caseId?: string | null;
+  isCompleted?: boolean;
+  id?: string;
+  createdAt?: string;
+  updatedAt?: string;
+}): DairyNote {
+  const all = load<DairyNote[]>(DAIRY_NOTES_KEY, []);
+  const now = new Date().toISOString();
+  const existingIdx = item.id ? all.findIndex((n) => n.id === item.id) : -1;
+  const note: DairyNote = {
+    id: item.id || `dairy_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`,
+    userId: item.userId,
+    entryDate: item.entryDate,
+    notes: item.notes.trim(),
+    category: item.category || null,
+    caseId: item.caseId || null,
+    isCompleted: Boolean(item.isCompleted),
+    createdAt: item.createdAt || now,
+    updatedAt: item.updatedAt || now,
+  };
+  if (existingIdx >= 0) {
+    all[existingIdx] = note;
+    save(DAIRY_NOTES_KEY, [...all]);
+  } else {
+    save(DAIRY_NOTES_KEY, [note, ...all]);
+  }
+  return note;
+}
+
+export function updateDairyNote(
+  noteId: string,
+  updates: Partial<DairyNote>,
+): DairyNote | null {
+  const all = load<DairyNote[]>(DAIRY_NOTES_KEY, []);
+  let updatedNote: DairyNote | null = null;
+  const next = all.map((n) => {
+    if (n.id === noteId) {
+      updatedNote = {
+        ...n,
+        ...updates,
+        updatedAt: updates.updatedAt || new Date().toISOString(),
+      };
+      return updatedNote;
+    }
+    return n;
+  });
+  if (updatedNote) {
+    save(DAIRY_NOTES_KEY, next);
+  }
+  return updatedNote;
+}
+
+export function toggleDairyNoteCompleted(noteId: string, isCompleted: boolean): DairyNote | null {
+  return updateDairyNote(noteId, { isCompleted });
+}
+
+export function deleteDairyNote(noteId: string): boolean {
+  const all = load<DairyNote[]>(DAIRY_NOTES_KEY, []);
+  const next = all.filter((n) => n.id !== noteId);
+  if (next.length !== all.length) {
+    save(DAIRY_NOTES_KEY, next);
+    return true;
+  }
+  return false;
+}
+
+export function syncDairyNotes(remoteNotes: DairyNote[], replaceUserNotes?: string) {
+  if (!Array.isArray(remoteNotes)) return;
+  const local = load<DairyNote[]>(DAIRY_NOTES_KEY, []);
+  if (replaceUserNotes) {
+    const otherUsers = local.filter((n) => n.userId !== replaceUserNotes);
+    save(DAIRY_NOTES_KEY, [...remoteNotes, ...otherUsers]);
+  } else {
+    const map = new Map<string, DairyNote>();
+    local.forEach((n) => map.set(n.id, n));
+    remoteNotes.forEach((rn) => {
+      map.set(rn.id, {
+        ...map.get(rn.id),
+        ...rn,
+      });
+    });
+    save(DAIRY_NOTES_KEY, Array.from(map.values()));
+  }
 }
 
 /* ── LAWYERS STORE ───────────────────────────────────────────────────────── */

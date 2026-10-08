@@ -51,19 +51,15 @@ The app has three parallel dashboards under one route tree, each with its own la
 
 Auth is real via Supabase edge functions: citizen login (`src/routes/citizen-login.tsx`) supports phone OTP and writes session data; lawyer login (`src/routes/lawyer-login.tsx`) authenticates advocates; admin login (`src/routes/admin-login.tsx`) authenticates superadmins.
 
-### Data layer — localStorage-backed mock store, not an API
+### Data layer & Backend API
 
-`src/data/appStore.ts` is the single source of truth at runtime. It exposes CRUD-style functions (`getCases`, `addCase`, `updateCaseStatus`, `assignLawyerToCase`, `getLawyers`, `getNotifications`, `addNotification`, `getKnowledgeBase`, etc.) that:
+CloseUrCase is powered by a full Supabase Edge backend running Deno with Hono and `@hono/zod-openapi` under `supabase/functions/api/`:
+- **REST Backend**: 108 registered endpoints covering Auth, Cases, Lawyers, Citizens, Daily Diary, eCourts, Payments, Agora Video Calls, Subscriptions, AI Legal Intelligence, and Admin.
+- **API Documentation**: Canonical documentation is maintained in [`API_DOCUMENTATION.md`](file:///Users/sariyam/lomaa/closeurcase/API_DOCUMENTATION.md) and interactive Swagger UI at `/api-docs`.
+- **Frontend Store**: `src/data/appStore.ts` acts as the reactive client cache and offline fallback. Service calls in `src/services/*` fetch authoritative data from the backend via `apiClient.ts` and sync into the store.
+- **Subscriptions**: Components subscribe to store changes via `subscribeToStore(listener)`.
 
-1. Lazily seed `localStorage` from `src/data/mock.ts` on first read (keyed e.g. `cuc_cases_v4`, `LAWYERS_KEY`, etc. — bump the version suffix if you change a stored shape, since existing users' localStorage won't migrate)
-2. Write back to `localStorage` and call `notifyListeners()`
-3. Components subscribe to store changes via `subscribeToStore(listener)` (see the pattern in `DashboardLayout.tsx`) rather than any global state library — there is no Redux/Zustand/Context store for app data
-
-`@tanstack/react-query` is installed and a `QueryClient` is wired up in both `__root.tsx` and `main.tsx`, but most current data reads go through the synchronous `appStore.ts` functions directly, not through query hooks.
-
-Domain types live in `src/types/index.ts` (`LegalCase`, `Lawyer`, `Citizen`, `CaseStatus`, `LegalCategory`, `AppNotification`, `KnowledgeItem`, `AIReport`, etc.) — start there when touching any data shape.
-
-`src/data/legalData.ts` derives normalized lookups (categories, locations, lawyer directory) from three large static JSON fixtures at the repo root: `case_categories.json`, `locations.json`, `lawyers.json`. These are real-world reference data, not mock/seed data — don't regenerate or hand-edit them casually.
+Domain types live in `src/types/index.ts` (`LegalCase`, `Lawyer`, `Citizen`, `DairyNote`, `CaseStatus`, `LegalCategory`, etc.) — start there when touching data shapes.
 
 ### UI components
 

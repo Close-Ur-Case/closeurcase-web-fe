@@ -5,9 +5,9 @@ import * as schema from "../models/index.ts";
 
 // PostgreSQL client optimized for Supabase Supavisor Transaction Pooler (Port 6543)
 export const client = postgres(env.DATABASE_URL, {
-  max: 1, // Only 1 connection per serverless worker to prevent multiplication
-  idle_timeout: 4, // Rapidly return connections to pool on idle
-  connect_timeout: 5,
+  max: 10, // Allow up to 10 pooled connections to prevent blocking concurrent requests
+  idle_timeout: 10, // Return idle connections to pool
+  connect_timeout: 10,
   prepare: false, // Required for Supabase Transaction Pooler (Supavisor)
 });
 

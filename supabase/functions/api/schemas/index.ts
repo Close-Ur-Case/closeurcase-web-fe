@@ -6,3 +6,4 @@ export * from "./subscriptionSchemas.ts";
 export * from "./paymentSchemas.ts";
 export * from "./withdrawalSchemas.ts";
 export * from "./otherSchemas.ts";
+export * from "./dairySchemas.ts";
