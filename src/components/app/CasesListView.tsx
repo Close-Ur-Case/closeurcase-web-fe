@@ -13,9 +13,10 @@ import { FilterPanelButton, type FilterSection } from "@/components/app/FilterPa
 import { SegmentedControl } from "@/components/app/SegmentedControl";
 import { getCases, getLawyers, subscribeToStore } from "@/data/appStore";
 import type { LegalCase } from "@/types";
-import { Search, Download } from "lucide-react";
+import { Search, Download, CalendarDays } from "lucide-react";
 import { Button, TextField } from "@/components/m3";
 import { useAuth } from "@/context/useAuth";
+import { cn } from "@/lib/utils";
 
 type CaseTab = "Assigned" | "Imported";
 
@@ -129,16 +130,45 @@ export function CasesListView() {
         title="My Cases"
         description="Track cases assigned to you and cases imported from eCourts."
         actions={
-          <div className="flex flex-wrap items-center gap-2 sm:gap-3">
-            <SegmentedControl
-              value={tab}
-              onChange={selectTab}
-              options={[
-                { value: "Assigned", label: `Assigned (${assignedCases.length})` },
-                { value: "Imported", label: `Imported (${importedCases.length})` },
-              ]}
-            />
-            <ViewOptionsSwitcher viewMode={viewMode} onChange={setViewMode} />
+          <div className="flex items-center gap-2 sm:gap-2.5">
+            {/* ── Single Card: Row 1 [ Assigned | Imported ] and Row 2 [ Card | Table ] ── */}
+            <div className="rounded-2xl border border-border/80 bg-surface/90 p-2 sm:p-2.5 shadow-2xs backdrop-blur-xs flex flex-col gap-2 w-full sm:w-auto min-w-[240px]">
+              {/* Row 1: [ Assigned (X) | Imported (Y) ] */}
+              <SegmentedControl
+                value={tab}
+                onChange={selectTab}
+                fullWidth
+                options={[
+                  { value: "Assigned", label: `Assigned (${assignedCases.length})` },
+                  { value: "Imported", label: `Imported (${importedCases.length})` },
+                ]}
+              />
+
+              {/* Row 2: [ Card | Table ] */}
+              <ViewOptionsSwitcher
+                viewMode={viewMode}
+                onChange={setViewMode}
+                hideCalendar
+                fullWidth
+              />
+            </div>
+
+            {/* ── Standalone Calendar Button Beside Card ── */}
+            <button
+              type="button"
+              onClick={() => setViewMode("calendar")}
+              aria-pressed={viewMode === "calendar"}
+              className={cn(
+                "cursor-pointer flex flex-col items-center justify-center gap-1 rounded-2xl border px-3 sm:px-3.5 py-2 text-xs font-bold transition-all shadow-2xs self-stretch min-w-[64px]",
+                viewMode === "calendar"
+                  ? "bg-primary text-primary-foreground border-primary shadow-xs"
+                  : "bg-surface/90 border-border/80 text-muted-foreground hover:bg-muted/60 hover:text-foreground",
+              )}
+              title="Monthly Calendar View"
+            >
+              <CalendarDays className="h-4 w-4 shrink-0" />
+              <span>Calendar</span>
+            </button>
           </div>
         }
       />
