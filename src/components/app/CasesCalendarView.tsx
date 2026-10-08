@@ -19,6 +19,7 @@ import { Button, IconButton } from "@/components/m3";
 import { StatusBadge, formatCaseVsTitle, getNextEntry } from "@/components/app/caseDocketShared";
 import { ChatButton } from "@/components/app/CaseChat";
 import { formatDateTime } from "@/lib/dateUtils";
+import { cn } from "@/lib/utils";
 import type { LegalCase } from "@/types";
 
 export interface CasesCalendarViewProps {
@@ -176,11 +177,16 @@ export function CasesCalendarView({
     return { eventsByDate: map, allEvents: list, eventsThisMonthCount: monthCount };
   }, [cases, allCases, currentYear, currentMonth, todayIso]);
 
-  // Calendar grid calculations
-  const calendarDays = useMemo(() => {
-    const firstDayOfMonth = new Date(currentYear, currentMonth, 1).getDay(); // 0 (Sun) - 6 (Sat)
-    const daysInCurrentMonth = new Date(currentYear, currentMonth + 1, 0).getDate();
-    const daysInPrevMonth = new Date(currentYear, currentMonth, 0).getDate();
+  // ── Helper to calculate 42 calendar slots for any month ───────────────────
+  const getMonthSlots = (
+    y: number,
+    m: number,
+    eventsMap: Map<string, CalendarEvent[]>,
+    today: string,
+  ) => {
+    const firstDayOfWeek = new Date(y, m, 1).getDay(); // 0 (Sun) - 6 (Sat)
+    const daysInMonth = new Date(y, m + 1, 0).getDate();
+    const daysInPrevMonth = new Date(y, m, 0).getDate();
 
     const days: Array<{
       dateIso: string;
@@ -190,49 +196,97 @@ export function CasesCalendarView({
       events: CalendarEvent[];
     }> = [];
 
-    // Leading padding days from prev month
-    for (let i = firstDayOfMonth - 1; i >= 0; i--) {
+    // Leading days from previous month
+    for (let i = firstDayOfWeek - 1; i >= 0; i--) {
       const dayNum = daysInPrevMonth - i;
-      const prevMonthDate = new Date(currentYear, currentMonth - 1, dayNum);
-      const iso = `${prevMonthDate.getFullYear()}-${String(prevMonthDate.getMonth() + 1).padStart(2, "0")}-${String(dayNum).padStart(2, "0")}`;
+      const prevDate = new Date(y, m - 1, dayNum);
+      const prevY = prevDate.getFullYear();
+      const prevM = prevDate.getMonth();
+      const iso = `${prevY}-${String(prevM + 1).padStart(2, "0")}-${String(dayNum).padStart(2, "0")}`;
       days.push({
         dateIso: iso,
         dayNumber: dayNum,
         isCurrentMonth: false,
-        isToday: iso === todayIso,
-        events: eventsByDate.get(iso) || [],
+        isToday: iso === today,
+        events: eventsMap.get(iso) || [],
       });
     }
 
     // Days in current month
-    for (let i = 1; i <= daysInCurrentMonth; i++) {
-      const iso = `${currentYear}-${String(currentMonth + 1).padStart(2, "0")}-${String(i).padStart(2, "0")}`;
+    for (let i = 1; i <= daysInMonth; i++) {
+      const iso = `${y}-${String(m + 1).padStart(2, "0")}-${String(i).padStart(2, "0")}`;
       days.push({
         dateIso: iso,
         dayNumber: i,
         isCurrentMonth: true,
-        isToday: iso === todayIso,
-        events: eventsByDate.get(iso) || [],
+        isToday: iso === today,
+        events: eventsMap.get(iso) || [],
       });
     }
 
-    // Trailing padding days to fill 35 or 42 slots
-    const totalSlots = days.length <= 35 ? 35 : 42;
-    const remaining = totalSlots - days.length;
+    // Trailing days up to 42 slots (6 weeks x 7 days)
+    const remaining = 42 - days.length;
     for (let i = 1; i <= remaining; i++) {
-      const nextMonthDate = new Date(currentYear, currentMonth + 1, i);
-      const iso = `${nextMonthDate.getFullYear()}-${String(nextMonthDate.getMonth() + 1).padStart(2, "0")}-${String(i).padStart(2, "0")}`;
+      const nextDate = new Date(y, m + 1, i);
+      const nextY = nextDate.getFullYear();
+      const nextM = nextDate.getMonth();
+      const iso = `${nextY}-${String(nextM + 1).padStart(2, "0")}-${String(i).padStart(2, "0")}`;
       days.push({
         dateIso: iso,
         dayNumber: i,
         isCurrentMonth: false,
-        isToday: iso === todayIso,
-        events: eventsByDate.get(iso) || [],
+        isToday: iso === today,
+        events: eventsMap.get(iso) || [],
       });
     }
 
     return days;
+  };
+
+  // ── Multi-month list: 3 consecutive months starting from selected month ────
+  const displayedMonths = useMemo(() => {
+    const list: Array<{
+      year: number;
+      month: number;
+      monthName: string;
+      days: Array<{
+        dateIso: string;
+        dayNumber: number;
+        isCurrentMonth: boolean;
+        isToday: boolean;
+        events: CalendarEvent[];
+      }>;
+      eventCount: number;
+    }> = [];
+
+    for (let offset = 0; offset < 3; offset++) {
+      const d = new Date(currentYear, currentMonth + offset, 1);
+      const y = d.getFullYear();
+      const m = d.getMonth();
+      const mPrefix = `${y}-${String(m + 1).padStart(2, "0")}`;
+
+      let mEventCount = 0;
+      eventsByDate.forEach((evList, dateKey) => {
+        if (dateKey.startsWith(mPrefix)) {
+          mEventCount += evList.length;
+        }
+      });
+
+      list.push({
+        year: y,
+        month: m,
+        monthName: MONTH_NAMES[m],
+        days: getMonthSlots(y, m, eventsByDate, todayIso),
+        eventCount: mEventCount,
+      });
+    }
+
+    return list;
   }, [currentYear, currentMonth, eventsByDate, todayIso]);
+
+  const totalEventsInVisibleMonths = useMemo(() => {
+    return displayedMonths.reduce((acc, m) => acc + m.eventCount, 0);
+  }, [displayedMonths]);
 
   // Selected date events
   const selectedEvents = eventsByDate.get(selectedDate) || [];
@@ -355,7 +409,7 @@ export function CasesCalendarView({
             </div>
 
             <p className="mt-1 text-xs text-muted-foreground">
-              {eventsThisMonthCount} {eventsThisMonthCount === 1 ? "hearing scheduled" : "hearings scheduled"} in {MONTH_NAMES[currentMonth]} {currentYear}
+              {eventsThisMonthCount} in {MONTH_NAMES[currentMonth]} {currentYear} · {totalEventsInVisibleMonths} {totalEventsInVisibleMonths === 1 ? "hearing" : "hearings"} across visible months
             </p>
           </div>
         </div>
@@ -389,90 +443,90 @@ export function CasesCalendarView({
         </div>
       </div>
 
-      {/* ── Monthly Grid ──────────────────────────────────────────────────────── */}
-      <div className="overflow-hidden rounded-2xl border border-border/80 bg-surface shadow-2xs">
-        {/* Days of week row */}
-        <div className="grid grid-cols-7 border-b border-border/80 bg-muted/40 text-center text-[11px] font-bold text-muted-foreground uppercase tracking-wider">
-          {DAYS_OF_WEEK.map((day) => (
-            <div key={day} className="py-2.5">
-              {day}
-            </div>
-          ))}
-        </div>
+      {/* ── Multi-Month Grid (Desktop: 3 months, Tablet: 2 months, Mobile: 1 month) ── */}
+      {/* Every calendar card is formatted in a perfect square (aspect-square) */}
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3.5 sm:gap-4 max-w-sm sm:max-w-md md:max-w-none mx-auto w-full">
+        {displayedMonths.map((m, idx) => {
+          // Responsive month visibility:
+          // Mobile (< md): 1 month (index 0)
+          // Tablet (md - lg): 2 months (index 0, 1)
+          // Desktop (lg+): 3 months (index 0, 1, 2)
+          const visibilityCls =
+            idx === 1 ? "hidden md:flex" : idx === 2 ? "hidden lg:flex" : "flex";
 
-        {/* 7-column calendar matrix */}
-        <div className="grid grid-cols-7 divide-x divide-y divide-border/50">
-          {calendarDays.map((day) => {
-            const isSelected = day.dateIso === selectedDate;
-            const hasEvents = day.events.length > 0;
-
-            return (
-              <div
-                key={day.dateIso}
-                onClick={() => setSelectedDate(day.dateIso)}
-                className={`relative min-h-[90px] sm:min-h-[110px] p-1.5 sm:p-2 transition-colors cursor-pointer flex flex-col justify-between ${
-                  !day.isCurrentMonth
-                    ? "bg-muted/15 text-muted-foreground/50"
-                    : "bg-surface hover:bg-muted/30"
-                } ${
-                  isSelected
-                    ? "ring-2 ring-inset ring-primary bg-primary/[0.04]"
-                    : ""
-                }`}
-              >
-                {/* Day Header */}
-                <div className="flex items-center justify-between">
-                  <span
-                    className={`inline-flex h-6 w-6 items-center justify-center rounded-full text-xs font-bold transition-all ${
-                      day.isToday
-                        ? "bg-primary text-primary-foreground shadow-2xs font-extrabold"
-                        : isSelected
-                          ? "bg-primary/20 text-primary font-bold"
-                          : day.isCurrentMonth
-                            ? "text-foreground"
-                            : "text-muted-foreground/50"
-                    }`}
-                  >
-                    {day.dayNumber}
+          return (
+            <div
+              key={`${m.year}-${m.month}`}
+              className={cn(
+                "aspect-square flex-col justify-between rounded-2xl border border-border/80 bg-surface p-3 sm:p-3.5 shadow-2xs overflow-hidden transition-all",
+                visibilityCls,
+              )}
+            >
+              {/* Month Card Header */}
+              <div className="flex items-center justify-between pb-1.5 border-b border-border/60">
+                <div className="flex items-center gap-1.5 min-w-0">
+                  <span className="text-sm font-bold text-foreground truncate">
+                    {m.monthName}
                   </span>
-
-                  {hasEvents && (
-                    <span className="inline-flex items-center rounded-full bg-primary/10 px-1.5 py-0.2 text-[9px] font-bold text-primary border border-primary/20">
-                      {day.events.length}
-                    </span>
-                  )}
+                  <span className="font-mono text-xs text-muted-foreground">
+                    {m.year}
+                  </span>
                 </div>
-
-                {/* Event Pills */}
-                <div className="mt-1 space-y-1 flex-1 overflow-hidden">
-                  {day.events.slice(0, 2).map((ev) => {
-                    const serialDisplay =
-                      ev.caseItem.serialCaseNumber ||
-                      ev.caseItem.serial_case_number ||
-                      ev.caseItem.id;
-                    return (
-                      <div
-                        key={ev.id}
-                        className="group relative flex items-center gap-1 truncate rounded-md border border-primary/20 bg-primary/10 px-1.5 py-0.5 text-[10px] font-medium text-primary shadow-2xs hover:bg-primary/20"
-                        title={`${serialDisplay} · ${ev.purpose}`}
-                      >
-                        <div className="h-1.5 w-1.5 rounded-full bg-primary shrink-0" />
-                        <span className="truncate font-mono font-bold">
-                          {serialDisplay}
-                        </span>
-                      </div>
-                    );
-                  })}
-                  {day.events.length > 2 && (
-                    <div className="text-[9.5px] font-semibold text-muted-foreground pl-1">
-                      +{day.events.length - 2} more
-                    </div>
-                  )}
-                </div>
+                {m.eventCount > 0 && (
+                  <span className="inline-flex items-center gap-1 rounded-full bg-primary/10 px-2 py-0.5 text-[10px] font-bold text-primary border border-primary/20 shrink-0">
+                    <span className="h-1.5 w-1.5 rounded-full bg-primary shrink-0" />
+                    <span>{m.eventCount}</span>
+                  </span>
+                )}
               </div>
-            );
-          })}
-        </div>
+
+              {/* Weekday Row */}
+              <div className="grid grid-cols-7 pt-1.5 text-center text-[10px] sm:text-[11px] font-bold uppercase tracking-wider text-muted-foreground/80">
+                {DAYS_OF_WEEK.map((d) => (
+                  <div key={d} className="truncate">
+                    {d.slice(0, 2)}
+                  </div>
+                ))}
+              </div>
+
+              {/* 7x6 Day Matrix */}
+              <div className="grid grid-cols-7 grid-rows-6 flex-1 gap-0.5 sm:gap-1 pt-1 items-center justify-items-center">
+                {m.days.map((day) => {
+                  const isSelected = day.dateIso === selectedDate;
+                  const hasEvents = day.events.length > 0;
+
+                  return (
+                    <button
+                      key={day.dateIso}
+                      type="button"
+                      onClick={() => setSelectedDate(day.dateIso)}
+                      className={cn(
+                        "aspect-square w-full h-full max-w-[32px] max-h-[32px] sm:max-w-[36px] sm:max-h-[36px] flex flex-col items-center justify-center rounded-lg text-xs font-semibold transition-all relative cursor-pointer",
+                        !day.isCurrentMonth
+                          ? "text-muted-foreground/30 hover:text-muted-foreground/60"
+                          : "text-foreground hover:bg-muted/60",
+                        day.isToday && "ring-1 ring-primary font-extrabold text-primary bg-primary/5",
+                        isSelected && "!bg-primary !text-primary-foreground font-bold shadow-2xs !ring-0",
+                        hasEvents && !isSelected && "font-bold text-primary",
+                      )}
+                      title={`${day.dateIso}${hasEvents ? ` (${day.events.length} hearing${day.events.length > 1 ? "s" : ""})` : ""}`}
+                    >
+                      <span>{day.dayNumber}</span>
+                      {hasEvents && (
+                        <span
+                          className={cn(
+                            "h-1 w-1 rounded-full absolute bottom-1",
+                            isSelected ? "bg-primary-foreground" : "bg-primary",
+                          )}
+                        />
+                      )}
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+          );
+        })}
       </div>
 
       {/* ── Selected Date Schedule Panel ───────────────────────────────────────── */}
