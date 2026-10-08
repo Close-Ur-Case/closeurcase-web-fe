@@ -14,6 +14,7 @@ import {
   Download,
   Link2,
   MessageCircle,
+  Hash,
 } from "lucide-react";
 import { getCases, subscribeToStore } from "@/data/appStore";
 import { useCaseDetailSync } from "@/hooks/useCaseSync";
@@ -177,6 +178,12 @@ function CitizenCaseDetailBody({ caseItem: c }: { caseItem: LegalCase }) {
           <div className="flex flex-wrap items-center justify-between gap-3">
             <MetaLine
               parts={[
+                (c.serialCaseNumber || c.serial_case_number) && (
+                  <span className="inline-flex items-center gap-1 font-mono font-bold text-primary bg-primary/10 px-2.5 py-0.5 rounded-lg border border-primary/20 shadow-2xs">
+                    <Hash className="h-3 w-3 shrink-0" />
+                    <span>Serial: {c.serialCaseNumber || c.serial_case_number}</span>
+                  </span>
+                ),
                 cd.caseNumber && (
                   <span className="font-mono font-bold text-foreground">{cd.caseNumber}</span>
                 ),

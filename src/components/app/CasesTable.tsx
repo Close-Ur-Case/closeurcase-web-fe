@@ -77,6 +77,7 @@ import { CardPagination } from "@/components/app/CardPagination";
 import { DocumentPreviewBody } from "@/components/app/DocumentPreview";
 import type { LegalCase, CaseStatus, CaseDocument } from "@/types";
 import { ChatButton } from "@/components/app/CaseChat";
+import { EditSerialCaseNumberModal } from "@/components/app/EditSerialCaseNumberModal";
 import {
   STATUS_LIST,
   STATUS_META,
@@ -134,11 +135,7 @@ function CaseTypeBadge({ caseItem }: { caseItem: LegalCase }) {
 }
 
 export type AttachmentTab =
-  | "citizen_submitted"
-  | "lawyer_uploaded"
-  | "citizen_shared"
-  | "lawyer_shared"
-  | "affidavits";
+  "citizen_submitted" | "lawyer_uploaded" | "citizen_shared" | "lawyer_shared" | "affidavits";
 
 function chatMessageToDocument(msg: ChatMessage): CaseDocument {
   const isImage =
@@ -162,7 +159,8 @@ function chatMessageToDocument(msg: ChatMessage): CaseDocument {
   return {
     id: msg.id,
     name: msg.attachmentName || (isImage ? "Chat Image" : isAudio ? "Voice Note" : "Chat Document"),
-    size: msg.attachmentSize || (isAudio && msg.audioDuration ? `${msg.audioDuration}s` : "Chat Media"),
+    size:
+      msg.attachmentSize || (isAudio && msg.audioDuration ? `${msg.audioDuration}s` : "Chat Media"),
     uploadedAt: msg.at || new Date().toISOString(),
     fileDataUrl: msg.attachmentUrl || "",
     fileMimeType: mimeType,
@@ -190,6 +188,7 @@ export function CasesTable({
   const [allCases, setAllCases] = useState<LegalCase[]>(getCases);
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editingCase, setEditingCase] = useState<LegalCase | null>(null);
+  const [serialEditTarget, setSerialEditTarget] = useState<LegalCase | null>(null);
 
   const [attachmentsCaseId, setAttachmentsCaseId] = useState<string | null>(null);
   const [attachmentTab, setAttachmentTab] = useState<AttachmentTab>("citizen_submitted");
@@ -384,7 +383,9 @@ export function CasesTable({
         initialPartyNames = p;
       }
     } else if (live.petitioner) {
-      initialPartyNames = live.respondent ? `${live.petitioner} Vs. ${live.respondent}` : live.petitioner;
+      initialPartyNames = live.respondent
+        ? `${live.petitioner} Vs. ${live.respondent}`
+        : live.petitioner;
     }
 
     setEditingCase(live);
@@ -420,7 +421,9 @@ export function CasesTable({
             }
             if (cd.caseNumber) setCaseNo(cd.caseNumber);
             if (Array.isArray(cd.historyOfCaseHearings) && cd.historyOfCaseHearings.length > 0) {
-              setJourney(cd.historyOfCaseHearings.map((h: any, i: number) => ({ ...h, id: `h_${i}` })));
+              setJourney(
+                cd.historyOfCaseHearings.map((h: any, i: number) => ({ ...h, id: `h_${i}` })),
+              );
             }
           }
         })
@@ -441,14 +444,17 @@ export function CasesTable({
 
         // Update local store with fresh DB case
         const currentCases = getCases();
-        const updated = currentCases.map((existing) => (existing.id === mapped.id ? mapped : existing));
+        const updated = currentCases.map((existing) =>
+          existing.id === mapped.id ? mapped : existing,
+        );
         saveCases(updated);
         setAllCases(updated);
 
         // Update dialog state if dialog is currently editing this case
         setEditingCase((current) => {
           if (!current || current.id !== mapped.id) return current;
-          const freshCnr = mapped.caseDetails?.cnr || (mapped as any).cnr || mapped.entityInfo?.cnr || "";
+          const freshCnr =
+            mapped.caseDetails?.cnr || (mapped as any).cnr || mapped.entityInfo?.cnr || "";
           const freshStatus = resolveCaseFilterStatus(mapped);
 
           if (freshStatus === "CNR Generated") {
@@ -462,7 +468,9 @@ export function CasesTable({
               setPartyNames(mapped.title);
             }
           } else {
-            setPartyNames((prevTitle) => (prevTitle === live.title || !prevTitle ? (mapped.title || "") : prevTitle));
+            setPartyNames((prevTitle) =>
+              prevTitle === live.title || !prevTitle ? mapped.title || "" : prevTitle,
+            );
           }
 
           setCaseNo(mapped.caseDetails?.caseNumber || mapped.id || "");
@@ -484,7 +492,9 @@ export function CasesTable({
     setCaseStatus(nextStatus);
     setPartyNameError("");
     if (nextStatus === "CNR Generated") {
-      const targetCnr = (cnr || editingCase?.caseDetails?.cnr || (editingCase as any)?.cnr || "").trim().toUpperCase();
+      const targetCnr = (cnr || editingCase?.caseDetails?.cnr || (editingCase as any)?.cnr || "")
+        .trim()
+        .toUpperCase();
       if (targetCnr.length === 16) {
         try {
           const res = await caseService.getImportedCase<any>(targetCnr);
@@ -504,7 +514,9 @@ export function CasesTable({
             }
             if (cd.caseNumber) setCaseNo(cd.caseNumber);
             if (Array.isArray(cd.historyOfCaseHearings) && cd.historyOfCaseHearings.length > 0) {
-              setJourney(cd.historyOfCaseHearings.map((h: any, i: number) => ({ ...h, id: `h_${i}` })));
+              setJourney(
+                cd.historyOfCaseHearings.map((h: any, i: number) => ({ ...h, id: `h_${i}` })),
+              );
             }
             setImportedCnr(targetCnr);
             setCnrError("");
@@ -549,13 +561,13 @@ export function CasesTable({
       const citizensList = getCitizens();
       const lawyersList = getLawyers();
       const mapped =
-        dbCase && dbCase.id
-          ? mapBackendCaseToLegalCase(dbCase, citizensList, lawyersList)
-          : null;
+        dbCase && dbCase.id ? mapBackendCaseToLegalCase(dbCase, citizensList, lawyersList) : null;
 
       // 3. Update local form states with original data from cases_user
-      const origPetitioner = dbCase?.petitioner || mapped?.petitioner || editingCase?.petitioner || "";
-      const origRespondent = dbCase?.respondent ?? mapped?.respondent ?? editingCase?.respondent ?? "";
+      const origPetitioner =
+        dbCase?.petitioner || mapped?.petitioner || editingCase?.petitioner || "";
+      const origRespondent =
+        dbCase?.respondent ?? mapped?.respondent ?? editingCase?.respondent ?? "";
       let originalPartyNames = "";
       if (origPetitioner && origRespondent) {
         originalPartyNames = `${origPetitioner} Vs. ${origRespondent}`;
@@ -671,18 +683,27 @@ export function CasesTable({
     // If not present in case_imported, backend connects to eCourts API and inserts into case_imported.
     try {
       const res = await caseService.getImportedCase<any>(query);
-      if (res && (res.cnr || res.courtCaseData?.caseNumber || res.data?.courtCaseData?.caseNumber || res.caseDetails?.caseNumber)) {
-        const cd = res.courtCaseData || res.data?.courtCaseData || res.caseDetails || res.rawData?.data?.courtCaseData || {};
-        const p =
-          Array.isArray(cd.petitioners) && cd.petitioners[0] ? cd.petitioners[0] : "";
-        const r =
-          Array.isArray(cd.respondents) && cd.respondents[0] ? cd.respondents[0] : "";
+      if (
+        res &&
+        (res.cnr ||
+          res.courtCaseData?.caseNumber ||
+          res.data?.courtCaseData?.caseNumber ||
+          res.caseDetails?.caseNumber)
+      ) {
+        const cd =
+          res.courtCaseData ||
+          res.data?.courtCaseData ||
+          res.caseDetails ||
+          res.rawData?.data?.courtCaseData ||
+          {};
+        const p = Array.isArray(cd.petitioners) && cd.petitioners[0] ? cd.petitioners[0] : "";
+        const r = Array.isArray(cd.respondents) && cd.respondents[0] ? cd.respondents[0] : "";
         const title =
           p && r
             ? `${p} Vs. ${r}`
             : cd.caseType
-            ? `${cd.caseType} - ${cd.caseNumber || query}`
-            : cd.caseNumber || query;
+              ? `${cd.caseType} - ${cd.caseNumber || query}`
+              : cd.caseNumber || query;
         const caseNumber = cd.caseNumber || "";
         const hearings = Array.isArray(cd.historyOfCaseHearings) ? cd.historyOfCaseHearings : [];
 
@@ -896,13 +917,21 @@ export function CasesTable({
           : c.timeline;
         return {
           ...c,
-          title: isCnrStatus ? (c.title || trimmedTitle) : trimmedTitle,
+          title: isCnrStatus ? c.title || trimmedTitle : trimmedTitle,
           caseDetails: {
             ...(c.caseDetails || {}),
             caseNumber: trimmedCaseNo || c.caseDetails?.caseNumber,
             cnr: trimmedCnr || c.caseDetails?.cnr,
-            petitioners: isCnrStatus ? c.caseDetails?.petitioners : (petitioner ? [petitioner] : c.caseDetails?.petitioners),
-            respondents: isCnrStatus ? c.caseDetails?.respondents : (respondent ? [respondent] : c.caseDetails?.respondents),
+            petitioners: isCnrStatus
+              ? c.caseDetails?.petitioners
+              : petitioner
+                ? [petitioner]
+                : c.caseDetails?.petitioners,
+            respondents: isCnrStatus
+              ? c.caseDetails?.respondents
+              : respondent
+                ? [respondent]
+                : c.caseDetails?.respondents,
             historyOfCaseHearings,
             hearingCount: historyOfCaseHearings.length,
           },
@@ -940,7 +969,11 @@ export function CasesTable({
 
         if (statusChanged || (trimmedCnr && trimmedCnr !== editingCase.caseDetails?.cnr)) {
           await caseService.updateCaseStage(targetCaseId, {
-            stage: isCnrStatus ? "cnrgenerated" : canonicalCaseStatus === "Filing in progress" ? "filinginprogress" : canonicalCaseStatus,
+            stage: isCnrStatus
+              ? "cnrgenerated"
+              : canonicalCaseStatus === "Filing in progress"
+                ? "filinginprogress"
+                : canonicalCaseStatus,
             status: canonicalCaseStatus,
             generatedCnr: isCnrStatus ? trimmedCnr || null : null,
           });
@@ -1000,15 +1033,15 @@ export function CasesTable({
 
   const isCaseAccepted = Boolean(
     attachmentsCase &&
-      (attachmentsFilterStatus === "Accepted by Lawyer" ||
-        attachmentsCase.status === "Assigned" ||
-        attachmentsCase.status === "Under Review" ||
-        attachmentsCase.status === "Awaiting Documents" ||
-        (attachmentsCase.status as string)?.toLowerCase() === "accepted" ||
-        (attachmentsCase.status !== "Submitted" &&
-          attachmentsCase.status !== "Rejected" &&
-          attachmentsCase.status !== "Pending" &&
-          Boolean(attachmentsCase.lawyerId || attachmentsCase.lawyerName))),
+    (attachmentsFilterStatus === "Accepted by Lawyer" ||
+      attachmentsCase.status === "Assigned" ||
+      attachmentsCase.status === "Under Review" ||
+      attachmentsCase.status === "Awaiting Documents" ||
+      (attachmentsCase.status as string)?.toLowerCase() === "accepted" ||
+      (attachmentsCase.status !== "Submitted" &&
+        attachmentsCase.status !== "Rejected" &&
+        attachmentsCase.status !== "Pending" &&
+        Boolean(attachmentsCase.lawyerId || attachmentsCase.lawyerName))),
   );
 
   async function handleAddAttachments(
@@ -1205,12 +1238,45 @@ export function CasesTable({
 
                   {/* Metadata Chips Grid */}
                   <div className="flex flex-wrap items-center gap-1.5 text-[11px]">
-                    <span className="inline-flex items-center gap-1 rounded-lg border border-primary/20 bg-primary/10 px-2.5 py-1 font-mono text-[11px] font-bold text-primary shadow-2xs">
-                      <Hash className="h-3 w-3" />
-                      {liveCase.caseDetails?.caseNumber && liveCase.caseDetails.caseNumber !== liveCase.id
-                        ? liveCase.caseDetails.caseNumber
-                        : liveCase.id}
-                    </span>
+                    {(() => {
+                      const serialNum =
+                        liveCase.serialCaseNumber ||
+                        liveCase.serial_case_number ||
+                        (liveCase.caseDetails?.caseNumber &&
+                        liveCase.caseDetails.caseNumber !== liveCase.id
+                          ? liveCase.caseDetails.caseNumber
+                          : liveCase.id);
+                      return (
+                        <>
+                          <span className="inline-flex items-center gap-1.5 rounded-lg border border-primary/20 bg-primary/10 px-2.5 py-1 font-mono text-[11px] font-bold text-primary shadow-2xs">
+                            <Hash className="h-3 w-3 shrink-0" />
+                            <span>
+                              <span className="text-primary/70 font-semibold mr-1">Serial:</span>
+                              {serialNum}
+                            </span>
+                            {isLawyer && (
+                              <button
+                                type="button"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  setSerialEditTarget(liveCase);
+                                }}
+                                className="ml-1 inline-flex h-4 w-4 items-center justify-center rounded text-primary hover:bg-primary/20 hover:text-primary transition-colors cursor-pointer"
+                                title="Update Serial Case Number"
+                                aria-label="Update Serial Case Number"
+                              >
+                                <Pencil className="h-2.5 w-2.5" />
+                              </button>
+                            )}
+                          </span>
+                          {serialNum !== liveCase.id && (
+                            <span className="inline-flex items-center gap-1 rounded-lg border border-border/50 bg-background/80 px-2 py-1 font-mono text-[11px] text-muted-foreground shadow-2xs">
+                              ID: {liveCase.id}
+                            </span>
+                          )}
+                        </>
+                      );
+                    })()}
                     {liveCase.caseDetails?.courtName && (
                       <span
                         className="inline-flex max-w-[220px] items-center gap-1 truncate rounded-lg border border-border/50 bg-background/80 px-2.5 py-1 text-[11px] text-muted-foreground shadow-2xs sm:max-w-xs"
@@ -1236,13 +1302,15 @@ export function CasesTable({
                       <span className="inline-flex items-center gap-1.5 rounded-lg border border-border/50 bg-background/80 px-2.5 py-1 text-[11px] text-muted-foreground shadow-2xs">
                         <User className="h-3 w-3 text-primary/70" />
                         Client:{" "}
-                        <span className="font-semibold text-foreground">{liveCase.citizenName}</span>
+                        <span className="font-semibold text-foreground">
+                          {liveCase.citizenName}
+                        </span>
                       </span>
                     )}
                   </div>
 
                   {/* Next / Last Hearing Strip */}
-                  {entry && (
+                  {entry &&
                     (() => {
                       const hearingDateVal = entry.hearingDate ?? entry.businessOnDate;
                       const isUpcoming = Boolean(hearingDateVal && hearingDateVal >= today);
@@ -1269,8 +1337,7 @@ export function CasesTable({
                           </div>
                         </div>
                       );
-                    })()
-                  )}
+                    })()}
                 </div>
 
                 {/* Card Footer Action Bar */}
@@ -1313,7 +1380,11 @@ export function CasesTable({
                         {!isLawyer && (
                           <IconButton
                             variant="tonal"
-                            title={liveCase.lawyerName ? `Rate Lawyer (${liveCase.lawyerName})` : "Rate Lawyer"}
+                            title={
+                              liveCase.lawyerName
+                                ? `Rate Lawyer (${liveCase.lawyerName})`
+                                : "Rate Lawyer"
+                            }
                             ariaLabel={`Rate lawyer for case ${liveCase.id}`}
                             onClick={() => handleOpenRatingModal(liveCase)}
                           >
@@ -1324,7 +1395,9 @@ export function CasesTable({
                           variant="tonal"
                           title={isLawyer ? "Edit case" : "View case details"}
                           ariaLabel={
-                            isLawyer ? `Edit case ${liveCase.id}` : `View details for case ${liveCase.id}`
+                            isLawyer
+                              ? `Edit case ${liveCase.id}`
+                              : `View details for case ${liveCase.id}`
                           }
                           onClick={() => handleOpenModal(liveCase)}
                         >
@@ -1340,7 +1413,9 @@ export function CasesTable({
                     >
                       <Paperclip className="h-4 w-4" />
                     </IconButton>
-                    {(isLawyer || liveCase.lawyerName) && <ChatButton caseItem={liveCase} role={role} />}
+                    {(isLawyer || liveCase.lawyerName) && (
+                      <ChatButton caseItem={liveCase} role={role} />
+                    )}
                   </div>
                 </div>
               </div>
@@ -1387,8 +1462,34 @@ export function CasesTable({
                   <h2 className="text-2xl font-normal text-foreground leading-snug">
                     {formatCaseVsTitle(partyNames || editingCase)}
                   </h2>
-                  <div className="font-mono text-xs text-primary mt-1 font-medium">
-                    {cnr ? `CNR ${cnr}` : caseNo || "—"}
+                  <div className="flex flex-wrap items-center gap-2 font-mono text-xs mt-1.5 font-medium">
+                    {(editingCase?.serialCaseNumber || editingCase?.serial_case_number) && (
+                      <span className="inline-flex items-center gap-1.5 rounded-md bg-primary/10 px-2.5 py-0.5 text-primary font-bold border border-primary/20 shadow-2xs">
+                        <Hash className="h-3 w-3" />
+                        Serial No: {editingCase.serialCaseNumber || editingCase.serial_case_number}
+                        {isLawyer && (
+                          <button
+                            type="button"
+                            onClick={() => setSerialEditTarget(editingCase)}
+                            className="ml-1 inline-flex h-4 w-4 items-center justify-center rounded text-primary hover:bg-primary/20 hover:text-primary transition-colors cursor-pointer"
+                            title="Update Serial Case Number"
+                            aria-label="Update Serial Case Number"
+                          >
+                            <Pencil className="h-2.5 w-2.5" />
+                          </button>
+                        )}
+                      </span>
+                    )}
+                    {editingCase?.id && (
+                      <span className="inline-flex items-center gap-1 text-muted-foreground">
+                        ID: {editingCase.id}
+                      </span>
+                    )}
+                    {cnr && (
+                      <span className="inline-flex items-center gap-1 text-muted-foreground">
+                        · CNR: {cnr}
+                      </span>
+                    )}
                   </div>
                 </div>
                 <button
@@ -1431,7 +1532,9 @@ export function CasesTable({
                             setPartyNameError("");
                           }}
                           disabled={isCnrImported}
-                          placeholder={isCnrImported ? "Imported from cases_imported" : "e.g. Y L N R Vs. NSF"}
+                          placeholder={
+                            isCnrImported ? "Imported from cases_imported" : "e.g. Y L N R Vs. NSF"
+                          }
                           className={`h-11 rounded-lg border px-3.5 text-sm outline-hidden focus:border-primary focus:ring-1 focus:ring-primary transition-colors ${
                             isCnrImported
                               ? "bg-muted/50 text-foreground/85 font-medium cursor-not-allowed border-border/70 select-none shadow-none"
@@ -1447,7 +1550,13 @@ export function CasesTable({
                         )}
                         {isCnrImported && (
                           <p className="text-[10.5px] text-muted-foreground flex items-center gap-1">
-                            <span>Party names are imported and locked from verified court record (<code className="font-mono text-primary font-semibold">cases_imported</code>).</span>
+                            <span>
+                              Party names are imported and locked from verified court record (
+                              <code className="font-mono text-primary font-semibold">
+                                cases_imported
+                              </code>
+                              ).
+                            </span>
                           </p>
                         )}
                       </div>
@@ -1558,7 +1667,11 @@ export function CasesTable({
                                 }
                                 onClick={handleImportCnr}
                                 disabled={isCnrImported || cnr.length !== 16 || isImportingCnr}
-                                className={isCnrImported ? "cursor-not-allowed opacity-60 pointer-events-none" : ""}
+                                className={
+                                  isCnrImported
+                                    ? "cursor-not-allowed opacity-60 pointer-events-none"
+                                    : ""
+                                }
                               >
                                 {isImportingCnr ? "Importing..." : "Import"}
                               </Button>
@@ -1574,7 +1687,10 @@ export function CasesTable({
                           ) : isCnrImported ? (
                             <div className="flex items-center gap-1.5 rounded-lg bg-emerald-500/10 px-2.5 py-1.5 text-[11px] font-semibold text-emerald-600 dark:text-emerald-400">
                               <Check className="h-4 w-4 shrink-0" />
-                              <span>Case verified & imported for CNR {cnr.trim().toUpperCase()}. To modify, unlink CNR first.</span>
+                              <span>
+                                Case verified & imported for CNR {cnr.trim().toUpperCase()}. To
+                                modify, unlink CNR first.
+                              </span>
                             </div>
                           ) : cnr && cnr.length !== 16 ? (
                             <p className="text-[10.5px] font-medium text-amber-600 dark:text-amber-400">
@@ -1582,7 +1698,10 @@ export function CasesTable({
                             </p>
                           ) : cnr.length === 16 ? (
                             <p className="text-[11px] font-medium text-amber-600 dark:text-amber-400 flex items-center gap-1">
-                              <span>* Click <strong>Import</strong> to verify and fetch case details before saving as CNR Generated.</span>
+                              <span>
+                                * Click <strong>Import</strong> to verify and fetch case details
+                                before saving as CNR Generated.
+                              </span>
                             </p>
                           ) : null}
                         </div>
@@ -1866,9 +1985,15 @@ export function CasesTable({
               </div>
               <p className="text-sm leading-relaxed text-muted-foreground">
                 {cnrImportResult.status === "found" && cnrImportResult.source === "database" ? (
-                  <>The case with this CNR is available in imports , so it will directly imported from imports.</>
+                  <>
+                    The case with this CNR is available in imports , so it will directly imported
+                    from imports.
+                  </>
                 ) : cnrImportResult.status === "found" ? (
-                  <>Case with this CNR not present in your imports it will imported from ecourts and will be saved to imports.</>
+                  <>
+                    Case with this CNR not present in your imports it will imported from ecourts and
+                    will be saved to imports.
+                  </>
                 ) : (
                   "No matching case found in our database or eCourts for this CNR."
                 )}
@@ -1921,11 +2046,14 @@ export function CasesTable({
               <div className="mt-4 rounded-xl border border-border/80 bg-card p-4 shadow-2xs">
                 <p className="text-sm leading-relaxed text-foreground/90 font-medium">
                   Are you sure you want to unlink the CNR? The case status will be moved back to{" "}
-                  <span className="font-semibold text-primary">'Filing in progress'</span> and the CNR number will be cleared.
+                  <span className="font-semibold text-primary">'Filing in progress'</span> and the
+                  CNR number will be cleared.
                 </p>
                 <div className="mt-2.5 flex items-center gap-2 text-xs text-muted-foreground border-t border-border/60 pt-2.5">
                   <span className="inline-block h-1.5 w-1.5 rounded-full bg-amber-500 shrink-0" />
-                  <span>This action will disconnect court hearing history and reset the stage.</span>
+                  <span>
+                    This action will disconnect court hearing history and reset the stage.
+                  </span>
                 </div>
               </div>
 
@@ -2004,7 +2132,9 @@ export function CasesTable({
               STORED_STATUS_TO_FILTER[attachmentsCase.status] ||
               attachmentsCase.status ||
               ""
-            ).toString().trim();
+            )
+              .toString()
+              .trim();
             const isCasePendingByLawyer =
               currentStageKey === "Pending by Lawyer" ||
               currentStageKey.toLowerCase() === "pending by lawyer" ||
@@ -2025,8 +2155,8 @@ export function CasesTable({
                   </p>
                   <p className="text-xs text-muted-foreground max-w-md mx-auto leading-relaxed">
                     This case is currently under stage{" "}
-                    <span className="font-semibold text-foreground">[Pending by Lawyer]</span>. Files
-                    will become visible once the case is accepted.
+                    <span className="font-semibold text-foreground">[Pending by Lawyer]</span>.
+                    Files will become visible once the case is accepted.
                   </p>
                 </div>
                 <div className="pt-1 flex items-center justify-center">
@@ -2293,7 +2423,8 @@ export function CasesTable({
                               Citizen Submitted Registration Files &amp; Details
                             </p>
                             <p className="text-muted-foreground text-[11px] mt-0.5">
-                              The statement and documents submitted by citizen during case registration.
+                              The statement and documents submitted by citizen during case
+                              registration.
                             </p>
                           </div>
                         </div>
@@ -2351,7 +2482,9 @@ export function CasesTable({
                                 <button
                                   type="button"
                                   onClick={() => {
-                                    navigator.clipboard.writeText(attachmentsCase.description || "");
+                                    navigator.clipboard.writeText(
+                                      attachmentsCase.description || "",
+                                    );
                                     setCopiedDesc(true);
                                     setTimeout(() => setCopiedDesc(false), 2000);
                                   }}
@@ -2441,8 +2574,8 @@ export function CasesTable({
                                     <MessageSquare className="h-4 w-4 shrink-0 text-primary mt-0.5" />
                                     <div className="flex-1 space-y-1.5">
                                       <p className="font-medium text-foreground leading-relaxed">
-                                        Your case is accepted by lawyer so you can share messages and
-                                        documents from chat.
+                                        Your case is accepted by lawyer so you can share messages
+                                        and documents from chat.
                                       </p>
                                       <button
                                         type="button"
@@ -2503,8 +2636,8 @@ export function CasesTable({
                                   </span>
                                 </div>
                                 <p className="text-xs text-muted-foreground">
-                                  Attach your filings, draft petitions, vakalatnama, evidence photos, or
-                                  case notes for this matter.
+                                  Attach your filings, draft petitions, vakalatnama, evidence
+                                  photos, or case notes for this matter.
                                 </p>
                                 <input
                                   ref={lawyerUploadInputRef}
@@ -2717,8 +2850,8 @@ export function CasesTable({
                                     No files shared by lawyer in chat yet
                                   </p>
                                   <p className="text-[11px] text-muted-foreground mt-1 max-w-sm mx-auto">
-                                    Any documents, pictures, or voice notes shared by the lawyer in case
-                                    chat will automatically appear here.
+                                    Any documents, pictures, or voice notes shared by the lawyer in
+                                    case chat will automatically appear here.
                                   </p>
                                 </div>
                                 <Button
@@ -2768,7 +2901,8 @@ export function CasesTable({
                                   Sworn Case Affidavits
                                 </p>
                                 <p className="text-muted-foreground text-[11px] mt-0.5">
-                                  Notarized, sworn, or evidentiary affidavits attached to this matter.
+                                  Notarized, sworn, or evidentiary affidavits attached to this
+                                  matter.
                                 </p>
                               </div>
                             </div>
@@ -2784,7 +2918,8 @@ export function CasesTable({
                                 </span>
                               </div>
                               <p className="text-xs text-muted-foreground">
-                                Attach sworn affidavits, declarations under oath, or notarized exhibits for this case.
+                                Attach sworn affidavits, declarations under oath, or notarized
+                                exhibits for this case.
                               </p>
                               <input
                                 ref={affidavitUploadInputRef}
@@ -2840,7 +2975,8 @@ export function CasesTable({
                               {affidavitDocs.length === 0 ? (
                                 <div className="rounded-2xl border border-dashed border-border bg-card p-6 text-center">
                                   <p className="text-xs text-muted-foreground italic">
-                                    No affidavits attached to this case yet. Use the upload area above to attach a sworn affidavit.
+                                    No affidavits attached to this case yet. Use the upload area
+                                    above to attach a sworn affidavit.
                                   </p>
                                 </div>
                               ) : (
@@ -2864,7 +3000,9 @@ export function CasesTable({
                   {/* Modal Footer */}
                   <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3 p-5 sm:p-6 pt-3 border-t border-border/80 shrink-0 bg-surface/50">
                     <span className="text-xs text-muted-foreground">
-                      Total case attachments: <strong className="text-foreground">{allAttachedDocs.length}</strong> file{allAttachedDocs.length === 1 ? "" : "s"}
+                      Total case attachments:{" "}
+                      <strong className="text-foreground">{allAttachedDocs.length}</strong> file
+                      {allAttachedDocs.length === 1 ? "" : "s"}
                     </span>
                     <Button variant="text" onClick={closeAttachmentsModal}>
                       Close
@@ -3144,6 +3282,20 @@ export function CasesTable({
             );
           })()}
       </Dialog>
+
+      {/* Edit Serial Case Number Modal for Lawyer */}
+      <EditSerialCaseNumberModal
+        isOpen={!!serialEditTarget}
+        onClose={() => setSerialEditTarget(null)}
+        caseItem={serialEditTarget}
+        onSuccess={(updated) => {
+          setAllCases(getCases());
+          if (editingCase?.id === updated.id) {
+            setEditingCase(updated);
+          }
+          onCaseUpdate?.(updated);
+        }}
+      />
     </>
   );
 }

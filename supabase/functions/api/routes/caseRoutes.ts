@@ -15,6 +15,7 @@ import {
   deleteUserCase,
   addCaseAttachments,
   getCaseDocuments,
+  checkSerialCaseNumber,
 } from "../controllers/caseController.ts";
 import {
   getCaseMessages,
@@ -194,6 +195,44 @@ const createUserCaseRoute = createRoute({
   responses: {
     201: {
       description: "Case created and advocate booked successfully",
+      content: { "application/json": { schema: SuccessResponseSchema } },
+    },
+  },
+});
+
+const checkSerialRoute = createRoute({
+  method: "get",
+  path: "/check-serial",
+  tags: ["Cases - User"],
+  summary: "Check if a serial case number is unique across cases_user table",
+  request: {
+    query: z.object({
+      serial: z.string().openapi({ example: "CRIM/0831154512/2026" }),
+      excludeCaseId: z.string().optional().openapi({ example: "CUC-20260831154512" }),
+    }),
+  },
+  responses: {
+    200: {
+      description: "Serial uniqueness check status",
+      content: { "application/json": { schema: SuccessResponseSchema } },
+    },
+  },
+});
+
+const checkUserSerialRoute = createRoute({
+  method: "get",
+  path: "/user/check-serial",
+  tags: ["Cases - User"],
+  summary: "Check if a serial case number is unique across cases_user table (alias)",
+  request: {
+    query: z.object({
+      serial: z.string().openapi({ example: "CRIM/0831154512/2026" }),
+      excludeCaseId: z.string().optional().openapi({ example: "CUC-20260831154512" }),
+    }),
+  },
+  responses: {
+    200: {
+      description: "Serial uniqueness check status",
       content: { "application/json": { schema: SuccessResponseSchema } },
     },
   },
@@ -572,6 +611,8 @@ caseRouter.openapi(listImportedCasesRoute, listImportedCases as any);
 
 caseRouter.openapi(listUserCasesRoute, listUserCases as any);
 caseRouter.openapi(createUserCaseRoute, createUserCase as any);
+caseRouter.openapi(checkSerialRoute, checkSerialCaseNumber as any);
+caseRouter.openapi(checkUserSerialRoute, checkSerialCaseNumber as any);
 caseRouter.openapi(getUserCaseRoute, getUserCase as any);
 caseRouter.openapi(updateLawyerStageRoute, updateLawyerStage as any);
 caseRouter.openapi(updateUserCaseRoute, updateUserCase as any);

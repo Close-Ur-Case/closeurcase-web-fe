@@ -334,6 +334,9 @@ export interface LegalCase {
   // Platform / CloseUrCase workflow fields — no case_structure.json
   // equivalent, so these stay flat rather than nesting.
   id: string;
+  /** Serial case number formatted as code/timestampwithoutyear/year (e.g. CRIM/0831154512/2026) */
+  serialCaseNumber?: string;
+  serial_case_number?: string;
   /** "X vs Y" display title — a platform concept, not part of eCourts data. */
   title: string;
   /** Citizen's own free-text case description. */

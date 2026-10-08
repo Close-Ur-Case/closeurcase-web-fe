@@ -35,6 +35,7 @@ export const CaseDocumentSchema = z
 export const CreateUserCaseSchema = z
   .object({
     id: z.string().optional().openapi({ example: "CUC-20260831154512" }),
+    serialCaseNumber: z.string().optional().openapi({ example: "CRIM/0831154512/2026", description: "Serial case number auto-set on insert as code/timestampwithoutyear/year" }),
     citizenId: z.string().optional().openapi({ example: "u_001" }),
     lawyerId: z.string().optional().openapi({ example: "l_001" }),
     caseType: z.string().openapi({ example: "new", description: "Case type from case_types lookup: new, pending, closed" }),
@@ -117,6 +118,7 @@ export const ListLookupsQuerySchema = z.object({
 
 export const UpdateUserCaseSchema = z
   .object({
+    serialCaseNumber: z.string().optional().openapi({ example: "CRIM/0831154512/2026" }),
     title: z.string().optional().openapi({ example: "Updated Case Title" }),
     description: z.string().optional().openapi({ example: "Updated case description" }),
     cnr: z.string().nullable().optional().transform((v) => (v ? v.trim().toUpperCase() : v === null ? null : undefined)).openapi({ example: "DLND020047882015" }),

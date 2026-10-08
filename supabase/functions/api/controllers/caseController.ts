@@ -282,6 +282,17 @@ export async function deleteUserCase(c: Context) {
   return ApiResponse.success(c, result, "Case deleted successfully");
 }
 
+export async function checkSerialCaseNumber(c: Context) {
+  const serial = c.req.query("serial") || "";
+  const excludeCaseId = c.req.query("excludeCaseId");
+  const result = await CaseService.checkSerialCaseNumberUnique(serial, excludeCaseId);
+  return ApiResponse.success(
+    c,
+    result,
+    result.unique ? "Serial case number is available" : "Serial case number already in use",
+  );
+}
+
 // Backward compatibility exports
 export const createCase = createUserCase;
 export const listCases = listUserCases;

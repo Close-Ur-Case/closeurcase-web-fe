@@ -3,7 +3,7 @@ import { casesImported } from "../models/casesImported.ts";
 import { casesUser } from "../models/casesUser.ts";
 import { caseDocuments, type CaseDocumentRecord, type NewCaseDocumentRecord } from "../models/caseDocuments.ts";
 import { lookups } from "../models/lookups.ts";
-import { eq, desc, asc, and, or, ilike, sql, inArray } from "drizzle-orm";
+import { eq, ne, desc, asc, and, or, ilike, sql, inArray } from "drizzle-orm";
 import { ApiError } from "../utils/apiError.ts";
 import { NotificationService } from "./notificationService.ts";
 import { LawyerCategoryService } from "./lawyerCategoryService.ts";
@@ -518,6 +518,7 @@ export class CaseService {
           ilike(casesUser.respondent, `%${term}%`),
           ilike(casesUser.description, `%${term}%`),
           ilike(casesUser.id, `%${term}%`),
+          ilike(casesUser.serialCaseNumber, `%${upperTerm}%`),
           ilike(casesUser.cnr, `%${upperTerm}%`),
           ilike(casesUser.practiceArea, `%${term}%`)
         )
@@ -737,6 +738,36 @@ export class CaseService {
     return updated;
   }
 
+  static async checkSerialCaseNumberUnique(
+    serial: string,
+    excludeCaseId?: string,
+  ): Promise<{ unique: boolean; conflictId?: string; message: string }> {
+    const cleanSerial = String(serial || "").trim().toUpperCase();
+    if (!cleanSerial) {
+      return { unique: false, message: "Serial case number cannot be empty." };
+    }
+    const conditions = [eq(casesUser.serialCaseNumber, cleanSerial)];
+    if (excludeCaseId) {
+      conditions.push(ne(casesUser.id, excludeCaseId));
+    }
+    const [conflict] = await db
+      .select({ id: casesUser.id })
+      .from(casesUser)
+      .where(and(...conditions));
+
+    if (conflict) {
+      return {
+        unique: false,
+        conflictId: conflict.id,
+        message: `Serial case number '${cleanSerial}' is already taken by case '${conflict.id}'.`,
+      };
+    }
+    return {
+      unique: true,
+      message: `Serial case number '${cleanSerial}' is unique and available.`,
+    };
+  }
+
   static async updateUserCase(caseId: string, updates: any) {
     const [existing] = await db.select().from(casesUser).where(eq(casesUser.id, caseId));
     if (!existing) {
@@ -746,6 +777,27 @@ export class CaseService {
     const updateFields: any = {
       updatedAt: new Date(),
     };
+
+    const incomingSerial =
+      updates.serialCaseNumber !== undefined
+        ? updates.serialCaseNumber
+        : updates.serial_case_number;
+    if (incomingSerial !== undefined) {
+      const cleanSerial = String(incomingSerial || "").trim().toUpperCase();
+      if (!cleanSerial) {
+        throw ApiError.badRequest("Serial case number cannot be empty.");
+      }
+      const [conflict] = await db
+        .select({ id: casesUser.id })
+        .from(casesUser)
+        .where(and(eq(casesUser.serialCaseNumber, cleanSerial), ne(casesUser.id, caseId)));
+      if (conflict) {
+        throw ApiError.badRequest(
+          `Serial case number '${cleanSerial}' already exists on case '${conflict.id}'. It must be unique.`
+        );
+      }
+      updateFields.serialCaseNumber = cleanSerial;
+    }
 
     const hasLinkedCnr = Boolean(existing.cnr || (updates.cnr !== undefined ? updates.cnr : null));
     if (!hasLinkedCnr) {

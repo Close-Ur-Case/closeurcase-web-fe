@@ -34,6 +34,7 @@ export interface UserCaseNote {
 
 export const casesUser = pgTable("cases_user", {
   id: varchar("id", { length: 128 }).primaryKey(),
+  serialCaseNumber: varchar("serial_case_number", { length: 64 }).unique(),
   citizenId: varchar("citizen_id", { length: 64 }).notNull().references(() => citizens.id, { onDelete: "cascade" }),
   lawyerId: varchar("lawyer_id", { length: 64 }).references(() => lawyers.id, { onDelete: "set null" }),
   caseType: varchar("case_type", { length: 32 }).notNull().references(() => lookups.id),

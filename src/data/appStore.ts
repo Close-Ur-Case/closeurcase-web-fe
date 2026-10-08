@@ -107,6 +107,16 @@ export function generateCloseUrCaseId(): string {
   return `CUC-${stamp}`;
 }
 
+/** Generate serial case number in the format case_categories.code/timestampwithoutyear/year */
+export function generateSerialCaseNumber(code = "CRIM", d: Date = new Date()): string {
+  const pad = (n: number) => String(n).padStart(2, "0");
+  const tsNoYear =
+    `${pad(d.getMonth() + 1)}${pad(d.getDate())}` +
+    `${pad(d.getHours())}${pad(d.getMinutes())}${pad(d.getSeconds())}`;
+  const year = String(d.getFullYear());
+  return `${code.toUpperCase()}/${tsNoYear}/${year}`;
+}
+
 export function getCases(): LegalCase[] {
   return load<LegalCase[]>(CASES_KEY, []);
 }
@@ -280,6 +290,11 @@ export function syncRemoteLawyerCases(
 }
 
 export function addCase(c: LegalCase) {
+  if (!c.serialCaseNumber) {
+    const code = c.category ? String(c.category).slice(0, 4).toUpperCase() : "CRIM";
+    c.serialCaseNumber = generateSerialCaseNumber(code);
+    c.serial_case_number = c.serialCaseNumber;
+  }
   const current = getCases();
   const updated = [c, ...current];
   saveCases(updated);
@@ -308,17 +323,28 @@ export function updateCaseStatus(id: string, newStatus: CaseStatus | string, not
     if (c.id !== id) return c;
     const timeline = c.timeline || [];
     const validStatus: CaseStatus = (
-      ["Pending", "Submitted", "Assigned", "Rejected", "Under Review", "In Progress", "Awaiting Documents", "Resolved", "Closed"].includes(newStatus)
+      [
+        "Pending",
+        "Submitted",
+        "Assigned",
+        "Rejected",
+        "Under Review",
+        "In Progress",
+        "Awaiting Documents",
+        "Resolved",
+        "Closed",
+      ].includes(newStatus)
         ? newStatus
         : newStatus.toLowerCase().includes("progress") || newStatus.toLowerCase().includes("filing")
-        ? "In Progress"
-        : newStatus.toLowerCase().includes("accepted") || newStatus.toLowerCase().includes("assigned")
-        ? "Assigned"
-        : newStatus.toLowerCase().includes("cnr")
-        ? "Assigned"
-        : newStatus.toLowerCase().includes("reject")
-        ? "Rejected"
-        : "Submitted"
+          ? "In Progress"
+          : newStatus.toLowerCase().includes("accepted") ||
+              newStatus.toLowerCase().includes("assigned")
+            ? "Assigned"
+            : newStatus.toLowerCase().includes("cnr")
+              ? "Assigned"
+              : newStatus.toLowerCase().includes("reject")
+                ? "Rejected"
+                : "Submitted"
     ) as CaseStatus;
 
     const newTimeline = [
@@ -396,6 +422,28 @@ export function updateCaseFields(id: string, patch: Partial<LegalCase>) {
     c.id === id ? { ...c, ...patch, updatedAt: new Date().toISOString().slice(0, 10) } : c,
   );
   saveCases(updated);
+}
+
+export function updateCaseSerialCaseNumber(id: string, newSerial: string): LegalCase | null {
+  const clean = String(newSerial || "").trim().toUpperCase();
+  const current = getCases();
+  let updatedCase: LegalCase | null = null;
+  const updated = current.map((c) => {
+    if (c.id === id) {
+      updatedCase = {
+        ...c,
+        serialCaseNumber: clean,
+        serial_case_number: clean,
+        updatedAt: new Date().toISOString().slice(0, 10),
+      };
+      return updatedCase;
+    }
+    return c;
+  });
+  if (updatedCase) {
+    saveCases(updated);
+  }
+  return updatedCase;
 }
 
 export function addCaseAttachments(caseId: string, docs: CaseDocument[]): LegalCase[] {
@@ -584,7 +632,8 @@ export function mergeRemoteLawyers(remote: Partial<Lawyer>[]): void {
       activeCases: r.activeCases ?? existing?.activeCases ?? 0,
       rating: rating ?? 0,
       category: category ?? "Civil",
-      availabilityStatus: (r.availabilityStatus as "Online" | "Offline") ?? existing?.availabilityStatus ?? "Online",
+      availabilityStatus:
+        (r.availabilityStatus as "Online" | "Offline") ?? existing?.availabilityStatus ?? "Online",
     };
 
     if (!existing || JSON.stringify(existing) !== JSON.stringify(merged)) {
@@ -820,7 +869,9 @@ export function updateCitizenStatus(id: string, status: Citizen["status"]) {
 
 export function updateCitizenProfile(
   id: string,
-  fields: Partial<Pick<Citizen, "name" | "email" | "phone" | "city" | "currentLocation" | "avatarUrl">>,
+  fields: Partial<
+    Pick<Citizen, "name" | "email" | "phone" | "city" | "currentLocation" | "avatarUrl">
+  >,
 ) {
   const current = getCitizens();
   const updated = current.map((c) => (c.id === id ? { ...c, ...fields } : c));
@@ -1146,9 +1197,7 @@ export function deleteLawyerDocument(id: string) {
 /* ── SUBSCRIPTIONS STORE ("My Subscriptions") ────────────────────────────── */
 
 /** Check whether a subscription is actively valid (status is "Active" and expiration date has not passed). */
-export function isSubscriptionActive(
-  sub: Partial<Subscription> | null | undefined,
-): boolean {
+export function isSubscriptionActive(sub: Partial<Subscription> | null | undefined): boolean {
   if (!sub || sub.status !== "Active") return false;
   const now = Date.now();
   if (sub.expiresAt) {
@@ -1171,9 +1220,7 @@ export function isSubscriptionActive(
   return false;
 }
 
-export function getSubscriptionDateTimes(
-  sub: Partial<Subscription> & { createdAt?: string },
-) {
+export function getSubscriptionDateTimes(sub: Partial<Subscription> & { createdAt?: string }) {
   let startObj: Date;
   if (sub.createdAt && !isNaN(new Date(sub.createdAt).getTime())) {
     startObj = new Date(sub.createdAt);
@@ -1289,9 +1336,7 @@ export function mergeRemoteSubscriptions(remote: Partial<Subscription>[]): void 
  * is Silver, an active `daily` plan is Micropass, and everyone else (free,
  * expired, cancelled, or no plan) is Bronze. Accepts a citizen id ("u_001") or
  * a display name. Returns `null` for lawyers/admins. */
-export function planTierForCitizen(
-  idOrName?: string | null,
-): SubscriptionTierId | null {
+export function planTierForCitizen(idOrName?: string | null): SubscriptionTierId | null {
   if (!idOrName) return "bronze";
   const key = idOrName.trim();
   if (!key) return "bronze";
@@ -1347,7 +1392,12 @@ export function planTierForCitizen(
 
   // If still no subs, check fallback for default citizen "Sai Teja Reddy" or "u_001"
   if (citizenSubs.length === 0) {
-    if (lower === "sai teja reddy" || lower === "u_001" || lower.startsWith("u_") || lower.startsWith("usr_")) {
+    if (
+      lower === "sai teja reddy" ||
+      lower === "u_001" ||
+      lower.startsWith("u_") ||
+      lower.startsWith("usr_")
+    ) {
       citizenSubs = allSubs.filter((s) => s.citizenId === "u_001");
     }
   }

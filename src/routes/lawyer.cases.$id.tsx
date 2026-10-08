@@ -30,7 +30,10 @@ import {
   Clock,
   CheckCircle2,
   FileText,
+  Pencil,
+  Hash,
 } from "lucide-react";
+import { EditSerialCaseNumberModal } from "@/components/app/EditSerialCaseNumberModal";
 
 export const Route = createFileRoute("/lawyer/cases/$id")({
   component: LawyerCaseDetailPage,
@@ -132,6 +135,12 @@ function LawyerCaseDetailBody({
 }) {
   const cd = c.caseDetails;
   const [showLawyers, setShowLawyers] = useState(false);
+  const [editSerialOpen, setEditSerialOpen] = useState(false);
+  const [currentCase, setCurrentCase] = useState<LegalCase>(c);
+
+  useEffect(() => {
+    setCurrentCase(c);
+  }, [c]);
 
   const today = new Date().toISOString().slice(0, 10);
   const nextHearing = [...cd.historyOfCaseHearings]
@@ -140,7 +149,7 @@ function LawyerCaseDetailBody({
 
   return (
     <div className="space-y-5">
-      <PageHeader title={c.title} />
+      <PageHeader title={currentCase.title} />
 
       {/* Back Button */}
       <div className="-mt-3">
@@ -160,6 +169,23 @@ function LawyerCaseDetailBody({
           <div className="flex flex-wrap items-center justify-between gap-3">
             <MetaLine
               parts={[
+                (currentCase.serialCaseNumber || currentCase.serial_case_number) && (
+                  <span className="inline-flex items-center gap-1 font-mono font-bold text-primary bg-primary/10 px-2.5 py-0.5 rounded-lg border border-primary/20 shadow-2xs">
+                    <Hash className="h-3 w-3 shrink-0" />
+                    <span>Serial: {currentCase.serialCaseNumber || currentCase.serial_case_number}</span>
+                    {!readOnly && (
+                      <button
+                        type="button"
+                        onClick={() => setEditSerialOpen(true)}
+                        className="ml-1 inline-flex h-4 w-4 items-center justify-center rounded text-primary hover:bg-primary/20 hover:text-primary transition-colors cursor-pointer"
+                        title="Update Serial Case Number"
+                        aria-label="Update Serial Case Number"
+                      >
+                        <Pencil className="h-2.5 w-2.5" />
+                      </button>
+                    )}
+                  </span>
+                ),
                 cd.caseNumber && (
                   <span className="font-mono font-bold text-foreground">{cd.caseNumber}</span>
                 ),
@@ -169,14 +195,14 @@ function LawyerCaseDetailBody({
                     {cd.courtName}
                   </span>
                 ),
-                c.lawyerName && (
+                currentCase.lawyerName && (
                   <span className="text-foreground/90">
-                    Lawyer: <span className="font-semibold text-foreground">{c.lawyerName}</span>
+                    Lawyer: <span className="font-semibold text-foreground">{currentCase.lawyerName}</span>
                   </span>
                 ),
               ]}
             />
-            <StatusDot status={c.status} />
+            <StatusDot status={currentCase.status} />
           </div>
 
           <MetaLine
@@ -264,8 +290,18 @@ function LawyerCaseDetailBody({
       </div>
 
       <div className="mt-4">
-        <CaseHistoryTab caseItem={c} />
+        <CaseHistoryTab caseItem={currentCase} />
       </div>
+
+      {/* Edit Serial Case Number Modal for Lawyer */}
+      <EditSerialCaseNumberModal
+        isOpen={editSerialOpen}
+        onClose={() => setEditSerialOpen(false)}
+        caseItem={currentCase}
+        onSuccess={(updated) => {
+          setCurrentCase(updated);
+        }}
+      />
     </div>
   );
 }

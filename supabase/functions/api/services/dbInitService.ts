@@ -134,6 +134,7 @@ export class DbInitService {
 
       CREATE TABLE IF NOT EXISTS public.cases_user (
           id VARCHAR(128) PRIMARY KEY,
+          serial_case_number VARCHAR(64) UNIQUE,
           citizen_id VARCHAR(64) REFERENCES public.citizens(id) ON DELETE CASCADE NOT NULL,
           lawyer_id VARCHAR(64) REFERENCES public.lawyers(id) ON DELETE SET NULL,
           case_type VARCHAR(32) REFERENCES public.lookups(id) NOT NULL,
@@ -461,6 +462,8 @@ export class DbInitService {
       ALTER TABLE public.cases_user ADD COLUMN IF NOT EXISTS respondent VARCHAR(255);
       ALTER TABLE public.cases_user DROP COLUMN IF EXISTS title;
       ALTER TABLE public.cases_user DROP COLUMN IF EXISTS documents;
+      ALTER TABLE public.cases_user ADD COLUMN IF NOT EXISTS serial_case_number VARCHAR(64) UNIQUE;
+      CREATE INDEX IF NOT EXISTS idx_cases_user_serial_case_number ON public.cases_user(serial_case_number);
       ALTER TABLE public.case_documents ADD COLUMN IF NOT EXISTS is_affidavit BOOLEAN DEFAULT FALSE NOT NULL;
       CREATE INDEX IF NOT EXISTS idx_case_documents_is_affidavit ON public.case_documents(is_affidavit);
       ALTER TABLE public.cities ADD COLUMN IF NOT EXISTS state_id VARCHAR(64) REFERENCES public.states(id) ON DELETE SET NULL;
@@ -535,6 +538,59 @@ export class DbInitService {
       BEFORE INSERT OR UPDATE OF languages ON public.lawyers
       FOR EACH ROW
       EXECUTE FUNCTION public.validate_lawyer_languages();
+
+      CREATE OR REPLACE FUNCTION public.set_cases_user_serial_case_number()
+      RETURNS TRIGGER AS $$
+      DECLARE
+          v_code VARCHAR(32);
+          v_ts_no_year VARCHAR(32);
+          v_year VARCHAR(10);
+          v_candidate VARCHAR(64);
+          v_counter INTEGER := 1;
+      BEGIN
+          IF NEW.serial_case_number IS NULL OR TRIM(NEW.serial_case_number) = '' THEN
+              SELECT COALESCE(
+                  (SELECT code FROM public.case_categories WHERE id = NEW.practice_area LIMIT 1),
+                  (SELECT code FROM public.case_categories WHERE code = NEW.practice_area LIMIT 1),
+                  (SELECT code FROM public.case_categories WHERE name ILIKE NEW.practice_area || '%' LIMIT 1),
+                  (SELECT code FROM public.case_categories WHERE name ILIKE '%' || NEW.practice_area || '%' LIMIT 1),
+                  (SELECT c.code FROM public.case_specializations s 
+                   JOIN public.case_categories c ON c.id = s.category_id 
+                   WHERE s.id = NEW.specialization OR s.name ILIKE NEW.specialization LIMIT 1),
+                  'OTHER'
+              ) INTO v_code;
+
+              IF NEW.id LIKE 'CUC-%' AND length(NEW.id) >= 18 THEN
+                  v_year := substring(NEW.id from 5 for 4);
+                  v_ts_no_year := substring(NEW.id from 9 for 10);
+              ELSE
+                  v_year := to_char(COALESCE(NEW.created_at, NOW()), 'YYYY');
+                  v_ts_no_year := to_char(COALESCE(NEW.created_at, NOW()), 'MMDDHH24MISS');
+              END IF;
+
+              v_candidate := v_code || '/' || v_ts_no_year || '/' || v_year;
+
+              WHILE EXISTS (
+                  SELECT 1 FROM public.cases_user 
+                  WHERE serial_case_number = v_candidate 
+                    AND (NEW.id IS NULL OR id != NEW.id)
+              ) LOOP
+                  v_candidate := v_code || '/' || v_ts_no_year || LPAD(v_counter::text, 2, '0') || '/' || v_year;
+                  v_counter := v_counter + 1;
+              END LOOP;
+
+              NEW.serial_case_number := v_candidate;
+          END IF;
+
+          RETURN NEW;
+      END;
+      $$ LANGUAGE plpgsql;
+
+      DROP TRIGGER IF EXISTS trg_set_cases_user_serial_case_number ON public.cases_user;
+      CREATE TRIGGER trg_set_cases_user_serial_case_number
+      BEFORE INSERT ON public.cases_user
+      FOR EACH ROW
+      EXECUTE FUNCTION public.set_cases_user_serial_case_number();
     `;
 
         await client.unsafe(schemaSql);

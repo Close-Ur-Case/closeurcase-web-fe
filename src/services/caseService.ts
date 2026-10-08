@@ -94,6 +94,108 @@ export const caseService = {
   },
 
   /**
+   * Check if a serial case number is unique across cases in the database
+   */
+  async checkSerialCaseNumberUnique(
+    serialCaseNumber: string,
+    excludeCaseId?: string,
+  ): Promise<{ unique: boolean; conflictId?: string; message?: string }> {
+    const clean = String(serialCaseNumber || "").trim().toUpperCase();
+    if (!clean) {
+      return { unique: false, message: "Serial case number cannot be empty." };
+    }
+
+    try {
+      const resp = await apiClient.get<{ unique: boolean; conflictId?: string; message?: string }>(
+        "/cases/check-serial",
+        {
+          params: {
+            serial: clean,
+            excludeCaseId,
+          },
+        },
+      );
+      return resp;
+    } catch {
+      // Direct PostgREST database query fallback
+      try {
+        const queryParams = new URLSearchParams({
+          select: "id,serial_case_number",
+          serial_case_number: `eq.${clean}`,
+        });
+        if (excludeCaseId) {
+          queryParams.set("id", `neq.${excludeCaseId}`);
+        }
+        const resp = await fetch(
+          `https://zxsizwzjktorqjlzzchg.supabase.co/rest/v1/cases_user?${queryParams.toString()}`,
+          {
+            headers: {
+              apikey:
+                "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Inp4c2l6d3pqa3RvcnFqbHp6Y2hnIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODg4NDgxOTAsImV4cCI6MjEwNDQyNDE5MH0.E5ZOdHG5Q9TdU2yPWKefiHK2_seoVYpYCBPU7v7dtI0",
+              Authorization:
+                "Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Inp4c2l6d3pqa3RvcnFqbHp6Y2hnIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODg4NDgxOTAsImV4cCI6MjEwNDQyNDE5MH0.E5ZOdHG5Q9TdU2yPWKefiHK2_seoVYpYCBPU7v7dtI0",
+            },
+          },
+        );
+        if (resp.ok) {
+          const rows = (await resp.json()) as Array<{ id: string; serial_case_number: string }>;
+          if (Array.isArray(rows) && rows.length > 0) {
+            return {
+              unique: false,
+              conflictId: rows[0].id,
+              message: `Serial case number '${clean}' already exists on case '${rows[0].id}'.`,
+            };
+          }
+          return {
+            unique: true,
+            message: `Serial case number '${clean}' is unique and available.`,
+          };
+        }
+      } catch (dbErr) {
+        console.warn("Direct DB uniqueness check error:", dbErr);
+      }
+      return { unique: true, message: `Serial case number '${clean}' is available.` };
+    }
+  },
+
+  /**
+   * Update a case's serial case number in the database
+   */
+  async updateSerialCaseNumber<T = Record<string, unknown>>(
+    id: string,
+    serialCaseNumber: string,
+  ): Promise<T> {
+    const clean = String(serialCaseNumber || "").trim().toUpperCase();
+    try {
+      return await apiClient.patch<T>(`/cases/user/${id}`, {
+        serialCaseNumber: clean,
+        serial_case_number: clean,
+      });
+    } catch (err) {
+      // Direct PostgREST database update fallback
+      try {
+        await fetch(
+          `https://zxsizwzjktorqjlzzchg.supabase.co/rest/v1/cases_user?id=eq.${encodeURIComponent(id)}`,
+          {
+            method: "PATCH",
+            headers: {
+              apikey:
+                "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Inp4c2l6d3pqa3RvcnFqbHp6Y2hnIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODg4NDgxOTAsImV4cCI6MjEwNDQyNDE5MH0.E5ZOdHG5Q9TdU2yPWKefiHK2_seoVYpYCBPU7v7dtI0",
+              Authorization:
+                "Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Inp4c2l6d3pqa3RvcnFqbHp6Y2hnIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODg4NDgxOTAsImV4cCI6MjEwNDQyNDE5MH0.E5ZOdHG5Q9TdU2yPWKefiHK2_seoVYpYCBPU7v7dtI0",
+              "Content-Type": "application/json",
+            },
+            body: JSON.stringify({ serial_case_number: clean }),
+          },
+        );
+      } catch (dbErr) {
+        console.warn("PostgREST direct patch fallback error:", dbErr);
+      }
+      throw err;
+    }
+  },
+
+  /**
    * Update case details (title, CNR, documents, timeline, notes, status)
    */
   async updateCase<T = Record<string, unknown>>(
@@ -188,6 +290,8 @@ export interface BackendUserCaseTimelineEvent {
 
 export interface BackendUserCase {
   id: string;
+  serialCaseNumber?: string;
+  serial_case_number?: string;
   citizenId: string;
   lawyerId: string | null;
   caseType: string;
@@ -221,13 +325,11 @@ export function mapBackendCaseToLegalCase(
 
   // Status mapping
   const stage = String(backend.lawyerCasestageId || "").toLowerCase();
-  const rawStatus = String(backend.caseStatus || "").trim().toLowerCase();
+  const rawStatus = String(backend.caseStatus || "")
+    .trim()
+    .toLowerCase();
   let status: CaseStatus = "Submitted";
-  if (
-    stage === "cnrgenerated" ||
-    rawStatus.includes("cnr") ||
-    rawStatus.includes("registered")
-  ) {
+  if (stage === "cnrgenerated" || rawStatus.includes("cnr") || rawStatus.includes("registered")) {
     status = "CNR Generated";
   } else if (
     stage === "filinginprogress" ||
@@ -263,26 +365,35 @@ export function mapBackendCaseToLegalCase(
     string,
     unknown
   >;
-  const impData = (imp.data && typeof imp.data === "object" ? imp.data : imp) as Record<string, unknown>;
-  const impCaseDetails = (impData.courtCaseData || impData.caseDetails || imp.caseDetails || imp.case_details || {}) as Record<
+  const impData = (imp.data && typeof imp.data === "object" ? imp.data : imp) as Record<
     string,
     unknown
-  > as Partial<CaseDetails> & Record<string, unknown>;
+  >;
+  const impCaseDetails = (impData.courtCaseData ||
+    impData.caseDetails ||
+    imp.caseDetails ||
+    imp.case_details ||
+    {}) as Record<string, unknown> as Partial<CaseDetails> & Record<string, unknown>;
   const impEntityInfo = (impData.entityInfo || imp.entityInfo || imp.entity_info || {}) as Record<
     string,
     unknown
   > as Partial<EntityInfo>;
-  const impFilesObj = (impData.files || imp.files) as { files?: Array<Record<string, unknown>> } | undefined;
+  const impFilesObj = (impData.files || imp.files) as
+    { files?: Array<Record<string, unknown>> } | undefined;
   const impFiles = Array.isArray(impData.files || imp.files)
     ? ((impData.files || imp.files) as Array<Record<string, unknown>>)
     : Array.isArray(impFilesObj?.files)
       ? impFilesObj.files
       : [];
-  const impDescriptions = (impData.descriptions || imp.descriptions || { enumFields: [], enumLookup: {} }) as {
+  const impDescriptions = (impData.descriptions ||
+    imp.descriptions || { enumFields: [], enumLookup: {} }) as {
     enumFields: string[];
     enumLookup: Record<string, Record<string, string>>;
   };
-  const impAiAnalysis = (impData.caseAiAnalysis || imp.caseAiAnalysis || imp.case_ai_analysis || null) as AIReport | null;
+  const impAiAnalysis = (impData.caseAiAnalysis ||
+    imp.caseAiAnalysis ||
+    imp.case_ai_analysis ||
+    null) as AIReport | null;
 
   // Files: merge user documents and eCourts imported files
   const rawDocs: any[] = Array.isArray(backend.documents)
@@ -333,13 +444,27 @@ export function mapBackendCaseToLegalCase(
   const files: CaseDocument[] = Array.from(filesMap.values());
 
   const timeline: TimelineEvent[] = (backend.timeline || []).map((t, i) => {
-    const rawTStatus = String(t.status || "").trim().toLowerCase();
+    const rawTStatus = String(t.status || "")
+      .trim()
+      .toLowerCase();
     let evStatus: CaseStatus = "Submitted";
-    if (rawTStatus === "cnrgenerated" || rawTStatus.includes("cnr") || rawTStatus.includes("registered")) {
+    if (
+      rawTStatus === "cnrgenerated" ||
+      rawTStatus.includes("cnr") ||
+      rawTStatus.includes("registered")
+    ) {
       evStatus = "CNR Generated";
-    } else if (rawTStatus === "filinginprogress" || rawTStatus.includes("filing") || rawTStatus.includes("progress")) {
+    } else if (
+      rawTStatus === "filinginprogress" ||
+      rawTStatus.includes("filing") ||
+      rawTStatus.includes("progress")
+    ) {
       evStatus = "In Progress";
-    } else if (rawTStatus === "accepted" || rawTStatus.includes("accepted") || rawTStatus.includes("assigned")) {
+    } else if (
+      rawTStatus === "accepted" ||
+      rawTStatus.includes("accepted") ||
+      rawTStatus.includes("assigned")
+    ) {
       evStatus = "Assigned";
     } else if (rawTStatus === "rejected" || rawTStatus.includes("reject")) {
       evStatus = "Rejected";
@@ -350,7 +475,11 @@ export function mapBackendCaseToLegalCase(
       id: t.id || `t_${i}`,
       status: evStatus,
       at: t.at ? t.at.slice(0, 10) : createdDate,
-      time: t.time || (t.at && t.at.includes("T") ? formatDateTime(t.at).split(", ")[1] || "12:00 PM" : "12:00 PM"),
+      time:
+        t.time ||
+        (t.at && t.at.includes("T")
+          ? formatDateTime(t.at).split(", ")[1] || "12:00 PM"
+          : "12:00 PM"),
       note: t.note,
     };
   });
@@ -431,7 +560,11 @@ export function mapBackendCaseToLegalCase(
     historyOfCaseHearings.length;
 
   const caseDetails: CaseDetails = {
-    caseNumber: impCaseDetails.caseNumber || backend.id,
+    caseNumber:
+      impCaseDetails.caseNumber ||
+      backend.serialCaseNumber ||
+      backend.serial_case_number ||
+      backend.id,
     cnr: backend.cnr || impCaseDetails.cnr || undefined,
     courtName: impCaseDetails.courtName || "",
     caseType: impCaseDetails.caseType || backend.caseType || "Civil",
@@ -485,8 +618,7 @@ export function mapBackendCaseToLegalCase(
   };
 
   const hasImpParties =
-    Array.isArray(impCaseDetails.petitioners) &&
-    impCaseDetails.petitioners.length > 0;
+    Array.isArray(impCaseDetails.petitioners) && impCaseDetails.petitioners.length > 0;
   const impPetitioner = hasImpParties ? (impCaseDetails.petitioners as string[])[0] : null;
   const impRespondent =
     Array.isArray(impCaseDetails.respondents) && impCaseDetails.respondents.length > 0
@@ -509,6 +641,8 @@ export function mapBackendCaseToLegalCase(
 
   return {
     id: backend.id,
+    serialCaseNumber: backend.serialCaseNumber || backend.serial_case_number,
+    serial_case_number: backend.serialCaseNumber || backend.serial_case_number,
     title: computedTitle,
     description: backend.description,
     petitioner: backend.petitioner,
