@@ -1,7 +1,9 @@
 import { supabase, supabaseAdmin } from "../config/supabase.ts";
 import { db } from "../config/db.ts";
 import { users, citizens, lawyers, adminProfiles } from "../models/users.ts";
-import { eq, ilike, or, and } from "drizzle-orm";
+import { eq, ilike, or, and, desc } from "drizzle-orm";
+import { fcmTokens } from "../models/notifications.ts";
+import { NotificationService } from "./notificationService.ts";
 import { ApiError } from "../utils/apiError.ts";
 import { LawyerLanguageService } from "./lawyerLanguageService.ts";
 import { LawyerCategoryService } from "./lawyerCategoryService.ts";
@@ -793,7 +795,11 @@ export class AuthService {
     };
   }
 
-  static async loginLawyer(email: string, password: string) {
+  static async loginLawyer(
+    email: string,
+    password: string,
+    deviceInfo?: { deviceToken?: string; deviceType?: string },
+  ) {
     if (!email || !password) throw ApiError.badRequest("Email and password are required");
 
     const cleanEmail = email.trim().toLowerCase();
@@ -892,6 +898,29 @@ export class AuthService {
       ]);
     }
 
+    if (deviceInfo?.deviceToken) {
+      try {
+        await NotificationService.registerDeviceToken({
+          userId: user.id,
+          role: "lawyer",
+          deviceToken: deviceInfo.deviceToken,
+          deviceType: deviceInfo.deviceType || "web",
+        });
+      } catch (err) {
+        console.warn("[AuthService.loginLawyer] Failed to register deviceToken:", err);
+      }
+    }
+
+    const [latestToken] = await db
+      .select()
+      .from(fcmTokens)
+      .where(and(eq(fcmTokens.userId, user.id), eq(fcmTokens.role, "lawyer")))
+      .orderBy(desc(fcmTokens.updatedAt), desc(fcmTokens.createdAt))
+      .limit(1);
+
+    const activeDeviceToken = latestToken?.deviceToken || deviceInfo?.deviceToken || null;
+    const activeDeviceType = latestToken?.deviceType || deviceInfo?.deviceType || null;
+
     return {
       user: {
         id: user.id,
@@ -901,12 +930,18 @@ export class AuthService {
         lawyerId: lawyerRecord?.id,
         status: lawyerRecord?.status || "Pending",
         city: lawyerRecord?.city,
+        deviceToken: activeDeviceToken,
+        deviceType: activeDeviceType,
       },
       lawyer: lawyerRecord ? { ...lawyerRecord, languagesDetails, categoriesDetails } : null,
       session: {
         accessToken: data.session?.access_token,
         refreshToken: data.session?.refresh_token,
+        deviceToken: activeDeviceToken,
+        deviceType: activeDeviceType,
       },
+      deviceToken: activeDeviceToken,
+      deviceType: activeDeviceType,
     };
   }
 

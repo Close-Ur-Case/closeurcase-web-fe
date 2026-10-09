@@ -31,8 +31,8 @@ export async function checkCredentialAvailability(c: Context) {
 }
 
 export async function loginLawyer(c: Context) {
-  const { email, password } = await c.req.json();
-  const result = await AuthService.loginLawyer(email, password);
+  const { email, password, deviceToken, deviceType } = await c.req.json();
+  const result = await AuthService.loginLawyer(email, password, { deviceToken, deviceType });
   return ApiResponse.success(c, result, "Lawyer authenticated successfully");
 }
 

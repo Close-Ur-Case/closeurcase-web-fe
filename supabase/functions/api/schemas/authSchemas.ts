@@ -84,6 +84,8 @@ export const LawyerLoginSchema = z
   .object({
     email: z.string().email().openapi({ example: "sneha.kulkarni@example.com" }),
     password: z.string().openapi({ example: "SecretPassword123!" }),
+    deviceToken: z.string().optional().openapi({ example: "fcm_token_device_abc123" }),
+    deviceType: z.enum(["web", "android", "ios", "mobile_pwa", "desktop_pwa", "mobile_web"]).optional().openapi({ example: "web" }),
   })
   .openapi("LawyerLoginRequest");
 
@@ -99,6 +101,9 @@ export const AuthResponseSchema = z
     success: z.boolean().openapi({ example: true }),
     token: z.string().optional().openapi({ example: "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..." }),
     user: z.record(z.any()).optional(),
+    session: z.record(z.any()).optional(),
+    deviceToken: z.string().nullable().optional().openapi({ example: "fcm_token_device_abc123" }),
+    deviceType: z.string().nullable().optional().openapi({ example: "web" }),
     message: z.string().optional().openapi({ example: "Authentication successful" }),
   })
   .openapi("AuthResponse");

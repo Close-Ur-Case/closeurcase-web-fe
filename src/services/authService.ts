@@ -40,13 +40,19 @@ interface RawAuthResponse {
     city?: string;
     citizenId?: string;
     lawyerId?: string;
+    deviceToken?: string | null;
+    deviceType?: string | null;
   };
   token?: string;
+  deviceToken?: string | null;
+  deviceType?: string | null;
   session?: {
     accessToken?: string;
     refreshToken?: string;
     access_token?: string;
     refresh_token?: string;
+    deviceToken?: string | null;
+    deviceType?: string | null;
   };
   /** The citizen *record* (id like "u_001") — distinct from `user.id`, which is
    * the Supabase auth UUID. Case rows reference this id via `citizenId`. */
@@ -183,6 +189,19 @@ export const authService = {
       (res?.user as { status?: string })?.status ||
       "Pending";
 
+    const deviceToken =
+      res?.session?.deviceToken ||
+      res?.deviceToken ||
+      res?.user?.deviceToken ||
+      payload.deviceToken ||
+      null;
+    const deviceType =
+      res?.session?.deviceType ||
+      res?.deviceType ||
+      res?.user?.deviceType ||
+      payload.deviceType ||
+      null;
+
     const user: AuthUser = {
       id: res?.user?.id || res?.lawyer?.id || "lawyer_id",
       role: "lawyer",
@@ -191,6 +210,8 @@ export const authService = {
       lawyerId: res?.lawyer?.id,
       city: res?.lawyer?.city,
       status: lawyerStatus,
+      deviceToken,
+      deviceType,
     };
 
     if (res?.lawyer) {
@@ -210,7 +231,14 @@ export const authService = {
       user,
       token,
       lawyer: res?.lawyer,
-      session: res?.session,
+      session: {
+        accessToken: token,
+        refreshToken,
+        deviceToken,
+        deviceType,
+      },
+      deviceToken,
+      deviceType,
       message: "Lawyer authenticated successfully",
     };
   },

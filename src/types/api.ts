@@ -78,6 +78,8 @@ export interface LawyerRegisterPayload {
 export interface LawyerLoginPayload {
   email: string;
   password: string;
+  deviceToken?: string;
+  deviceType?: string;
 }
 
 export interface AdminLoginPayload {
@@ -125,12 +127,16 @@ export interface AuthUser {
   lawyerId?: string;
   status?: string;
   signupMethod?: "email" | "phone";
+  deviceToken?: string | null;
+  deviceType?: string | null;
   [key: string]: unknown;
 }
 
 export interface AuthSessionData {
   accessToken?: string;
   refreshToken?: string;
+  deviceToken?: string | null;
+  deviceType?: string | null;
 }
 
 export interface AuthResponseData {
@@ -139,6 +145,8 @@ export interface AuthResponseData {
   session?: AuthSessionData;
   lawyer?: Record<string, unknown>;
   admin?: Record<string, unknown>;
+  deviceToken?: string | null;
+  deviceType?: string | null;
   message?: string;
 }
 
