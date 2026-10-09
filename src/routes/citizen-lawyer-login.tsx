@@ -32,6 +32,7 @@ import {
 import { useSendCitizenOtp, useVerifyCitizenOtp, useLawyerLogin } from "@/hooks/queries/useAuth";
 import { getStoredToken, getStoredUser } from "@/services/apiClient";
 import type { AuthUser, SendOtpResponse } from "@/types/api";
+import { retrieveFcmDeviceToken, detectDeviceType } from "@/hooks/usePushNotifications";
 import { cn } from "@/lib/utils";
 
 interface SearchParams {
@@ -431,6 +432,24 @@ export function CitizenLawyerLogin() {
   const lawyerEmailRes = validateEmail(lawyerEmail);
   const isLawyerPending = lawyerLoginMutation.isPending;
 
+  // Pre-initialize Firebase and retrieve device token on /citizen-lawyer-login
+  const [fcmToken, setFcmToken] = useState<string | null>(null);
+  const [fcmDeviceType, setFcmDeviceType] = useState<string>(() => detectDeviceType());
+
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    if ("Notification" in window && Notification.permission === "granted") {
+      retrieveFcmDeviceToken()
+        .then((res) => {
+          if (res.token) {
+            setFcmToken(res.token);
+            setFcmDeviceType(res.deviceType);
+          }
+        })
+        .catch(() => {});
+    }
+  }, [permissionsAcknowledged]);
+
   const handleLawyerLoginSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setLawyerEmailTouched(true);
@@ -438,7 +457,26 @@ export function CitizenLawyerLogin() {
     if (!lawyerEmailRes.isValid) return;
 
     try {
-      await lawyerLoginMutation.mutateAsync({ email: lawyerEmail, password: lawyerPassword });
+      let activeDeviceToken = fcmToken;
+      let activeDeviceType = fcmDeviceType;
+
+      // If token not yet retrieved but permission is granted, attempt immediate retrieval
+      if (!activeDeviceToken && typeof window !== "undefined" && "Notification" in window && Notification.permission === "granted") {
+        try {
+          const res = await retrieveFcmDeviceToken();
+          if (res.token) {
+            activeDeviceToken = res.token;
+            activeDeviceType = res.deviceType;
+          }
+        } catch {}
+      }
+
+      await lawyerLoginMutation.mutateAsync({
+        email: lawyerEmail,
+        password: lawyerPassword,
+        deviceToken: activeDeviceToken || undefined,
+        deviceType: activeDeviceType || undefined,
+      });
       navigate({ to: "/lawyer" });
     } catch (err: unknown) {
       const message =

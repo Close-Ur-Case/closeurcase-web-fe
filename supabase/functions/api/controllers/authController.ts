@@ -32,6 +32,8 @@ export async function checkCredentialAvailability(c: Context) {
 
 export async function loginLawyer(c: Context) {
   const { email, password, deviceToken, deviceType } = await c.req.json();
+  console.log("xxx");
+  console.log(deviceToken, 'deviceToken');
   const result = await AuthService.loginLawyer(email, password, { deviceToken, deviceType });
   return ApiResponse.success(c, result, "Lawyer authenticated successfully");
 }
@@ -63,10 +65,10 @@ export async function getCurrentUser(c: Context) {
       .where(
         user.email
           ? or(
-              eq(lawyers.userId, user.id),
-              eq(lawyers.id, user.id),
-              ilike(lawyers.email, user.email.toLowerCase()),
-            )
+            eq(lawyers.userId, user.id),
+            eq(lawyers.id, user.id),
+            ilike(lawyers.email, user.email.toLowerCase()),
+          )
           : or(eq(lawyers.userId, user.id), eq(lawyers.id, user.id)),
       );
     lawyerRecord = law || null;
