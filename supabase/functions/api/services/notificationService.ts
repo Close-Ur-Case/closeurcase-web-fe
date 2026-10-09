@@ -33,6 +33,16 @@ export class NotificationService {
     return created;
   }
 
+  static async unregisterDeviceToken({ userId, deviceToken }: any) {
+    if (!deviceToken) return null;
+    const conditions = [eq(fcmTokens.deviceToken, deviceToken)];
+    if (userId) {
+      conditions.push(eq(fcmTokens.userId, userId));
+    }
+    await db.delete(fcmTokens).where(and(...conditions));
+    return { success: true };
+  }
+
   static async createInAppNotification({ userId = null, role = "all", title, body }: any) {
     const id = `n_${Date.now()}`;
     const at = new Date().toISOString();
@@ -56,7 +66,23 @@ export class NotificationService {
     // right after it responds, and an un-awaited background task has no
     // guarantee it finishes before that happens.
     try {
-      await this.pushToTargets({ userId, role, title, body });
+      const url =
+        role === "lawyer"
+          ? "/lawyer/notifications"
+          : role === "citizen"
+            ? "/citizen/notifications"
+            : "/admin/notifications";
+      await this.pushToTargets({
+        userId,
+        role,
+        title,
+        body,
+        data: {
+          notificationId: id,
+          type: "app_notification",
+          url,
+        },
+      });
     } catch (err) {
       console.error("[NotificationService] Push fan-out failed:", err);
     }
@@ -82,11 +108,13 @@ export class NotificationService {
     role,
     title,
     body,
+    data,
   }: {
     userId?: string | null;
     role?: string | null;
     title: string;
     body: string;
+    data?: Record<string, string>;
   }) {
     if (!firebaseAdmin.isConfigured()) return;
 
@@ -98,7 +126,7 @@ export class NotificationService {
 
     await Promise.all(
       targets.map(async (t) => {
-        const result = await firebaseAdmin.sendToDevice(t.deviceToken, { title, body });
+        const result = await firebaseAdmin.sendToDevice(t.deviceToken, { title, body }, data);
         if (!result.ok) {
           if (result.tokenInvalid) {
             await db.delete(fcmTokens).where(eq(fcmTokens.id, t.id));

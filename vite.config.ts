@@ -39,7 +39,7 @@ export default defineConfig({
     VitePWA({
       registerType: "autoUpdate",
       devOptions: { enabled: true },
-      includeAssets: ["logo_nobg.png"],
+      includeAssets: ["logo_nobg.png", "firebase-messaging-sw.js"],
       manifest: {
         name: "CloseUrCase — AI-powered legal case management",
         short_name: "CloseUrCase",

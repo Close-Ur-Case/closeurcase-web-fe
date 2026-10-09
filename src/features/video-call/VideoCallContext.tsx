@@ -55,6 +55,19 @@ export function VideoCallProvider({ children }: { children: ReactNode }) {
   const statusPollRef = useRef<number | null>(null);
   const ringTimeoutRef = useRef<number | null>(null);
 
+  // Clear status polling and timeouts
+  const clearTimers = useCallback(() => {
+    ringtone.stopRing();
+    if (statusPollRef.current !== null) {
+      window.clearInterval(statusPollRef.current);
+      statusPollRef.current = null;
+    }
+    if (ringTimeoutRef.current !== null) {
+      window.clearTimeout(ringTimeoutRef.current);
+      ringTimeoutRef.current = null;
+    }
+  }, []);
+
   // 1. Poll for incoming calls (only when tab is visible and not in an active call)
   useEffect(() => {
     if (active || incomingCall) return;
@@ -99,6 +112,108 @@ export function VideoCallProvider({ children }: { children: ReactNode }) {
     };
   }, [active, incomingCall, user?.id]);
 
+  // 1b. Real-time FCM & Service Worker Push Event Listeners
+  useEffect(() => {
+    const handleFCMIncoming = (e: Event) => {
+      const data = (e as CustomEvent).detail;
+      if (!data || active || incomingCall) return;
+      if (activeCallIdRef.current === data.callId) return;
+
+      const callerName = data.callerName || "Consultation Participant";
+      setIncomingCall({
+        id: data.callId,
+        caseId: data.caseId,
+        callerId: data.callerId || null,
+        callerName,
+        withName: callerName,
+        channelName: data.channelName,
+        role: (data.callerRole as "citizen" | "lawyer") || "lawyer",
+        status: "ringing",
+        at: new Date().toISOString(),
+      });
+      ringtone.startIncomingRing();
+    };
+
+    const handleFCMCancelled = (e: Event) => {
+      const data = (e as CustomEvent).detail;
+      if (incomingCall && (!data?.callId || incomingCall.id === data.callId)) {
+        ringtone.stopRing();
+        setIncomingCall(null);
+      }
+    };
+
+    const handleFCMAccept = async (e: Event) => {
+      const data = (e as CustomEvent).detail;
+      if (!data) return;
+      clearTimers();
+      setIncomingCall(null);
+
+      await videoCallService.respondCall({
+        callId: data.callId,
+        action: "accepted",
+      }).catch(() => {});
+
+      activeCallIdRef.current = data.callId;
+      setIsInitiator(false);
+      setCallStatus("accepted");
+      setActive({
+        caseId: data.caseId,
+        withName: data.withName || "Consultation Participant",
+        role: (currentRole as "citizen" | "lawyer") || "citizen",
+        callId: data.callId,
+        isInitiator: false,
+      });
+    };
+
+    window.addEventListener("cuc:incoming_call", handleFCMIncoming);
+    window.addEventListener("cuc:call_cancelled", handleFCMCancelled);
+    window.addEventListener("cuc:accept_call", handleFCMAccept);
+
+    return () => {
+      window.removeEventListener("cuc:incoming_call", handleFCMIncoming);
+      window.removeEventListener("cuc:call_cancelled", handleFCMCancelled);
+      window.removeEventListener("cuc:accept_call", handleFCMAccept);
+    };
+  }, [active, incomingCall, clearTimers, currentRole]);
+
+  // 1c. Deep-link auto-join when launched via notification with ?callJoin=vc_...
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const searchParams = new URLSearchParams(window.location.search);
+    const callJoinId = searchParams.get("callJoin");
+    if (!callJoinId) return;
+
+    // Clean up query param so reloads don't re-trigger
+    const newUrl = new URL(window.location.href);
+    newUrl.searchParams.delete("callJoin");
+    window.history.replaceState({}, "", newUrl.toString());
+
+    (async () => {
+      try {
+        const callData = await videoCallService.getCallStatus(callJoinId);
+        if (callData && (callData.status === "ringing" || callData.status === "accepted")) {
+          await videoCallService.respondCall({
+            callId: callJoinId,
+            action: "accepted",
+          }).catch(() => {});
+
+          activeCallIdRef.current = callJoinId;
+          setIsInitiator(false);
+          setCallStatus("accepted");
+          setActive({
+            caseId: callData.caseId,
+            withName: callData.withName || "Consultation Participant",
+            role: (currentRole as "citizen" | "lawyer") || "citizen",
+            callId: callJoinId,
+            isInitiator: false,
+          });
+        }
+      } catch (err) {
+        console.warn("[VideoCallContext] Failed to auto-join call from notification URL:", err);
+      }
+    })();
+  }, [currentRole]);
+
   // Auto-dismiss incoming call dialog if caller cancelled or timed out
   useEffect(() => {
     if (!incomingCall) return;
@@ -117,19 +232,6 @@ export function VideoCallProvider({ children }: { children: ReactNode }) {
 
     return () => window.clearInterval(interval);
   }, [incomingCall]);
-
-  // 2. Clear status polling and timeouts
-  const clearTimers = useCallback(() => {
-    ringtone.stopRing();
-    if (statusPollRef.current !== null) {
-      window.clearInterval(statusPollRef.current);
-      statusPollRef.current = null;
-    }
-    if (ringTimeoutRef.current !== null) {
-      window.clearTimeout(ringTimeoutRef.current);
-      ringTimeoutRef.current = null;
-    }
-  }, []);
 
   // 3. Start an outgoing call (User A calling User B)
   const startCall = useCallback(

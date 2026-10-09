@@ -2,6 +2,9 @@ import { agoraConfig } from "../config/agora.ts";
 import { buildAgoraRtcToken, RtcRole } from "../utils/agoraTokenBuilder.ts";
 import { db } from "../config/db.ts";
 import { videoCalls } from "../models/videoCalls.ts";
+import { fcmTokens } from "../models/notifications.ts";
+import { casesUser } from "../models/casesUser.ts";
+import { firebaseAdmin } from "../config/firebaseAdmin.ts";
 import { eq, desc, and, gte } from "drizzle-orm";
 import { ApiError } from "../utils/apiError.ts";
 
@@ -71,6 +74,58 @@ export class AgoraService {
       })
       .returning();
 
+    // Dispatch real-time high-urgency FCM push alert to callee
+    if (firebaseAdmin.isConfigured()) {
+      try {
+        let targetUserId = receiverId;
+        const recipientRole = role === "citizen" ? "lawyer" : "citizen";
+
+        if (!targetUserId && caseId) {
+          const [uCase] = await db
+            .select()
+            .from(casesUser)
+            .where(eq(casesUser.id, caseId))
+            .limit(1);
+          if (uCase) {
+            targetUserId = role === "citizen" ? uCase.lawyerId : uCase.citizenId;
+          }
+        }
+
+        const tokensQuery = targetUserId
+          ? db.select().from(fcmTokens).where(eq(fcmTokens.userId, targetUserId))
+          : db.select().from(fcmTokens).where(eq(fcmTokens.role, recipientRole));
+
+        const tokens = await tokensQuery;
+        if (tokens.length > 0) {
+          const pushPayload: Record<string, string> = {
+            type: "incoming_call",
+            callId: id,
+            caseId: String(caseId),
+            channelName: channelName || `case_${caseId}`,
+            callerName: callerName || withName || "Consultation Participant",
+            callerId: String(callerId || ""),
+            callerRole: String(role),
+            recipientRole,
+            timestamp: String(Date.now()),
+          };
+
+          await Promise.all(
+            tokens.map(async (t) => {
+              const res = await firebaseAdmin.sendDataToDevice(t.deviceToken, pushPayload, {
+                urgency: "high",
+                ttlSeconds: 45,
+              });
+              if (!res.ok && res.tokenInvalid) {
+                await db.delete(fcmTokens).where(eq(fcmTokens.id, t.id)).catch(() => {});
+              }
+            })
+          );
+        }
+      } catch (fcmErr) {
+        console.warn("[AgoraService] FCM incoming call push failed:", fcmErr);
+      }
+    }
+
     return record;
   }
 
@@ -111,6 +166,34 @@ export class AgoraService {
       })
       .where(eq(videoCalls.id, callId))
       .returning();
+
+    // When call is cancelled, declined, missed, or ended, push silent dismiss to clear notifications
+    if (firebaseAdmin.isConfigured() && record) {
+      try {
+        const dismissPayload: Record<string, string> = {
+          type: "call_cancelled",
+          callId: record.id,
+          caseId: record.caseId,
+          status: action,
+        };
+
+        const targetUserId = record.receiverId;
+        const tokens = targetUserId
+          ? await db.select().from(fcmTokens).where(eq(fcmTokens.userId, targetUserId))
+          : await db.select().from(fcmTokens);
+
+        await Promise.all(
+          tokens.map((t) =>
+            firebaseAdmin.sendDataToDevice(t.deviceToken, dismissPayload, {
+              urgency: "high",
+              ttlSeconds: 30,
+            })
+          )
+        );
+      } catch (err) {
+        console.warn("[AgoraService] FCM call dismiss push failed:", err);
+      }
+    }
 
     return record || null;
   }

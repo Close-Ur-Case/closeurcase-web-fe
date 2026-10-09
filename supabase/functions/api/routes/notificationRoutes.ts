@@ -1,6 +1,7 @@
 import { OpenAPIHono, createRoute, z } from "@hono/zod-openapi";
 import {
   registerFcmToken,
+  unregisterFcmToken,
   getNotifications,
   markAsRead,
   markAllAsRead,
@@ -13,6 +14,7 @@ notification.use(optionalAuth);
 // Stricter than the router default: registering a push destination has no
 // legitimate anonymous case, unlike reading/acking in-app notifications.
 notification.use("/register-token", authenticateUser);
+notification.use("/unregister-token", authenticateUser);
 
 const registerTokenRoute = createRoute({
   method: "post",
@@ -32,6 +34,31 @@ const registerTokenRoute = createRoute({
   responses: {
     200: {
       description: "FCM token registered",
+      content: { "application/json": { schema: SuccessResponseSchema } },
+    },
+  },
+});
+
+const unregisterTokenRoute = createRoute({
+  method: "post",
+  path: "/unregister-token",
+  tags: ["Notifications"],
+  summary: "Unregister Firebase Cloud Messaging (FCM) push token",
+  security: [{ bearerAuth: [] }],
+  request: {
+    body: {
+      content: {
+        "application/json": {
+          schema: z.object({
+            deviceToken: z.string().openapi({ example: "fcm_token_xyz" }),
+          }),
+        },
+      },
+    },
+  },
+  responses: {
+    200: {
+      description: "FCM token unregistered",
       content: { "application/json": { schema: SuccessResponseSchema } },
     },
   },
@@ -102,6 +129,7 @@ const markAllAsReadRoute = createRoute({
 });
 
 notification.openapi(registerTokenRoute, registerFcmToken as any);
+notification.openapi(unregisterTokenRoute, unregisterFcmToken as any);
 notification.openapi(getNotificationsRoute, getNotifications as any);
 notification.openapi(markAsReadRoute, markAsRead as any);
 notification.openapi(markAllAsReadRoute, markAllAsRead as any);

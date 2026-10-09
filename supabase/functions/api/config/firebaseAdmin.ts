@@ -156,6 +156,12 @@ export const firebaseAdmin = {
               token: deviceToken,
               notification,
               ...(data ? { data } : {}),
+              webpush: {
+                notification: {
+                  icon: "/logo_nobg.png",
+                  badge: "/logo_nobg.png",
+                },
+              },
             },
           }),
         }
@@ -174,6 +180,68 @@ export const firebaseAdmin = {
         ok: false,
         tokenInvalid,
         error: errBody?.error?.message || `FCM send failed (${res.status})`,
+      };
+    } catch (err) {
+      return { ok: false, error: err instanceof Error ? err.message : String(err) };
+    }
+  },
+
+  /** Sends high-urgency data-only push notifications (used for video calls & real-time dismissals). */
+  async sendDataToDevice(
+    deviceToken: string,
+    data: Record<string, string>,
+    options?: { urgency?: "high" | "normal"; ttlSeconds?: number }
+  ): Promise<FcmSendResult> {
+    const serviceAccount = parseServiceAccount();
+    if (!serviceAccount) {
+      return { ok: false, error: "Firebase not configured (FIREBASE_SERVICE_ACCOUNT_KEY unset)" };
+    }
+
+    try {
+      const accessToken = await getAccessToken(serviceAccount);
+      const urgency = options?.urgency || "high";
+      const ttl = String(options?.ttlSeconds ?? 45);
+
+      const res = await fetch(
+        `https://fcm.googleapis.com/v1/projects/${serviceAccount.project_id}/messages:send`,
+        {
+          method: "POST",
+          headers: {
+            Authorization: `Bearer ${accessToken}`,
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({
+            message: {
+              token: deviceToken,
+              data,
+              webpush: {
+                headers: {
+                  Urgency: urgency,
+                  TTL: ttl,
+                },
+              },
+              android: {
+                priority: urgency === "high" ? "high" : "normal",
+                ttl: `${ttl}s`,
+              },
+            },
+          }),
+        }
+      );
+
+      if (res.ok) return { ok: true };
+
+      const errBody: any = await res.json().catch(() => ({}));
+      const fcmErrorCode = errBody?.error?.details?.find((d: any) =>
+        String(d?.["@type"] || "").includes("FcmError")
+      )?.errorCode;
+      const tokenInvalid =
+        res.status === 404 || fcmErrorCode === "UNREGISTERED" || fcmErrorCode === "INVALID_ARGUMENT";
+
+      return {
+        ok: false,
+        tokenInvalid,
+        error: errBody?.error?.message || `FCM sendData failed (${res.status})`,
       };
     } catch (err) {
       return { ok: false, error: err instanceof Error ? err.message : String(err) };

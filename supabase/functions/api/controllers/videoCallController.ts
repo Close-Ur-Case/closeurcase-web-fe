@@ -41,7 +41,7 @@ export async function respondToCall(c: Context) {
 }
 
 export async function getCallStatus(c: Context) {
-  const callId = c.req.param("id");
+  const callId = c.req.param("id") || "";
   const record = await AgoraService.getCallStatus(callId);
   return ApiResponse.success(c, record, "Call status retrieved");
 }

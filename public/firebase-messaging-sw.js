@@ -1,17 +1,11 @@
 /**
- * Firebase Cloud Messaging service worker — handles push while the app isn't
- * in the foreground. Registered separately from, and alongside, this app's
- * own Workbox-managed PWA service worker (see vite.config.ts's VitePWA
- * plugin); Firebase's own documented pattern for adding web push to an app
- * that already has a different service worker is exactly this — two
- * independently-scoped workers, not merging into one.
+ * Firebase Cloud Messaging service worker — handles push notifications
+ * for CloseUrCase when the web app or PWA is backgrounded, closed, or standalone.
  *
- * A plain static file under public/ is never processed by Vite, so it can't
- * read import.meta.env the way app code can. The config values below (all
- * public, client-side identifiers — the same non-secret kind as a Supabase
- * anon key, not something that needs hiding) travel here instead via the
- * query string on the registration URL — see usePushNotifications.ts, which
- * is the only place this file is ever registered from.
+ * Supports:
+ * 1. Standard in-app notifications (case updates, messages, hearings) with deep-linking.
+ * 2. High-urgency video call alerts with "Accept" and "Decline" action buttons,
+ *    vibration, background call decline, and auto-dismiss on cancellation.
  */
 
 importScripts("https://www.gstatic.com/firebasejs/10.14.1/firebase-app-compat.js");
@@ -22,21 +16,130 @@ const apiKey = params.get("apiKey");
 const projectId = params.get("projectId");
 const messagingSenderId = params.get("messagingSenderId");
 const appId = params.get("appId");
+const apiUrl = params.get("apiUrl") || "";
 
-// Nothing to initialize if this ever loads without the expected query
-// params — better to sit idle than throw and break service worker install.
 if (apiKey && projectId && messagingSenderId && appId) {
   firebase.initializeApp({ apiKey, projectId, messagingSenderId, appId });
   const messaging = firebase.messaging();
 
-  // The FCM Admin client (supabase/functions/api/config/firebaseAdmin.ts)
-  // always sends a `notification` payload, which Firebase's SDK displays
-  // automatically for a background message — no onBackgroundMessage handler
-  // is needed for that default case. This hook exists for future data-only
-  // pushes (e.g. silently refreshing something) that carry no visible
-  // notification of their own.
   messaging.onBackgroundMessage((payload) => {
-    if (payload?.notification) return;
-    console.log("[firebase-messaging-sw.js] Data-only background message:", payload);
+    const data = payload?.data || {};
+    const notifType = data.type;
+
+    // ── 1. Video Call: Incoming Call ───────────────────────────
+    if (notifType === "incoming_call") {
+      const callerName = data.callerName || "Consultation Participant";
+      const title = `Incoming Video Call: ${callerName}`;
+      const roleLabel = data.callerRole === "lawyer" ? "Advocate" : "Client";
+      const body = `${roleLabel} is calling you for Case ${data.caseId || ""}. Tap to answer.`;
+
+      const notificationOptions = {
+        body,
+        icon: "/logo_nobg.png",
+        badge: "/logo_nobg.png",
+        tag: `call_${data.callId}`,
+        renotify: true,
+        requireInteraction: true,
+        vibrate: [500, 200, 500, 200, 500, 200, 500],
+        actions: [
+          { action: "accept", title: "Accept Call" },
+          { action: "decline", title: "Decline" },
+        ],
+        data: {
+          ...data,
+          targetUrl: data.caseId
+            ? `/${data.recipientRole || "citizen"}/cases/${data.caseId}?callJoin=${data.callId || ""}`
+            : "/",
+        },
+      };
+
+      return self.registration.showNotification(title, notificationOptions);
+    }
+
+    // ── 2. Video Call: Dismiss on Cancel / End ────────────────
+    if (notifType === "call_cancelled" || notifType === "call_ended") {
+      const callTag = `call_${data.callId}`;
+      return self.registration.getNotifications({ tag: callTag }).then((notifications) => {
+        notifications.forEach((n) => n.close());
+      });
+    }
+
+    // ── 3. Standard In-App Notifications (Data-only or fallback) ─
+    if (data.title || data.body) {
+      const title = data.title || "CloseUrCase Notification";
+      return self.registration.showNotification(title, {
+        body: data.body || "",
+        icon: "/logo_nobg.png",
+        badge: "/logo_nobg.png",
+        tag: data.notificationId ? `notif_${data.notificationId}` : undefined,
+        data: {
+          ...data,
+          targetUrl: data.url || "/",
+        },
+      });
+    }
+
+    // If payload contains standard notification object and no custom data type,
+    // Firebase SDK handles it automatically.
   });
 }
+
+// ── Notification Click Handler ──────────────────────────────────
+self.addEventListener("notificationclick", (event) => {
+  const notification = event.notification;
+  const action = event.action;
+  const data = notification.data || {};
+
+  notification.close();
+
+  // 1. Decline Action for Incoming Call
+  if (action === "decline") {
+    if (data.callId && apiUrl) {
+      event.waitUntil(
+        fetch(`${apiUrl.replace(/\/+$/, "")}/video-calls/respond`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            callId: data.callId,
+            action: "decline",
+          }),
+        }).catch((err) => {
+          console.warn("[firebase-messaging-sw.js] Failed to send call decline:", err);
+        })
+      );
+    }
+    return;
+  }
+
+  // 2. Accept Call or Open Target Route
+  const targetUrl = data.targetUrl || data.url || "/";
+
+  event.waitUntil(
+    self.clients.matchAll({ type: "window", includeUncontrolled: true }).then((clientList) => {
+      // If a window is already open, focus it and broadcast event
+      for (const client of clientList) {
+        if ("focus" in client) {
+          if (data.type === "incoming_call" || action === "accept") {
+            client.postMessage({
+              type: "CUC_ACCEPT_CALL",
+              callId: data.callId,
+              caseId: data.caseId,
+              channelName: data.channelName,
+              withName: data.callerName,
+              role: data.recipientRole,
+            });
+          }
+          if (client.url && !client.url.includes(targetUrl) && "navigate" in client) {
+            client.navigate(targetUrl);
+          }
+          return client.focus();
+        }
+      }
+
+      // If no window is open, launch a new window
+      if (self.clients.openWindow) {
+        return self.clients.openWindow(targetUrl);
+      }
+    })
+  );
+});

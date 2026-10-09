@@ -26,6 +26,18 @@ export async function registerFcmToken(c: Context) {
   return ApiResponse.created(c, result, "FCM device token registered successfully");
 }
 
+export async function unregisterFcmToken(c: Context) {
+  const user = c.get("user");
+  const { deviceToken } = await c.req.json();
+  if (!deviceToken) throw ApiError.badRequest("deviceToken is required");
+
+  await NotificationService.unregisterDeviceToken({
+    userId: user?.id,
+    deviceToken,
+  });
+  return ApiResponse.success(c, null, "FCM device token unregistered successfully");
+}
+
 export async function getNotifications(c: Context) {
   const role = c.req.query("role");
   const limit = Number(c.req.query("limit") || "50");

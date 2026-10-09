@@ -41,3 +41,9 @@ export function useRegisterFcmTokenMutation() {
     mutationFn: (payload: RegisterFcmTokenPayload) => notificationService.registerFcmToken(payload),
   });
 }
+
+export function useUnregisterFcmTokenMutation() {
+  return useMutation({
+    mutationFn: (deviceToken: string) => notificationService.unregisterFcmToken(deviceToken),
+  });
+}

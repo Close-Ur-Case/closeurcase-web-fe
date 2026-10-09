@@ -43,4 +43,11 @@ export const notificationService = {
   ): Promise<T> {
     return apiClient.post<T>("/notifications/register-token", payload);
   },
+
+  /**
+   * Unregister Firebase Cloud Messaging (FCM) push token
+   */
+  async unregisterFcmToken(deviceToken: string): Promise<void> {
+    return apiClient.post<void>("/notifications/unregister-token", { deviceToken });
+  },
 };

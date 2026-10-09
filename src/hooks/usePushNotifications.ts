@@ -1,114 +1,176 @@
 /**
  * Browser push notifications via Firebase Cloud Messaging.
  *
- * The full path is: request the browser's notification permission → register
- * a dedicated service worker for background push → ask Firebase for a device
- * token scoped to that worker → hand the token to the backend
- * (`/notifications/register-token`), which the FCM Admin client
- * (`supabase/functions/api/config/firebaseAdmin.ts`) later pushes to whenever
- * an in-app notification is created for this user.
- *
- * Every Firebase config value here (`VITE_FIREBASE_*`) is the same kind of
- * public, client-side value as the Supabase anon key already in this app —
- * not a secret, safe to ship in the bundle. Without them (or when the
- * browser doesn't support push, or the person denies/never grants
- * permission), this no-ops entirely: no error, no retry loop, just no
- * device gets registered. That mirrors how Razorpay/Agora degrade without
- * real keys elsewhere in this app.
+ * Supports desktop browsers, Android (Browser + PWA), and iOS (16.4+ installed PWA).
+ * Handles token registration, foreground FCM events (video calls & updates),
+ * and service worker message bridging for call accept actions.
  */
 
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 import { useAuth } from "@/context/useAuth";
 import { useRegisterFcmTokenMutation } from "@/hooks/queries/useNotifications";
+import { getApiBaseUrl } from "@/services/apiClient";
 
-const FIREBASE_CONFIG = {
-  apiKey: import.meta.env.VITE_FIREBASE_API_KEY,
-  projectId: import.meta.env.VITE_FIREBASE_PROJECT_ID,
-  messagingSenderId: import.meta.env.VITE_FIREBASE_MESSAGING_SENDER_ID,
-  appId: import.meta.env.VITE_FIREBASE_APP_ID,
-};
-const VAPID_KEY = import.meta.env.VITE_FIREBASE_VAPID_KEY as string | undefined;
+function parseFirebaseConfig(): {
+  apiKey?: string;
+  projectId?: string;
+  messagingSenderId?: string;
+  appId?: string;
+  authDomain?: string;
+  storageBucket?: string;
+  vapidKey?: string;
+} {
+  const jsonStr = import.meta.env.VITE_FIREBASE_CONFIG as string | undefined;
+  if (jsonStr) {
+    try {
+      const parsed = typeof jsonStr === "string" ? JSON.parse(jsonStr) : jsonStr;
+      return {
+        apiKey: parsed.apiKey || parsed.api_key,
+        projectId: parsed.projectId || parsed.project_id,
+        messagingSenderId: parsed.messagingSenderId || parsed.messaging_sender_id,
+        appId: parsed.appId || parsed.app_id,
+        authDomain: parsed.authDomain,
+        storageBucket: parsed.storageBucket,
+        vapidKey:
+          parsed.vapidKey ||
+          parsed.vapid_key ||
+          (import.meta.env.VITE_FIREBASE_VAPID_KEY as string | undefined),
+      };
+    } catch (err) {
+      console.warn("[usePushNotifications] Failed to parse VITE_FIREBASE_CONFIG JSON:", err);
+    }
+  }
 
-function isFirebaseConfigured(): boolean {
+  return {
+    apiKey: import.meta.env.VITE_FIREBASE_API_KEY,
+    projectId: import.meta.env.VITE_FIREBASE_PROJECT_ID,
+    messagingSenderId: import.meta.env.VITE_FIREBASE_MESSAGING_SENDER_ID,
+    appId: import.meta.env.VITE_FIREBASE_APP_ID,
+    vapidKey: import.meta.env.VITE_FIREBASE_VAPID_KEY as string | undefined,
+  };
+}
+
+const FIREBASE_CONFIG = parseFirebaseConfig();
+const VAPID_KEY = FIREBASE_CONFIG.vapidKey || (import.meta.env.VITE_FIREBASE_VAPID_KEY as string | undefined);
+
+export function isFirebaseConfigured(): boolean {
   return (
     Boolean(FIREBASE_CONFIG.apiKey) &&
     Boolean(FIREBASE_CONFIG.projectId) &&
     Boolean(FIREBASE_CONFIG.messagingSenderId) &&
-    Boolean(FIREBASE_CONFIG.appId) &&
-    Boolean(VAPID_KEY)
+    Boolean(FIREBASE_CONFIG.appId)
   );
 }
 
-/** Registers this browser for push, once per signed-in session, and never
- * more than once — call it from a layout every role's dashboard already
- * renders through, the same way `DashboardLayout` already fetches
- * notifications on mount. Nothing needs to read a return value: a
- * successful registration surfaces as this device receiving a push the next
- * time a notification targets it, not as UI state here. */
-export function usePushNotifications(): void {
+export function getPushPermission(): NotificationPermission | "unsupported" {
+  if (typeof window === "undefined" || !("Notification" in window)) {
+    return "unsupported";
+  }
+  return Notification.permission;
+}
+
+/** Registers this browser for push, once per signed-in session, and bridges
+ * foreground push and service worker message events to the app context. */
+export function usePushNotifications(): {
+  permission: NotificationPermission | "unsupported";
+  requestPermission: () => Promise<NotificationPermission | "unsupported">;
+} {
   const { isAuthenticated } = useAuth();
-  // `mutate` is a stable reference across renders (react-query guarantees
-  // this), so it's safe to depend on below without re-running per render.
   const { mutate: registerToken } = useRegisterFcmTokenMutation();
+  const [permission, setPermission] = useState<NotificationPermission | "unsupported">(getPushPermission);
+
+  const requestPermission = async (): Promise<NotificationPermission | "unsupported"> => {
+    if (typeof window === "undefined" || !("Notification" in window)) {
+      return "unsupported";
+    }
+    try {
+      const res = await Notification.requestPermission();
+      setPermission(res);
+      return res;
+    } catch {
+      return "unsupported";
+    }
+  };
 
   useEffect(() => {
     if (!isAuthenticated) return;
     if (!isFirebaseConfigured()) return;
     if (typeof window === "undefined") return;
     if (!("serviceWorker" in navigator) || !("Notification" in window)) return;
-    // Respect a prior "block" — only "default" (never asked) or an already
-    // "granted" permission are worth acting on; re-asking after a denial is
-    // exactly the nagging browsers' own permission model exists to prevent.
     if (Notification.permission === "denied") return;
 
     let cancelled = false;
 
+    // Bridge incoming messages from the service worker (e.g. user clicked "Accept" on push notification)
+    const handleSwMessage = (event: MessageEvent) => {
+      if (event.data?.type === "CUC_ACCEPT_CALL") {
+        window.dispatchEvent(new CustomEvent("cuc:accept_call", { detail: event.data }));
+      }
+    };
+    navigator.serviceWorker.addEventListener("message", handleSwMessage);
+
     (async () => {
       try {
-        const permission =
+        const perm =
           Notification.permission === "granted"
             ? "granted"
             : await Notification.requestPermission();
-        if (cancelled || permission !== "granted") return;
+        setPermission(perm);
+        if (cancelled || perm !== "granted") return;
 
-        // Registered separately from the app's own Workbox-managed PWA
-        // service worker (see vite.config.ts) — Firebase's documented
-        // pattern for adding web push to an app that already has one, rather
-        // than replacing or merging into it. Config travels via the query
-        // string because a static file under `public/` can't read Vite's
-        // `import.meta.env` at runtime the way app code can.
         const params = new URLSearchParams({
-          apiKey: FIREBASE_CONFIG.apiKey,
-          projectId: FIREBASE_CONFIG.projectId,
-          messagingSenderId: FIREBASE_CONFIG.messagingSenderId,
-          appId: FIREBASE_CONFIG.appId,
+          apiKey: FIREBASE_CONFIG.apiKey || "",
+          projectId: FIREBASE_CONFIG.projectId || "",
+          messagingSenderId: FIREBASE_CONFIG.messagingSenderId || "",
+          appId: FIREBASE_CONFIG.appId || "",
+          apiUrl: getApiBaseUrl(),
         });
+
         const registration = await navigator.serviceWorker.register(
           `/firebase-messaging-sw.js?${params.toString()}`,
         );
 
-        const { initializeApp } = await import("firebase/app");
-        const { getMessaging, getToken } = await import("firebase/messaging");
+        const { initializeApp, getApps } = await import("firebase/app");
+        const { getMessaging, getToken, onMessage } = await import("firebase/messaging");
 
-        const app = initializeApp(FIREBASE_CONFIG as Record<string, string>);
+        const app = getApps().length > 0 ? getApps()[0] : initializeApp(FIREBASE_CONFIG as Record<string, string>);
         const messaging = getMessaging(app);
-        const deviceToken = await getToken(messaging, {
-          vapidKey: VAPID_KEY,
+
+        const tokenOptions: { serviceWorkerRegistration: ServiceWorkerRegistration; vapidKey?: string } = {
           serviceWorkerRegistration: registration,
-        });
+        };
+        if (VAPID_KEY) {
+          tokenOptions.vapidKey = VAPID_KEY;
+        }
+
+        const deviceToken = await getToken(messaging, tokenOptions);
 
         if (cancelled || !deviceToken) return;
         registerToken({ deviceToken, deviceType: "web" });
+
+        // Foreground Message Listener
+        onMessage(messaging, (payload) => {
+          const data = payload?.data;
+          if (!data) return;
+
+          if (data.type === "incoming_call") {
+            window.dispatchEvent(new CustomEvent("cuc:incoming_call", { detail: data }));
+          } else if (data.type === "call_cancelled" || data.type === "call_ended") {
+            window.dispatchEvent(new CustomEvent("cuc:call_cancelled", { detail: data }));
+          } else {
+            window.dispatchEvent(new CustomEvent("cuc:notification", { detail: payload }));
+          }
+        });
       } catch (err) {
-        // Best-effort: a browser/permission/network hiccup here should never
-        // surface to the person using the app — it just means this device
-        // doesn't get push for this session.
         console.warn("[usePushNotifications] Registration skipped:", err);
       }
     })();
 
     return () => {
       cancelled = true;
+      navigator.serviceWorker.removeEventListener("message", handleSwMessage);
     };
   }, [isAuthenticated, registerToken]);
+
+  return { permission, requestPermission };
 }
