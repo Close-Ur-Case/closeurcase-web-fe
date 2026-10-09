@@ -17,6 +17,7 @@ import {
 } from "lucide-react";
 import { OtpInput, TextField, Button, IconButton } from "@/components/m3";
 import { PermissionsGate } from "@/components/app/PermissionsGate";
+import { FakeLoginResponseModal } from "@/components/app/FakeLoginResponseModal";
 import { usePermissionsGate } from "@/features/permissions/usePermissionsGate";
 import { getCitizenSession, setCitizenSession } from "@/features/citizen/session";
 import { CitizenLanguageButtons } from "@/features/citizen/CitizenLanguageButtons";
@@ -376,8 +377,9 @@ export function CitizenLawyerLogin() {
       ...(loginMethod === "phone" ? { phone: phoneDigits } : { email: email.trim().toLowerCase() }),
     };
 
+    let verifyResponse: any = null;
     try {
-      await verifyOtpMutation.mutateAsync(payload);
+      verifyResponse = await verifyOtpMutation.mutateAsync(payload);
     } catch (err: unknown) {
       setIsCitizenSubmitting(false);
       setCitizenOtpError(err instanceof Error ? err.message : "Invalid OTP code. Please try again.");
@@ -409,14 +411,16 @@ export function CitizenLawyerLogin() {
       });
     }
 
-    if (area || specialization || service) {
-      navigate({
-        to: "/citizen/create-case",
-        search: { area, specialization, service },
-      });
-    } else {
-      navigate({ to: "/citizen" });
-    }
+    const targetPath = area || specialization || service ? "/citizen/create-case" : "/citizen";
+    const targetSearch = area || specialization || service ? { area, specialization, service } : undefined;
+
+    setLoginResponsePopup({
+      open: true,
+      role: "citizen",
+      data: verifyResponse,
+      targetPath,
+      targetSearch,
+    });
   };
 
   // -------------------------------------------------------------
@@ -450,6 +454,26 @@ export function CitizenLawyerLogin() {
     }
   }, [permissionsAcknowledged]);
 
+  // Fake Popup modal state to inspect successful login response
+  const [loginResponsePopup, setLoginResponsePopup] = useState<{
+    open: boolean;
+    role: "lawyer" | "citizen";
+    data: any;
+    targetPath: string;
+    targetSearch?: any;
+  } | null>(null);
+
+  const handlePopupContinue = () => {
+    if (!loginResponsePopup) return;
+    const { targetPath, targetSearch } = loginResponsePopup;
+    setLoginResponsePopup(null);
+    if (targetSearch) {
+      navigate({ to: targetPath as any, search: targetSearch });
+    } else {
+      navigate({ to: targetPath as any });
+    }
+  };
+
   const handleLawyerLoginSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setLawyerEmailTouched(true);
@@ -471,13 +495,19 @@ export function CitizenLawyerLogin() {
         } catch {}
       }
 
-      await lawyerLoginMutation.mutateAsync({
+      const lawyerResponse = await lawyerLoginMutation.mutateAsync({
         email: lawyerEmail,
         password: lawyerPassword,
         deviceToken: activeDeviceToken || undefined,
         deviceType: activeDeviceType || undefined,
       });
-      navigate({ to: "/lawyer" });
+
+      setLoginResponsePopup({
+        open: true,
+        role: "lawyer",
+        data: lawyerResponse,
+        targetPath: "/lawyer",
+      });
     } catch (err: unknown) {
       const message =
         err instanceof Error
@@ -944,6 +974,15 @@ export function CitizenLawyerLogin() {
           </form>
         )}
       </AuthLayout>
+
+      {/* ── Fake Popup - Login response ── */}
+      <FakeLoginResponseModal
+        open={Boolean(loginResponsePopup?.open)}
+        role={loginResponsePopup?.role || "lawyer"}
+        data={loginResponsePopup?.data}
+        onContinue={handlePopupContinue}
+        onClose={handlePopupContinue}
+      />
     </>
   );
 }
