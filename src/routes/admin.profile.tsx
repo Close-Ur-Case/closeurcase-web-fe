@@ -68,7 +68,7 @@ function AdminProfilePage() {
       <ProfileForm
         role="admin"
         defaults={profile}
-        defaultPhotoUrl="/logo.svg"
+        defaultPhotoUrl="/logo_nobg.png"
         wide
         onSave={handleSave}
         extraField={() => (

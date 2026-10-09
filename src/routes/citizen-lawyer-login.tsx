@@ -481,7 +481,7 @@ export function CitizenLawyerLogin() {
           <div className="flex flex-col items-center text-center">
             <div className="relative mb-6 flex h-28 w-28 items-center justify-center rounded-3xl bg-surface p-4 shadow-xl border border-border/60 animate-in fade-in zoom-in-95 duration-500">
               <img
-                src="/logo.svg"
+                src="/logo_nobg.png"
                 alt="CloseUrCase Logo"
                 className="h-20 w-20 object-contain drop-shadow-sm"
               />

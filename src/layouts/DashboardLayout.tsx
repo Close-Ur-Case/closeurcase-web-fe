@@ -308,7 +308,7 @@ export function DashboardLayout({
   );
   // Admin has no seed identity photo of their own — the site logo stands in
   // until a real photo is uploaded, instead of a random name-hashed avatar.
-  const defaultPhotoUrl = role === "admin" ? "/logo.svg" : undefined;
+  const defaultPhotoUrl = role === "admin" ? "/logo_nobg.png" : undefined;
   const [photoUrl, setPhotoUrl] = useState(() => getProfilePhoto(role) ?? defaultPhotoUrl);
   const [showLocationToast, setShowLocationToast] = useState(false);
   const [citizenTier, setCitizenTier] = useState<SubscriptionTierId | null>(
@@ -398,7 +398,7 @@ export function DashboardLayout({
                   className="flex items-center gap-2.5 tracking-tight"
                   onClick={() => setMobileMenuOpen(false)}
                 >
-                  <img src="/logo.svg" alt="CloseUrCase Logo" className="h-9 w-9 object-contain" />
+                  <img src="/logo_nobg.png" alt="CloseUrCase Logo" className="h-9 w-9 object-contain" />
                   <span className="flex flex-col leading-tight">
                     <span className="text-base font-bold tracking-tight text-foreground">
                       CloseUrCase
@@ -453,7 +453,7 @@ export function DashboardLayout({
               to={isSuspended ? `/${role}/profile` : "/"}
               className="flex items-center gap-2.5 tracking-tight hover:opacity-90 transition-opacity"
             >
-              <img src="/logo.svg" alt="CloseUrCase Logo" className="h-9 w-9 object-contain" />
+              <img src="/logo_nobg.png" alt="CloseUrCase Logo" className="h-9 w-9 object-contain" />
               <span className="flex flex-col leading-tight">
                 <span className="text-base font-bold tracking-tight text-foreground">
                   CloseUrCase

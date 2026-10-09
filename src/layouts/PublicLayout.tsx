@@ -161,7 +161,7 @@ export function PublicLayout({ children }: { children: ReactNode }) {
             onClick={handleLogoClick}
             className="flex items-center gap-2.5 shrink-0 hover:opacity-90"
           >
-            <img src="/logo.svg" alt="CloseUrCase Logo" className="h-9 w-9 object-contain" />
+            <img src="/logo_nobg.png" alt="CloseUrCase Logo" className="h-9 w-9 object-contain" />
             <span className="flex flex-col leading-tight">
               <span className="text-base font-bold tracking-tight text-foreground">
                 CloseUrCase
@@ -538,7 +538,7 @@ export function PublicLayout({ children }: { children: ReactNode }) {
                 onClick={handleLogoClick}
                 className="inline-flex items-center gap-2.5 hover:opacity-90"
               >
-                <img src="/logo.svg" alt="CloseUrCase Logo" className="h-9 w-9 object-contain" />
+                <img src="/logo_nobg.png" alt="CloseUrCase Logo" className="h-9 w-9 object-contain" />
                 <span className="flex flex-col leading-tight">
                   <span className="text-base font-bold tracking-tight text-slate-900">
                     CloseUrCase

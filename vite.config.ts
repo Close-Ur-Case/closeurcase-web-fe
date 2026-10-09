@@ -39,7 +39,7 @@ export default defineConfig({
     VitePWA({
       registerType: "autoUpdate",
       devOptions: { enabled: true },
-      includeAssets: ["logo.svg"],
+      includeAssets: ["logo_nobg.png"],
       manifest: {
         name: "CloseUrCase — AI-powered legal case management",
         short_name: "CloseUrCase",
@@ -50,8 +50,8 @@ export default defineConfig({
         display: "standalone",
         start_url: "/citizen-lawyer-login",
         icons: [
-          { src: "/logo.svg", sizes: "any", type: "image/svg+xml", purpose: "any" },
-          { src: "/logo.svg", sizes: "any", type: "image/svg+xml", purpose: "maskable" },
+          { src: "/logo_nobg.png", sizes: "any", type: "image/png", purpose: "any" },
+          { src: "/logo_nobg.png", sizes: "any", type: "image/png", purpose: "maskable" },
         ],
       },
       workbox: {

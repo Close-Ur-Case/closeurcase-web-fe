@@ -345,7 +345,7 @@ export function TheOldWayVsCloseUrCase() {
                 <div className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 z-10 flex flex-col items-center">
                   <div className="flex h-12 w-12 sm:h-13 sm:w-13 items-center justify-center rounded-full bg-gradient-to-br from-[#003272] via-[#024a96] to-[#d4af37] p-1 shadow-md shadow-[#003272]/20 ring-4 ring-blue-50">
                     <img
-                      src="/logo.svg"
+                      src="/logo_nobg.png"
                       alt="CloseUrCase Hub"
                       className="h-8 w-8 sm:h-8.5 sm:w-8.5 object-contain drop-shadow-xs"
                     />

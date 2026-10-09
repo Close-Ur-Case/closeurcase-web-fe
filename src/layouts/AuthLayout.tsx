@@ -46,7 +46,7 @@ export function AuthLayout({
       <header className="hidden shrink-0 border-b border-border bg-surface sm:block">
         <div className="mx-auto flex h-16 w-full max-w-[1560px] items-center justify-between px-6 sm:px-8 lg:px-10">
           <Link to="/" className="flex items-center gap-2.5 shrink-0 hover:opacity-90">
-            <img src="/logo.svg" alt="CloseUrCase Logo" className="h-9 w-9 object-contain" />
+            <img src="/logo_nobg.png" alt="CloseUrCase Logo" className="h-9 w-9 object-contain" />
             <span className="flex flex-col leading-tight">
               <span className="text-base font-bold tracking-tight text-foreground">
                 CloseUrCase
@@ -85,7 +85,7 @@ export function AuthLayout({
           >
             {centerLogoOnMobile && (
               <div className="mb-6 flex flex-col items-center gap-3 sm:hidden">
-                <img src="/logo.svg" alt="CloseUrCase Logo" className="h-24 w-24 object-contain" />
+                <img src="/logo_nobg.png" alt="CloseUrCase Logo" className="h-24 w-24 object-contain" />
                 <span className="text-2xl font-extrabold tracking-tight text-foreground">
                   CloseUrCase
                 </span>
