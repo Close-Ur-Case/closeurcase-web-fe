@@ -164,10 +164,10 @@ export function CasesListView() {
                   ? "bg-primary text-primary-foreground border-primary shadow-xs"
                   : "bg-surface/90 border-border/80 text-muted-foreground hover:bg-muted/60 hover:text-foreground",
               )}
-              title="Monthly Calendar View"
+              title="Hearing Calender & Dairy View"
             >
               <CalendarDays className="h-4 w-4 shrink-0" />
-              <span>Calendar</span>
+              <span>Hearing Calender & Dairy</span>
             </button>
           </div>
         }

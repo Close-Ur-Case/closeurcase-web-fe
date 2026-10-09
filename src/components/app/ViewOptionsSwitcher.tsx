@@ -74,10 +74,10 @@ export function ViewOptionsSwitcher({
               ? "bg-primary text-primary-foreground shadow-2xs"
               : "text-muted-foreground hover:text-foreground",
           )}
-          title="Monthly Calendar View"
+          title="Hearing Calender & Dairy View"
         >
           <CalendarDays className="h-3.5 w-3.5 shrink-0" />
-          <span>Calendar</span>
+          <span>Hearing Calender & Dairy</span>
         </button>
       )}
     </div>
