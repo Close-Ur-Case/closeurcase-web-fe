@@ -7,7 +7,6 @@ import { Hero } from "@/landing-page/sections/Hero";
 import { RecognitionStrip } from "@/landing-page/sections/RecognitionStrip";
 import { About } from "@/landing-page/sections/About";
 import { LegalServicesExplorer } from "@/landing-page/sections/LegalServicesExplorer";
-import { TrustedLawyers } from "@/landing-page/TrustedLawyers";
 import { HowItWorks } from "@/landing-page/sections/HowItWorks";
 import { CourtExplainer } from "@/landing-page/sections/CourtExplainer";
 import { PersonalNotAutomated } from "@/landing-page/sections/PersonalNotAutomated";
@@ -63,7 +62,6 @@ function LandingPage() {
       <RecognitionStrip />
       <About />
       <LegalServicesExplorer />
-      <TrustedLawyers />
       <HowItWorks />
       <CourtExplainer />
       <PersonalNotAutomated />
