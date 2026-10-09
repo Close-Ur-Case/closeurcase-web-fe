@@ -1,6 +1,7 @@
 import { db } from "../config/db.ts";
 import { appNotifications, fcmTokens } from "../models/notifications.ts";
-import { eq, desc, and } from "drizzle-orm";
+import { citizens, lawyers } from "../models/users.ts";
+import { eq, desc, and, or, inArray } from "drizzle-orm";
 import { firebaseAdmin } from "../config/firebaseAdmin.ts";
 
 export class NotificationService {
@@ -95,13 +96,7 @@ export class NotificationService {
    * in-app notification used: one person's tokens for a `userId`-targeted
    * notification, every token for that role for a role broadcast, or every
    * token at all for `role: "all"`. No-ops immediately if Firebase isn't
-   * configured — `firebaseAdmin.isConfigured()` mirrors the same
-   * "gracefully do nothing without real credentials" pattern Razorpay/Agora
-   * already use elsewhere in this backend.
-   *
-   * A token FCM reports as dead (unregistered/invalid) is removed rather
-   * than retried on the next notification — it can only ever fail the same
-   * way again.
+   * configured.
    */
   static async pushToTargets({
     userId,
@@ -118,14 +113,54 @@ export class NotificationService {
   }) {
     if (!firebaseAdmin.isConfigured()) return;
 
-    const targets = userId
-      ? await db.select().from(fcmTokens).where(eq(fcmTokens.userId, userId))
-      : role && role !== "all"
-        ? await db.select().from(fcmTokens).where(eq(fcmTokens.role, role))
-        : await db.select().from(fcmTokens);
+    const targetUserIds = new Set<string>();
+    if (userId) {
+      targetUserIds.add(userId);
+      try {
+        const [cit] = await db
+          .select({ id: citizens.id, userId: citizens.userId })
+          .from(citizens)
+          .where(or(eq(citizens.id, userId), eq(citizens.userId, userId)));
+        if (cit) {
+          if (cit.id) targetUserIds.add(cit.id);
+          if (cit.userId) targetUserIds.add(cit.userId);
+        }
+        const [law] = await db
+          .select({ id: lawyers.id, userId: lawyers.userId })
+          .from(lawyers)
+          .where(or(eq(lawyers.id, userId), eq(lawyers.userId, userId)));
+        if (law) {
+          if (law.id) targetUserIds.add(law.id);
+          if (law.userId) targetUserIds.add(law.userId);
+        }
+      } catch (lookupErr) {
+        console.warn("[NotificationService] Target ID resolution warning:", lookupErr);
+      }
+    }
+
+    const ids = Array.from(targetUserIds);
+    let targets =
+      ids.length > 0
+        ? await db.select().from(fcmTokens).where(inArray(fcmTokens.userId, ids))
+        : role && role !== "all"
+          ? await db.select().from(fcmTokens).where(eq(fcmTokens.role, role))
+          : await db.select().from(fcmTokens);
+
+    // Fallback if user ID has no tokens registered directly but role tokens exist
+    if (targets.length === 0 && role && role !== "all") {
+      targets = await db.select().from(fcmTokens).where(eq(fcmTokens.role, role));
+    }
+
+    // Deduplicate by deviceToken so multiple rows don't send duplicate notifications
+    const seenTokens = new Set<string>();
+    const uniqueTargets = targets.filter((t) => {
+      if (seenTokens.has(t.deviceToken)) return false;
+      seenTokens.add(t.deviceToken);
+      return true;
+    });
 
     await Promise.all(
-      targets.map(async (t) => {
+      uniqueTargets.map(async (t) => {
         const result = await firebaseAdmin.sendToDevice(t.deviceToken, { title, body }, data);
         if (!result.ok) {
           if (result.tokenInvalid) {

@@ -4,8 +4,9 @@ import { db } from "../config/db.ts";
 import { videoCalls } from "../models/videoCalls.ts";
 import { fcmTokens } from "../models/notifications.ts";
 import { casesUser } from "../models/casesUser.ts";
+import { citizens, lawyers } from "../models/users.ts";
 import { firebaseAdmin } from "../config/firebaseAdmin.ts";
-import { eq, desc, and, gte } from "drizzle-orm";
+import { eq, desc, and, gte, or, inArray } from "drizzle-orm";
 import { ApiError } from "../utils/apiError.ts";
 
 export class AgoraService {
@@ -91,11 +92,40 @@ export class AgoraService {
           }
         }
 
-        const tokensQuery = targetUserId
-          ? db.select().from(fcmTokens).where(eq(fcmTokens.userId, targetUserId))
-          : db.select().from(fcmTokens).where(eq(fcmTokens.role, recipientRole));
+        const targetIds = new Set<string>();
+        if (targetUserId) {
+          targetIds.add(targetUserId);
+          try {
+            const [cit] = await db
+              .select({ id: citizens.id, userId: citizens.userId })
+              .from(citizens)
+              .where(or(eq(citizens.id, targetUserId), eq(citizens.userId, targetUserId)));
+            if (cit) {
+              if (cit.id) targetIds.add(cit.id);
+              if (cit.userId) targetIds.add(cit.userId);
+            }
+            const [law] = await db
+              .select({ id: lawyers.id, userId: lawyers.userId })
+              .from(lawyers)
+              .where(or(eq(lawyers.id, targetUserId), eq(lawyers.userId, targetUserId)));
+            if (law) {
+              if (law.id) targetIds.add(law.id);
+              if (law.userId) targetIds.add(law.userId);
+            }
+          } catch (lookupErr) {
+            console.warn("[AgoraService] Target ID lookup warning:", lookupErr);
+          }
+        }
 
-        const tokens = await tokensQuery;
+        const idsArr = Array.from(targetIds);
+        let tokens = idsArr.length > 0
+          ? await db.select().from(fcmTokens).where(inArray(fcmTokens.userId, idsArr))
+          : await db.select().from(fcmTokens).where(eq(fcmTokens.role, recipientRole));
+
+        if (tokens.length === 0 && recipientRole) {
+          tokens = await db.select().from(fcmTokens).where(eq(fcmTokens.role, recipientRole));
+        }
+
         if (tokens.length > 0) {
           const pushPayload: Record<string, string> = {
             type: "incoming_call",
