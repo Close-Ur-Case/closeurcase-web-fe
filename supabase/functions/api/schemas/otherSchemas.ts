@@ -136,7 +136,7 @@ export const UpdateInquiryStatusSchema = z
 export const RegisterFcmTokenSchema = z
   .object({
     deviceToken: z.string().min(1).openapi({ example: "fcm_token_device_abc123" }),
-    deviceType: z.enum(["web", "android", "ios"]).optional().openapi({ example: "web" }),
+    deviceType: z.enum(["web", "android", "ios", "mobile_pwa", "desktop_pwa", "mobile_web"]).optional().openapi({ example: "web" }),
   })
   .openapi("RegisterFcmTokenRequest");
 
