@@ -151,9 +151,26 @@ export function usePushNotifications() {
         registration = await navigator.serviceWorker.register(swUrl, { scope: "/" });
       }
 
-      // Wait until active service worker is ready
-      const readyReg = await navigator.serviceWorker.ready;
-      const targetRegistration = readyReg || registration;
+      // Wait until active service worker is ready (with a 3s safety timeout)
+      let targetRegistration: ServiceWorkerRegistration = registration;
+      try {
+        const readyPromise = navigator.serviceWorker.ready;
+        const timeoutPromise = new Promise<null>((resolve) => setTimeout(() => resolve(null), 3000));
+        const readyReg = await Promise.race([readyPromise, timeoutPromise]);
+        if (readyReg) targetRegistration = readyReg;
+      } catch {}
+
+      if (!targetRegistration.active && (targetRegistration.installing || targetRegistration.waiting)) {
+        const worker = targetRegistration.installing || targetRegistration.waiting;
+        if (worker) {
+          await new Promise<void>((resolve) => {
+            worker.addEventListener("statechange", () => {
+              if (worker.state === "activated" || worker.state === "redundant") resolve();
+            });
+            setTimeout(resolve, 3000);
+          });
+        }
+      }
 
       const { initializeApp, getApps } = await import("firebase/app");
       const { getMessaging, getToken, onMessage } = await import("firebase/messaging");
@@ -168,13 +185,17 @@ export function usePushNotifications() {
         tokenOptions.vapidKey = VAPID_KEY;
       }
 
+      console.log("[usePushNotifications] Requesting FCM token from Firebase...");
       const token = await getToken(messaging, tokenOptions);
       if (!token) {
         throw new Error("Unable to obtain FCM registration token from Firebase");
       }
+      console.log("[usePushNotifications] Successfully retrieved FCM token:", token.slice(0, 30) + "...");
 
       const devType = detectDeviceType();
+      console.log(`[usePushNotifications] Registering token for deviceType=${devType}...`);
       await registerTokenAsync({ deviceToken: token, deviceType: devType });
+      console.log("[usePushNotifications] Token registered in database successfully!");
 
       setDeviceToken(token);
       setIsRegistering(false);
