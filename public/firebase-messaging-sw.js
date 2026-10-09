@@ -36,7 +36,9 @@ const appId = params.get("appId") || DEFAULT_FIREBASE_CONFIG.appId;
 const apiUrl = params.get("apiUrl") || "";
 
 if (apiKey && projectId && messagingSenderId && appId) {
-  firebase.initializeApp({ apiKey, projectId, messagingSenderId, appId });
+  if (!firebase.apps || firebase.apps.length === 0) {
+    firebase.initializeApp({ apiKey, projectId, messagingSenderId, appId });
+  }
   const messaging = firebase.messaging();
 
   messaging.onBackgroundMessage((payload) => {

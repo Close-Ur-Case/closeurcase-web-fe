@@ -134,29 +134,26 @@ export function usePushNotifications() {
         return { ok: false, error: err };
       }
 
-      const params = new URLSearchParams({
-        apiKey: FIREBASE_CONFIG.apiKey || "",
-        projectId: FIREBASE_CONFIG.projectId || "",
-        messagingSenderId: FIREBASE_CONFIG.messagingSenderId || "",
-        appId: FIREBASE_CONFIG.appId || "",
-        apiUrl: getApiBaseUrl(),
-      });
-
-      const swUrl = `/firebase-messaging-sw.js?${params.toString()}`;
-      const registration = await navigator.serviceWorker.register(swUrl, { scope: "/" });
-
-      // Ensure service worker is activated before requesting token to avoid registration race condition
-      if (!registration.active) {
-        const worker = registration.installing || registration.waiting;
-        if (worker) {
-          await new Promise<void>((resolve) => {
-            worker.addEventListener("statechange", () => {
-              if (worker.state === "activated" || worker.state === "redundant") resolve();
-            });
-            setTimeout(resolve, 3000);
-          });
-        }
+      // 1. Reuse existing PWA service worker (from VitePWA) or register firebase-messaging-sw.js
+      let registration: ServiceWorkerRegistration;
+      const existing = await navigator.serviceWorker.getRegistration();
+      if (existing) {
+        registration = existing;
+      } else {
+        const params = new URLSearchParams({
+          apiKey: FIREBASE_CONFIG.apiKey || "",
+          projectId: FIREBASE_CONFIG.projectId || "",
+          messagingSenderId: FIREBASE_CONFIG.messagingSenderId || "",
+          appId: FIREBASE_CONFIG.appId || "",
+          apiUrl: getApiBaseUrl(),
+        });
+        const swUrl = `/firebase-messaging-sw.js?${params.toString()}`;
+        registration = await navigator.serviceWorker.register(swUrl, { scope: "/" });
       }
+
+      // Wait until active service worker is ready
+      const readyReg = await navigator.serviceWorker.ready;
+      const targetRegistration = readyReg || registration;
 
       const { initializeApp, getApps } = await import("firebase/app");
       const { getMessaging, getToken, onMessage } = await import("firebase/messaging");
@@ -165,7 +162,7 @@ export function usePushNotifications() {
       const messaging = getMessaging(app);
 
       const tokenOptions: { serviceWorkerRegistration: ServiceWorkerRegistration; vapidKey?: string } = {
-        serviceWorkerRegistration: registration,
+        serviceWorkerRegistration: targetRegistration,
       };
       if (VAPID_KEY) {
         tokenOptions.vapidKey = VAPID_KEY;
