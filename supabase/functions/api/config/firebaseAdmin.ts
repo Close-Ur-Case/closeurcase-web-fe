@@ -157,9 +157,33 @@ export const firebaseAdmin = {
               notification,
               ...(data ? { data } : {}),
               webpush: {
+                headers: {
+                  Urgency: "high",
+                  TTL: "86400",
+                },
                 notification: {
+                  title: notification.title,
+                  body: notification.body,
                   icon: "/logo_nobg.png",
                   badge: "/logo_nobg.png",
+                  requireInteraction: true,
+                  vibrate: [200, 100, 200],
+                },
+                fcm_options: {
+                  link: data?.url || "/",
+                },
+              },
+              android: {
+                priority: "high",
+                notification: {
+                  title: notification.title,
+                  body: notification.body,
+                  icon: "/logo_nobg.png",
+                  color: "#6750A4",
+                  defaultSound: true,
+                  defaultVibrateTimings: true,
+                  notificationPriority: "PRIORITY_MAX",
+                  visibility: "PUBLIC",
                 },
               },
             },

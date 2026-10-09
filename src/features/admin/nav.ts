@@ -5,6 +5,7 @@ import {
   Folder,
   BookOpen,
   Bell,
+  BellRing,
   User,
   IndianRupee,
   Database,
@@ -22,5 +23,6 @@ export const adminNav: NavItem[] = [
   { to: "/admin/knowledge-base", label: "Knowledge Base", icon: BookOpen },
   { to: "/admin/support", label: "Support & Inquiries", icon: LifeBuoy },
   { to: "/admin/notifications", label: "Notifications", icon: Bell },
+  { to: "/admin/push-notifications", label: "Push Notifications", icon: BellRing },
   { to: "/admin/profile", label: "My Profile", icon: User },
 ];

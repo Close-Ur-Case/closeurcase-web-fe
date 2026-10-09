@@ -25,6 +25,7 @@ import { Route as AdminKnowledgeBaseRouteImport } from './routes/admin.knowledge
 import { Route as AdminLawyersRouteImport } from './routes/admin.lawyers'
 import { Route as AdminNotificationsRouteImport } from './routes/admin.notifications'
 import { Route as AdminProfileRouteImport } from './routes/admin.profile'
+import { Route as AdminPushNotificationsRouteImport } from './routes/admin.push-notifications'
 import { Route as AdminRevenueRouteImport } from './routes/admin.revenue'
 import { Route as AdminSupportRouteImport } from './routes/admin.support'
 import { Route as AdminUsersRouteImport } from './routes/admin.users'
@@ -127,6 +128,11 @@ const AdminNotificationsRoute = AdminNotificationsRouteImport.update({
 const AdminProfileRoute = AdminProfileRouteImport.update({
   id: '/profile',
   path: '/profile',
+  getParentRoute: () => AdminRoute,
+} as any)
+const AdminPushNotificationsRoute = AdminPushNotificationsRouteImport.update({
+  id: '/push-notifications',
+  path: '/push-notifications',
   getParentRoute: () => AdminRoute,
 } as any)
 const AdminRevenueRoute = AdminRevenueRouteImport.update({
@@ -261,6 +267,7 @@ export interface FileRoutesByFullPath {
   '/admin/lawyers': typeof AdminLawyersRoute
   '/admin/notifications': typeof AdminNotificationsRoute
   '/admin/profile': typeof AdminProfileRoute
+  '/admin/push-notifications': typeof AdminPushNotificationsRoute
   '/admin/revenue': typeof AdminRevenueRoute
   '/admin/support': typeof AdminSupportRoute
   '/admin/users': typeof AdminUsersRoute
@@ -299,6 +306,7 @@ export interface FileRoutesByTo {
   '/admin/lawyers': typeof AdminLawyersRoute
   '/admin/notifications': typeof AdminNotificationsRoute
   '/admin/profile': typeof AdminProfileRoute
+  '/admin/push-notifications': typeof AdminPushNotificationsRoute
   '/admin/revenue': typeof AdminRevenueRoute
   '/admin/support': typeof AdminSupportRoute
   '/admin/users': typeof AdminUsersRoute
@@ -340,6 +348,7 @@ export interface FileRoutesById {
   '/admin/lawyers': typeof AdminLawyersRoute
   '/admin/notifications': typeof AdminNotificationsRoute
   '/admin/profile': typeof AdminProfileRoute
+  '/admin/push-notifications': typeof AdminPushNotificationsRoute
   '/admin/revenue': typeof AdminRevenueRoute
   '/admin/support': typeof AdminSupportRoute
   '/admin/users': typeof AdminUsersRoute
@@ -383,6 +392,7 @@ export interface FileRouteTypes {
     | '/admin/lawyers'
     | '/admin/notifications'
     | '/admin/profile'
+    | '/admin/push-notifications'
     | '/admin/revenue'
     | '/admin/support'
     | '/admin/users'
@@ -421,6 +431,7 @@ export interface FileRouteTypes {
     | '/admin/lawyers'
     | '/admin/notifications'
     | '/admin/profile'
+    | '/admin/push-notifications'
     | '/admin/revenue'
     | '/admin/support'
     | '/admin/users'
@@ -461,6 +472,7 @@ export interface FileRouteTypes {
     | '/admin/lawyers'
     | '/admin/notifications'
     | '/admin/profile'
+    | '/admin/push-notifications'
     | '/admin/revenue'
     | '/admin/support'
     | '/admin/users'
@@ -611,6 +623,13 @@ declare module '@tanstack/react-router' {
       path: '/profile'
       fullPath: '/admin/profile'
       preLoaderRoute: typeof AdminProfileRouteImport
+      parentRoute: typeof AdminRoute
+    }
+    '/admin/push-notifications': {
+      id: '/admin/push-notifications'
+      path: '/push-notifications'
+      fullPath: '/admin/push-notifications'
+      preLoaderRoute: typeof AdminPushNotificationsRouteImport
       parentRoute: typeof AdminRoute
     }
     '/admin/revenue': {
@@ -784,6 +803,7 @@ interface AdminRouteChildren {
   AdminLawyersRoute: typeof AdminLawyersRoute
   AdminNotificationsRoute: typeof AdminNotificationsRoute
   AdminProfileRoute: typeof AdminProfileRoute
+  AdminPushNotificationsRoute: typeof AdminPushNotificationsRoute
   AdminRevenueRoute: typeof AdminRevenueRoute
   AdminSupportRoute: typeof AdminSupportRoute
   AdminUsersRoute: typeof AdminUsersRoute
@@ -797,6 +817,7 @@ const AdminRouteChildren: AdminRouteChildren = {
   AdminLawyersRoute: AdminLawyersRoute,
   AdminNotificationsRoute: AdminNotificationsRoute,
   AdminProfileRoute: AdminProfileRoute,
+  AdminPushNotificationsRoute: AdminPushNotificationsRoute,
   AdminRevenueRoute: AdminRevenueRoute,
   AdminSupportRoute: AdminSupportRoute,
   AdminUsersRoute: AdminUsersRoute,

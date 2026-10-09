@@ -11,11 +11,28 @@
 importScripts("https://www.gstatic.com/firebasejs/10.14.1/firebase-app-compat.js");
 importScripts("https://www.gstatic.com/firebasejs/10.14.1/firebase-messaging-compat.js");
 
+self.addEventListener("install", () => {
+  self.skipWaiting();
+});
+
+self.addEventListener("activate", (event) => {
+  event.waitUntil(self.clients.claim());
+});
+
+const DEFAULT_FIREBASE_CONFIG = {
+  apiKey: "AIzaSyBt6CZWZIiqhj7-OElAjL7hz0cFmG4uyag",
+  authDomain: "close-ur-case.firebaseapp.com",
+  projectId: "close-ur-case",
+  storageBucket: "close-ur-case.firebasestorage.app",
+  messagingSenderId: "668121591525",
+  appId: "1:668121591525:web:be9a3c5b4faadd3f546e0c",
+};
+
 const params = new URLSearchParams(self.location.search);
-const apiKey = params.get("apiKey");
-const projectId = params.get("projectId");
-const messagingSenderId = params.get("messagingSenderId");
-const appId = params.get("appId");
+const apiKey = params.get("apiKey") || DEFAULT_FIREBASE_CONFIG.apiKey;
+const projectId = params.get("projectId") || DEFAULT_FIREBASE_CONFIG.projectId;
+const messagingSenderId = params.get("messagingSenderId") || DEFAULT_FIREBASE_CONFIG.messagingSenderId;
+const appId = params.get("appId") || DEFAULT_FIREBASE_CONFIG.appId;
 const apiUrl = params.get("apiUrl") || "";
 
 if (apiKey && projectId && messagingSenderId && appId) {
@@ -64,13 +81,15 @@ if (apiKey && projectId && messagingSenderId && appId) {
       });
     }
 
-    // ── 3. Standard In-App Notifications (Data-only or fallback) ─
-    if (data.title || data.body) {
+    // ── 3. Standard In-App Notifications (Data-only or custom fallback) ─
+    if (!payload.notification && (data.title || data.body)) {
       const title = data.title || "CloseUrCase Notification";
       return self.registration.showNotification(title, {
         body: data.body || "",
         icon: "/logo_nobg.png",
         badge: "/logo_nobg.png",
+        vibrate: [200, 100, 200],
+        requireInteraction: true,
         tag: data.notificationId ? `notif_${data.notificationId}` : undefined,
         data: {
           ...data,
@@ -79,8 +98,8 @@ if (apiKey && projectId && messagingSenderId && appId) {
       });
     }
 
-    // If payload contains standard notification object and no custom data type,
-    // Firebase SDK handles it automatically.
+    // If payload contains standard notification object, Firebase SDK
+    // webpush options handle lockscreen display automatically.
   });
 }
 

@@ -20,6 +20,7 @@ import {
   MapPin,
   CreditCard,
   IndianRupee,
+  AlertCircle,
 } from "lucide-react";
 import { useState, useEffect, useLayoutEffect, useRef } from "react";
 import {
@@ -260,7 +261,14 @@ export function DashboardLayout({
   // No-ops without Firebase config or browser support — see the hook's own
   // comment. Mounted here rather than per-role so all three dashboards get
   // it from one place, the same way notification fetching already works.
-  usePushNotifications();
+  const {
+    permission,
+    requestPermission,
+    registerPushToken,
+    isRegistering,
+    registrationError,
+    isSecure,
+  } = usePushNotifications();
 
   const resetScroll = () => {
     if (mainRef.current) {
@@ -599,6 +607,61 @@ export function DashboardLayout({
               </div>
             </div>
           </header>
+
+          {/* ── Push Notification Insecure Origin Alert (Mobile HTTP) ── */}
+          {!isSecure && (
+            <div className="bg-amber-500/10 border-b border-amber-500/20 px-4 py-2.5 sm:px-6">
+              <div className="mx-auto flex max-w-6xl items-center gap-2.5 text-xs sm:text-sm text-amber-800 dark:text-amber-300">
+                <AlertCircle className="h-4 w-4 shrink-0 text-amber-600 dark:text-amber-400" />
+                <span className="leading-snug">
+                  <strong>Push requires HTTPS:</strong> Android Chrome disables Service Workers & Push APIs on plain HTTP ({typeof window !== "undefined" ? window.location.origin : ""}). To register push tokens on mobile, access via HTTPS or use Chrome ADB forwarding (<code>http://localhost:8080</code>).
+                </span>
+              </div>
+            </div>
+          )}
+
+          {/* ── Push Notification Registration Error Alert ── */}
+          {registrationError && isSecure && (
+            <div className="bg-destructive/10 border-b border-destructive/20 px-4 py-2.5 sm:px-6">
+              <div className="mx-auto flex max-w-6xl items-center justify-between gap-3 text-xs sm:text-sm">
+                <div className="flex items-center gap-2 text-destructive font-medium min-w-0">
+                  <AlertCircle className="h-4 w-4 shrink-0" />
+                  <span className="truncate">
+                    Push registration: {registrationError}
+                  </span>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => registerPushToken()}
+                  className="shrink-0 rounded-full bg-destructive text-destructive-foreground px-3 py-1 text-xs font-semibold hover:bg-destructive/90 transition-all cursor-pointer"
+                >
+                  Retry
+                </button>
+              </div>
+            </div>
+          )}
+
+          {/* ── Push Notification Permission Request Banner ── */}
+          {permission === "default" && isSecure && (
+            <div className="bg-primary/10 border-b border-primary/20 px-4 py-2.5 sm:px-6">
+              <div className="mx-auto flex max-w-6xl items-center justify-between gap-3 text-xs sm:text-sm">
+                <div className="flex items-center gap-2 text-foreground font-medium min-w-0">
+                  <Bell className="h-4 w-4 shrink-0 text-primary animate-pulse" />
+                  <span className="truncate">
+                    Enable lockscreen notifications to receive real-time case updates & hearing alerts on your mobile device.
+                  </span>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => requestPermission()}
+                  disabled={isRegistering}
+                  className="shrink-0 rounded-full bg-primary px-3.5 py-1 text-xs font-semibold text-primary-foreground shadow-xs hover:bg-primary/90 transition-all cursor-pointer disabled:opacity-50"
+                >
+                  {isRegistering ? "Enabling..." : "Enable Push"}
+                </button>
+              </div>
+            </div>
+          )}
 
           {/* "Detecting location…" pop-up — anchored right after the header (and
             the mobile location strip, when shown) so it never covers the

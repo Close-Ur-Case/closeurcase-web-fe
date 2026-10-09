@@ -9,6 +9,7 @@ import type {
   NotificationItem,
   RegisterFcmTokenPayload,
   NotificationQueryParams,
+  SendPushNotificationPayload,
 } from "@/types/api";
 
 export const notificationService = {
@@ -49,5 +50,23 @@ export const notificationService = {
    */
   async unregisterFcmToken(deviceToken: string): Promise<void> {
     return apiClient.post<void>("/notifications/unregister-token", { deviceToken });
+  },
+
+  /**
+   * Send in-app and FCM push notification (Admin)
+   */
+  async sendPushNotification<T = NotificationItem>(
+    payload: SendPushNotificationPayload,
+  ): Promise<T> {
+    return apiClient.post<T>("/notifications/send", payload);
+  },
+
+  /**
+   * Get registered FCM device tokens for user or role (Admin / Inspection)
+   */
+  async getDeviceTokens<T = any>(params?: { userId?: string; role?: string }): Promise<T[]> {
+    return apiClient.get<T[]>("/notifications/tokens", {
+      params: params as Record<string, string | number | boolean | undefined | null>,
+    });
   },
 };

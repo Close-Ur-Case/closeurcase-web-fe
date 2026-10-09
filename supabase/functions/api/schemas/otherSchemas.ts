@@ -140,6 +140,15 @@ export const RegisterFcmTokenSchema = z
   })
   .openapi("RegisterFcmTokenRequest");
 
+export const SendPushNotificationSchema = z
+  .object({
+    role: z.enum(["all", "citizen", "lawyer", "admin"]).optional().default("all").openapi({ example: "citizen" }),
+    userId: z.string().optional().nullable().openapi({ example: "u_1790255746908" }),
+    title: z.string().min(1).openapi({ example: "Important Platform Notice" }),
+    message: z.string().min(1).openapi({ example: "Your legal case docket has an update." }),
+  })
+  .openapi("SendPushNotificationRequest");
+
 export const TaxonomyItemSchema = z
   .object({
     name: z.string().openapi({ example: "Cyber Crime & IT Law" }),

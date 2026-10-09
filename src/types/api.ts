@@ -471,6 +471,13 @@ export interface NotificationQueryParams {
   limit?: number;
 }
 
+export interface SendPushNotificationPayload {
+  role?: "all" | "citizen" | "lawyer" | "admin" | string;
+  userId?: string | null;
+  title: string;
+  message: string;
+}
+
 // ============================================================================
 // Knowledge Base Payloads
 // ============================================================================

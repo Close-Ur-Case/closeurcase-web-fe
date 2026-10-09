@@ -4,7 +4,11 @@
 
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { notificationService } from "@/services/notificationService";
-import type { RegisterFcmTokenPayload, NotificationQueryParams } from "@/types/api";
+import type {
+  RegisterFcmTokenPayload,
+  NotificationQueryParams,
+  SendPushNotificationPayload,
+} from "@/types/api";
 
 export function useNotificationsQuery(params?: NotificationQueryParams) {
   return useQuery({
@@ -45,5 +49,17 @@ export function useRegisterFcmTokenMutation() {
 export function useUnregisterFcmTokenMutation() {
   return useMutation({
     mutationFn: (deviceToken: string) => notificationService.unregisterFcmToken(deviceToken),
+  });
+}
+
+export function useSendPushNotificationMutation() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: (payload: SendPushNotificationPayload) =>
+      notificationService.sendPushNotification(payload),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["notifications"] });
+    },
   });
 }

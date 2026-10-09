@@ -82,6 +82,8 @@ export class NotificationService {
           notificationId: id,
           type: "app_notification",
           url,
+          title,
+          body,
         },
       });
     } catch (err) {
@@ -89,6 +91,37 @@ export class NotificationService {
     }
 
     return notification;
+  }
+
+  static async getDeviceTokens({ userId, role }: { userId?: string | null; role?: string | null } = {}) {
+    if (userId) {
+      const targetUserIds = new Set<string>([userId]);
+      try {
+        const [cit] = await db
+          .select({ id: citizens.id, userId: citizens.userId })
+          .from(citizens)
+          .where(or(eq(citizens.id, userId), eq(citizens.userId, userId)));
+        if (cit) {
+          if (cit.id) targetUserIds.add(cit.id);
+          if (cit.userId) targetUserIds.add(cit.userId);
+        }
+        const [law] = await db
+          .select({ id: lawyers.id, userId: lawyers.userId })
+          .from(lawyers)
+          .where(or(eq(lawyers.id, userId), eq(lawyers.userId, userId)));
+        if (law) {
+          if (law.id) targetUserIds.add(law.id);
+          if (law.userId) targetUserIds.add(law.userId);
+        }
+      } catch (err) {
+        console.warn("[NotificationService] getDeviceTokens ID lookup:", err);
+      }
+      return db.select().from(fcmTokens).where(inArray(fcmTokens.userId, Array.from(targetUserIds)));
+    }
+    if (role && role !== "all") {
+      return db.select().from(fcmTokens).where(eq(fcmTokens.role, role));
+    }
+    return db.select().from(fcmTokens).orderBy(desc(fcmTokens.updatedAt));
   }
 
   /**

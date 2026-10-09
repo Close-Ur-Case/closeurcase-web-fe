@@ -6,7 +6,7 @@
  * and service worker message bridging for call accept actions.
  */
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, useCallback } from "react";
 import { useAuth } from "@/context/useAuth";
 import { useRegisterFcmTokenMutation } from "@/hooks/queries/useNotifications";
 import { getApiBaseUrl } from "@/services/apiClient";
@@ -69,37 +69,164 @@ export function getPushPermission(): NotificationPermission | "unsupported" {
   return Notification.permission;
 }
 
+export function detectDeviceType(): string {
+  if (typeof window === "undefined") return "web";
+  const isStandalone =
+    window.matchMedia("(display-mode: standalone)").matches ||
+    (window.navigator as any).standalone === true;
+  const isMobile = /Android|iPhone|iPad|iPod|Mobile/i.test(navigator.userAgent);
+  if (isStandalone) {
+    return isMobile ? "mobile_pwa" : "desktop_pwa";
+  }
+  return isMobile ? "mobile_web" : "web";
+}
+
 /** Registers this browser for push, once per signed-in session, and bridges
  * foreground push and service worker message events to the app context. */
-export function usePushNotifications(): {
-  permission: NotificationPermission | "unsupported";
-  requestPermission: () => Promise<NotificationPermission | "unsupported">;
-} {
+export function usePushNotifications() {
   const { isAuthenticated } = useAuth();
-  const { mutate: registerToken } = useRegisterFcmTokenMutation();
+  const { mutateAsync: registerTokenAsync } = useRegisterFcmTokenMutation();
   const [permission, setPermission] = useState<NotificationPermission | "unsupported">(getPushPermission);
+  const [deviceToken, setDeviceToken] = useState<string | null>(null);
+  const [isRegistering, setIsRegistering] = useState<boolean>(false);
+  const [registrationError, setRegistrationError] = useState<string | null>(null);
 
-  const requestPermission = async (): Promise<NotificationPermission | "unsupported"> => {
+  const isSupported =
+    typeof window !== "undefined" &&
+    "serviceWorker" in navigator &&
+    "Notification" in window &&
+    isFirebaseConfigured();
+
+  const isSecure = typeof window === "undefined" ? true : window.isSecureContext;
+
+  const registerPushToken = useCallback(async (): Promise<{ ok: boolean; token?: string; error?: string }> => {
+    if (typeof window === "undefined") return { ok: false, error: "Window undefined" };
+    if (!isFirebaseConfigured()) {
+      const err = "Firebase configuration missing";
+      setRegistrationError(err);
+      return { ok: false, error: err };
+    }
+    if (!("serviceWorker" in navigator) || !("Notification" in window)) {
+      const err = "Push notifications are not supported in this browser context (ServiceWorker or Notification API unavailable).";
+      setRegistrationError(err);
+      return { ok: false, error: err };
+    }
+    if (window.isSecureContext === false) {
+      const err = "Push notifications require a secure context (HTTPS or localhost). Current origin is insecure HTTP.";
+      setRegistrationError(err);
+      return { ok: false, error: err };
+    }
+
+    try {
+      setIsRegistering(true);
+      setRegistrationError(null);
+
+      // Check or request permission
+      let perm = Notification.permission;
+      if (perm !== "granted") {
+        perm = await Notification.requestPermission();
+        setPermission(perm);
+      }
+      if (perm !== "granted") {
+        setIsRegistering(false);
+        const err = `Notification permission: ${perm}`;
+        setRegistrationError(err);
+        return { ok: false, error: err };
+      }
+
+      const params = new URLSearchParams({
+        apiKey: FIREBASE_CONFIG.apiKey || "",
+        projectId: FIREBASE_CONFIG.projectId || "",
+        messagingSenderId: FIREBASE_CONFIG.messagingSenderId || "",
+        appId: FIREBASE_CONFIG.appId || "",
+        apiUrl: getApiBaseUrl(),
+      });
+
+      const swUrl = `/firebase-messaging-sw.js?${params.toString()}`;
+      const registration = await navigator.serviceWorker.register(swUrl, { scope: "/" });
+
+      // Ensure service worker is activated before requesting token to avoid registration race condition
+      if (!registration.active) {
+        const worker = registration.installing || registration.waiting;
+        if (worker) {
+          await new Promise<void>((resolve) => {
+            worker.addEventListener("statechange", () => {
+              if (worker.state === "activated" || worker.state === "redundant") resolve();
+            });
+            setTimeout(resolve, 3000);
+          });
+        }
+      }
+
+      const { initializeApp, getApps } = await import("firebase/app");
+      const { getMessaging, getToken, onMessage } = await import("firebase/messaging");
+
+      const app = getApps().length > 0 ? getApps()[0] : initializeApp(FIREBASE_CONFIG as Record<string, string>);
+      const messaging = getMessaging(app);
+
+      const tokenOptions: { serviceWorkerRegistration: ServiceWorkerRegistration; vapidKey?: string } = {
+        serviceWorkerRegistration: registration,
+      };
+      if (VAPID_KEY) {
+        tokenOptions.vapidKey = VAPID_KEY;
+      }
+
+      const token = await getToken(messaging, tokenOptions);
+      if (!token) {
+        throw new Error("Unable to obtain FCM registration token from Firebase");
+      }
+
+      const devType = detectDeviceType();
+      await registerTokenAsync({ deviceToken: token, deviceType: devType });
+
+      setDeviceToken(token);
+      setIsRegistering(false);
+
+      // Foreground Message Listener
+      onMessage(messaging, (payload) => {
+        const data = payload?.data;
+        if (!data) return;
+
+        if (data.type === "incoming_call") {
+          window.dispatchEvent(new CustomEvent("cuc:incoming_call", { detail: data }));
+        } else if (data.type === "call_cancelled" || data.type === "call_ended") {
+          window.dispatchEvent(new CustomEvent("cuc:call_cancelled", { detail: data }));
+        } else {
+          window.dispatchEvent(new CustomEvent("cuc:notification", { detail: payload }));
+        }
+      });
+
+      return { ok: true, token };
+    } catch (err: any) {
+      const msg = err?.message || String(err);
+      console.warn("[usePushNotifications] Registration failed:", err);
+      setRegistrationError(msg);
+      setIsRegistering(false);
+      return { ok: false, error: msg };
+    }
+  }, [registerTokenAsync]);
+
+  const requestPermission = useCallback(async (): Promise<NotificationPermission | "unsupported"> => {
     if (typeof window === "undefined" || !("Notification" in window)) {
       return "unsupported";
     }
     try {
       const res = await Notification.requestPermission();
       setPermission(res);
+      if (res === "granted") {
+        await registerPushToken();
+      }
       return res;
     } catch {
       return "unsupported";
     }
-  };
+  }, [registerPushToken]);
 
   useEffect(() => {
     if (!isAuthenticated) return;
     if (!isFirebaseConfigured()) return;
     if (typeof window === "undefined") return;
     if (!("serviceWorker" in navigator) || !("Notification" in window)) return;
-    if (Notification.permission === "denied") return;
-
-    let cancelled = false;
 
     // Bridge incoming messages from the service worker (e.g. user clicked "Accept" on push notification)
     const handleSwMessage = (event: MessageEvent) => {
@@ -109,68 +236,25 @@ export function usePushNotifications(): {
     };
     navigator.serviceWorker.addEventListener("message", handleSwMessage);
 
-    (async () => {
-      try {
-        const perm =
-          Notification.permission === "granted"
-            ? "granted"
-            : await Notification.requestPermission();
-        setPermission(perm);
-        if (cancelled || perm !== "granted") return;
-
-        const params = new URLSearchParams({
-          apiKey: FIREBASE_CONFIG.apiKey || "",
-          projectId: FIREBASE_CONFIG.projectId || "",
-          messagingSenderId: FIREBASE_CONFIG.messagingSenderId || "",
-          appId: FIREBASE_CONFIG.appId || "",
-          apiUrl: getApiBaseUrl(),
-        });
-
-        const registration = await navigator.serviceWorker.register(
-          `/firebase-messaging-sw.js?${params.toString()}`,
-        );
-
-        const { initializeApp, getApps } = await import("firebase/app");
-        const { getMessaging, getToken, onMessage } = await import("firebase/messaging");
-
-        const app = getApps().length > 0 ? getApps()[0] : initializeApp(FIREBASE_CONFIG as Record<string, string>);
-        const messaging = getMessaging(app);
-
-        const tokenOptions: { serviceWorkerRegistration: ServiceWorkerRegistration; vapidKey?: string } = {
-          serviceWorkerRegistration: registration,
-        };
-        if (VAPID_KEY) {
-          tokenOptions.vapidKey = VAPID_KEY;
-        }
-
-        const deviceToken = await getToken(messaging, tokenOptions);
-
-        if (cancelled || !deviceToken) return;
-        registerToken({ deviceToken, deviceType: "web" });
-
-        // Foreground Message Listener
-        onMessage(messaging, (payload) => {
-          const data = payload?.data;
-          if (!data) return;
-
-          if (data.type === "incoming_call") {
-            window.dispatchEvent(new CustomEvent("cuc:incoming_call", { detail: data }));
-          } else if (data.type === "call_cancelled" || data.type === "call_ended") {
-            window.dispatchEvent(new CustomEvent("cuc:call_cancelled", { detail: data }));
-          } else {
-            window.dispatchEvent(new CustomEvent("cuc:notification", { detail: payload }));
-          }
-        });
-      } catch (err) {
-        console.warn("[usePushNotifications] Registration skipped:", err);
-      }
-    })();
+    // If permission was already granted previously, automatically register/refresh the token
+    if (Notification.permission === "granted") {
+      registerPushToken().catch(() => {});
+    }
 
     return () => {
-      cancelled = true;
       navigator.serviceWorker.removeEventListener("message", handleSwMessage);
     };
-  }, [isAuthenticated, registerToken]);
+  }, [isAuthenticated, registerPushToken]);
 
-  return { permission, requestPermission };
+  return {
+    permission,
+    requestPermission,
+    registerPushToken,
+    deviceToken,
+    isRegistering,
+    registrationError,
+    isSupported,
+    isSecure,
+    deviceType: detectDeviceType(),
+  };
 }

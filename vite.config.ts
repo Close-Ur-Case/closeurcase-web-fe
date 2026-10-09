@@ -38,7 +38,7 @@ export default defineConfig({
     tailwindcss(),
     VitePWA({
       registerType: "autoUpdate",
-      devOptions: { enabled: true },
+      devOptions: { enabled: false },
       includeAssets: ["logo_nobg.png", "firebase-messaging-sw.js"],
       manifest: {
         name: "CloseUrCase — AI-powered legal case management",
@@ -55,6 +55,7 @@ export default defineConfig({
         ],
       },
       workbox: {
+        importScripts: ["/firebase-messaging-sw.js"],
         globPatterns: ["**/*.{js,css,html,ico,png,svg,jpeg,jpg}"],
         maximumFileSizeToCacheInBytes: 5 * 1024 * 1024,
       },

@@ -22,9 +22,22 @@ export class ApiError extends Error {
 }
 
 export const getApiBaseUrl = (): string => {
-  const url = import.meta.env.VITE_API_URL as string | undefined;
-  if (url) return url.replace(/\/+$/, "");
-  return "http://localhost:8000/api/v1";
+  let url = (import.meta.env.VITE_API_URL as string | undefined) || "http://localhost:8000/api/v1";
+  url = url.replace(/\/+$/, "");
+
+  // If accessed from a mobile device or LAN client, replace localhost with the actual host
+  if (
+    typeof window !== "undefined" &&
+    window.location.hostname &&
+    window.location.hostname !== "localhost" &&
+    window.location.hostname !== "127.0.0.1"
+  ) {
+    url = url
+      .replace("//localhost:", `//${window.location.hostname}:`)
+      .replace("//127.0.0.1:", `//${window.location.hostname}:`);
+  }
+
+  return url;
 };
 
 export const getStoredToken = (): string | null => {

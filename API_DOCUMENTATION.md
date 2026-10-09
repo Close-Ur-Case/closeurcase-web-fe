@@ -74,7 +74,7 @@ Authorization: Bearer <JWT_ACCESS_TOKEN>
 | 14 | **Payments** | `/v1/payments/*` | 5 | Razorpay order creation, payment signature verification, and webhook handler. |
 | 15 | **Subscriptions** | `/v1/subscriptions/*` | 5 | Advocate SaaS subscription plans, activation, and status tracking. |
 | 16 | **Withdrawals** | `/v1/withdrawals/*` | 5 | Advocate balance withdrawals, payout summary, and admin approval/rejection. |
-| 17 | **Notifications** | `/v1/notifications/*` | 4 | In-app alerts, FCM push tokens, unread counters, and mark-as-read. |
+| 17 | **Notifications** | `/v1/notifications/*` | 5 | In-app alerts, FCM push tokens, admin broadcast dispatch, and mark-as-read. |
 | 18 | **Storage** | `/v1/storage/*` | 3 | Presigned upload/download URLs for case documents, avatars, and ID proofs. |
 | 19 | **Support** | `/v1/support/*` | 3 | Contact inquiries and customer assistance ticket workflow. |
 | 20 | **AI Assistant** | `/v1/ai/*` | 9 | Statutory merit analysis, precedents, document summarization, legal QA, counter-arguments. |
@@ -447,6 +447,63 @@ Authorization: Bearer <JWT_ACCESS_TOKEN>
 #### `GET /v1/ecourts/cases/:cnr`
 - **Summary**: Generates standard Indian eCourts case dockets on-the-fly based on 16-character alphanumeric CNR.
 - **Path Parameter**: `cnr` (e.g. `TSHC010022112026`).
+
+---
+
+### Module 10: Notifications & FCM Push Messaging (`/v1/notifications/*`)
+
+#### `POST /v1/notifications/send`
+- **Summary**: Dispatches real-time Firebase Cloud Messaging (FCM) web push notification and creates an in-app alert row in PostgreSQL (Admin).
+- **Security**: Bearer JWT / Admin Session.
+- **Request Body**:
+  ```json
+  {
+    "role": "citizen",
+    "userId": "30ca823d-89ea-4da5-a660-1e63c6c897a5",
+    "title": "Important Hearing Update",
+    "message": "Your case docket hearing date has been scheduled for tomorrow at 10:30 AM."
+  }
+  ```
+- **Response `201`**:
+  ```json
+  {
+    "success": true,
+    "statusCode": 201,
+    "message": "Push notification sent successfully",
+    "data": {
+      "id": "n_1791537106100",
+      "userId": "30ca823d-89ea-4da5-a660-1e63c6c897a5",
+      "role": "citizen",
+      "title": "Important Hearing Update",
+      "body": "Your case docket hearing date has been scheduled for tomorrow at 10:30 AM.",
+      "at": "2026-10-09T09:11:46.100Z",
+      "read": false,
+      "createdAt": "2026-10-09T09:11:46.437Z"
+    }
+  }
+  ```
+
+#### `POST /v1/notifications/register-token`
+- **Summary**: Registers a browser or mobile PWA FCM device token for push notifications.
+- **Request Body**:
+  ```json
+  {
+    "deviceToken": "cOtiii7ea96Ixy1aiyj6bQ:APA91bFm3vEwBaqRkyTTZcCe1l...",
+    "deviceType": "web"
+  }
+  ```
+
+#### `GET /v1/notifications`
+- **Summary**: Returns in-app alert notifications for the authenticated user or specified role.
+- **Query Parameters**:
+  - `role` *(string, optional)*: `citizen`, `lawyer`, `admin`.
+  - `limit` *(number, optional)*: Max records to return (default 50).
+
+#### `PATCH /v1/notifications/:id/read`
+- **Summary**: Marks a single notification alert as read.
+
+#### `POST /v1/notifications/mark-all-read`
+- **Summary**: Marks all notifications as read for a given role or user.
 
 ---
 

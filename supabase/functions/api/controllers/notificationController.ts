@@ -38,6 +38,13 @@ export async function unregisterFcmToken(c: Context) {
   return ApiResponse.success(c, null, "FCM device token unregistered successfully");
 }
 
+export async function getDeviceTokens(c: Context) {
+  const userId = c.req.query("userId");
+  const role = c.req.query("role");
+  const result = await NotificationService.getDeviceTokens({ userId, role });
+  return ApiResponse.success(c, result, "Device tokens retrieved successfully");
+}
+
 export async function getNotifications(c: Context) {
   const role = c.req.query("role");
   const limit = Number(c.req.query("limit") || "50");
@@ -56,3 +63,20 @@ export async function markAllAsRead(c: Context) {
   await NotificationService.markAllAsRead(role);
   return ApiResponse.success(c, null, "All notifications marked as read");
 }
+
+export async function sendPushNotification(c: Context) {
+  const body = await c.req.json();
+  const { role, userId, title, message } = body;
+  if (!title?.trim()) throw ApiError.badRequest("Title is required");
+  if (!message?.trim()) throw ApiError.badRequest("Message is required");
+
+  const notif = await NotificationService.createInAppNotification({
+    userId: userId || null,
+    role: role || "all",
+    title: title.trim(),
+    body: message.trim(),
+  });
+
+  return ApiResponse.created(c, notif, "Push notification sent successfully");
+}
+
